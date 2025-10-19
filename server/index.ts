@@ -1,6 +1,7 @@
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { ClientToServerEvents, ServerToClientEvents } from '../src/types/socket.types';
+import { gameRedis } from '../src/lib/services/redis';
 
 const PORT = process.env.PORT || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
@@ -31,18 +32,18 @@ io.on('connection', (socket) => {
   console.log(`🔌 Cliente conectado: ${socket.id}`);
 
   // Player join event
-  socket.on('player:join', (data) => {
+  socket.on('player:join', async (data) => {
     console.log(`👤 Jugador ${data.username} se unió al mundo ${data.worldId}`);
     
     // Add player to the room for the specific world
     socket.join(data.worldId);
     
-    // Store player data
+    // Store player data in Redis
     const player = {
       id: socket.id,
       username: data.username,
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
+      position: JSON.stringify({ x: 0, y: 0, z: 0 }),
+      rotation: JSON.stringify({ x: 0, y: 0, z: 0 }),
       health: 100,
       maxHealth: 100,
       stamina: 100,
@@ -51,10 +52,21 @@ io.on('connection', (socket) => {
       experience: 0,
       worldId: data.worldId,
       isOnline: true,
-      lastSeen: new Date(),
+      lastSeen: Date.now(),
+      lastUpdate: Date.now(),
     };
     
-    players.set(socket.id, player);
+    // Store in Redis
+    await gameRedis.addPlayer(socket.id, player);
+    await gameRedis.joinRoom(data.worldId, socket.id);
+    
+    // Also store locally for quick access
+    players.set(socket.id, { 
+      ...player, 
+      position: JSON.parse(player.position), 
+      rotation: JSON.parse(player.rotation),
+      lastSeen: new Date(player.lastSeen)
+    });
     
     // Add to world
     if (!worlds.has(data.worldId)) {
@@ -62,15 +74,22 @@ io.on('connection', (socket) => {
     }
     worlds.get(data.worldId)?.add(socket.id);
     
-    // Get all players in the world
-    const worldPlayers = Array.from(worlds.get(data.worldId) || [])
-      .map(playerId => players.get(playerId))
-      .filter(Boolean);
+    // Get all players in the world from Redis
+    const worldPlayers = await gameRedis.getAllPlayers();
+    const filteredPlayers = worldPlayers.filter((p: any) => p.worldId === data.worldId);
+    
+    // Get map decorations from Redis
+    const mapDecorations = await gameRedis.getMapDecorations(data.worldId);
     
     // Broadcast to all players in the world
     socket.to(data.worldId).emit('player:joined', {
-      player,
-      players: worldPlayers,
+      player: { ...player, position: JSON.parse(player.position), rotation: JSON.parse(player.rotation), lastSeen: new Date(player.lastSeen) },
+      players: filteredPlayers.map((p: any) => ({ 
+        ...p, 
+        position: JSON.parse(p.position), 
+        rotation: JSON.parse(p.rotation),
+        lastSeen: new Date(p.lastSeen)
+      })),
     });
     
     // Send current world state to the new player
@@ -80,7 +99,7 @@ io.on('connection', (socket) => {
         name: 'Hotel Humboldt',
         type: 'hotel',
         maxPlayers: 50,
-        currentPlayers: worldPlayers.length + 1,
+        currentPlayers: filteredPlayers.length + 1,
         spawnPoint: { x: 0, y: 0, z: 0 },
         bounds: {
           min: { x: -100, y: 0, z: -100 },
@@ -89,18 +108,30 @@ io.on('connection', (socket) => {
         isActive: true,
         createdAt: new Date(),
       },
-      players: worldPlayers,
-      objects: [],
+      players: filteredPlayers.map((p: any) => ({ 
+        ...p, 
+        position: JSON.parse(p.position), 
+        rotation: JSON.parse(p.rotation),
+        lastSeen: new Date(p.lastSeen)
+      })),
+      objects: mapDecorations, // Decoraciones del mapa desde Redis
     });
+
+    // Update server stats
+    await gameRedis.incrementServerStats('players_joined');
   });
 
   // Player movement event
-  socket.on('player:move', (data) => {
+  socket.on('player:move', async (data) => {
     const player = players.get(socket.id);
     if (player) {
-      // Update player position
+      // Update player position in Redis
+      await gameRedis.updatePlayerPosition(socket.id, data.position);
+      
+      // Update local player data
       player.position = data.position;
       player.rotation = data.rotation;
+      player.lastUpdate = Date.now();
       
       // Broadcast movement to other players in the same world
       socket.to(player.worldId).emit('player:moved', {
@@ -185,24 +216,38 @@ io.on('connection', (socket) => {
   });
 
   // Player disconnect event
-  socket.on('disconnect', (reason) => {
+  socket.on('disconnect', async (reason) => {
     console.log(`🔌 Cliente desconectado: ${socket.id}, razón: ${reason}`);
     
     const player = players.get(socket.id);
     if (player) {
+      // Remove from Redis
+      await gameRedis.removePlayer(socket.id);
+      await gameRedis.leaveRoom(player.worldId, socket.id);
+      
       // Remove from world
       worlds.get(player.worldId)?.delete(socket.id);
       
       // Remove player
       players.delete(socket.id);
       
+      // Get remaining players from Redis
+      const remainingPlayers = await gameRedis.getAllPlayers();
+      const worldPlayers = remainingPlayers.filter((p: any) => p.worldId === player.worldId);
+      
       // Broadcast player left to all players in the world
       socket.to(player.worldId).emit('player:left', {
         playerId: socket.id,
-        players: Array.from(worlds.get(player.worldId) || [])
-          .map(playerId => players.get(playerId))
-          .filter(Boolean),
+        players: worldPlayers.map((p: any) => ({ 
+          ...p, 
+          position: JSON.parse(p.position), 
+          rotation: JSON.parse(p.rotation),
+          lastSeen: new Date(p.lastSeen)
+        })),
       });
+      
+      // Update server stats
+      await gameRedis.incrementServerStats('players_left');
     }
   });
 
@@ -217,7 +262,18 @@ httpServer.listen(PORT, () => {
   console.log(`🚀 Servidor Socket.IO ejecutándose en puerto ${PORT}`);
   console.log(`🌐 Cliente URL: ${CLIENT_URL}`);
   console.log(`📡 WebSocket disponible en: ws://localhost:${PORT}`);
+  console.log(`🔴 Redis conectado a Upstash`);
 });
+
+// Cleanup expired data every 5 minutes
+setInterval(async () => {
+  try {
+    await gameRedis.cleanupExpiredData();
+    console.log('🧹 Limpieza de datos expirados completada');
+  } catch (error) {
+    console.error('❌ Error en limpieza de datos:', error);
+  }
+}, 5 * 60 * 1000); // 5 minutes
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
