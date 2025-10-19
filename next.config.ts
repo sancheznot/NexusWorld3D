@@ -5,9 +5,7 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL,
   },
-  experimental: {
-    serverComponentsExternalPackages: ['@upstash/redis'],
-  },
+  serverExternalPackages: ['@upstash/redis'],
   // Para Railway - permitir todas las rutas
   async rewrites() {
     return [

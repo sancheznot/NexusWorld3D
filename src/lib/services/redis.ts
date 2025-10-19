@@ -1,19 +1,35 @@
 import { Redis } from '@upstash/redis';
 
-// Configuración de Redis para Upstash
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+// Variable para almacenar la instancia de Redis
+let redis: Redis | null = null;
 
-export default redis;
+// Función para obtener la instancia de Redis (lazy initialization)
+function getRedis(): Redis {
+  if (!redis) {
+    const url = process.env.UPSTASH_REDIS_REST_URL;
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+    
+    if (!url || !token) {
+      throw new Error('Redis credentials not found. Please check your .env.local file.');
+    }
+    
+    redis = new Redis({
+      url: url,
+      token: token,
+    });
+  }
+  
+  return redis;
+}
+
+export default getRedis;
 
 // Funciones helper para el juego
 export class GameRedis {
   private redis: Redis;
 
   constructor() {
-    this.redis = redis;
+    this.redis = getRedis();
   }
 
   // Jugadores online
@@ -168,4 +184,35 @@ export class GameRedis {
   }
 }
 
-export const gameRedis = new GameRedis();
+// Crear instancia global de forma lazy
+let gameRedisInstance: GameRedis | null = null;
+
+export function getGameRedis(): GameRedis {
+  if (!gameRedisInstance) {
+    gameRedisInstance = new GameRedis();
+  }
+  return gameRedisInstance;
+}
+
+// Para compatibilidad con el código existente
+export const gameRedis = {
+  addPlayer: (...args: any[]) => getGameRedis().addPlayer(...args),
+  removePlayer: (...args: any[]) => getGameRedis().removePlayer(...args),
+  getPlayer: (...args: any[]) => getGameRedis().getPlayer(...args),
+  getAllPlayers: (...args: any[]) => getGameRedis().getAllPlayers(...args),
+  addChatMessage: (...args: any[]) => getGameRedis().addChatMessage(...args),
+  getChatMessages: (...args: any[]) => getGameRedis().getChatMessages(...args),
+  saveWorldState: (...args: any[]) => getGameRedis().saveWorldState(...args),
+  getWorldState: (...args: any[]) => getGameRedis().getWorldState(...args),
+  saveMapDecorations: (...args: any[]) => getGameRedis().saveMapDecorations(...args),
+  getMapDecorations: (...args: any[]) => getGameRedis().getMapDecorations(...args),
+  updatePlayerPosition: (...args: any[]) => getGameRedis().updatePlayerPosition(...args),
+  getPlayerPosition: (...args: any[]) => getGameRedis().getPlayerPosition(...args),
+  createRoom: (...args: any[]) => getGameRedis().createRoom(...args),
+  joinRoom: (...args: any[]) => getGameRedis().joinRoom(...args),
+  leaveRoom: (...args: any[]) => getGameRedis().leaveRoom(...args),
+  getRoomPlayers: (...args: any[]) => getGameRedis().getRoomPlayers(...args),
+  incrementServerStats: (...args: any[]) => getGameRedis().incrementServerStats(...args),
+  getServerStats: (...args: any[]) => getGameRedis().getServerStats(...args),
+  cleanupExpiredData: (...args: any[]) => getGameRedis().cleanupExpiredData(...args),
+};

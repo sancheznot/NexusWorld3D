@@ -1,6 +1,12 @@
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { ClientToServerEvents, ServerToClientEvents } from '../src/types/socket.types';
+import dotenv from 'dotenv';
+
+// Cargar variables de entorno PRIMERO
+dotenv.config({ path: '.env.local' });
+
+// Importar Redis DESPUÉS de cargar las variables
 import { gameRedis } from '../src/lib/services/redis';
 
 const PORT = process.env.PORT || 3001;
@@ -103,8 +109,8 @@ io.on('connection', (socket) => {
       player: { ...player, position: JSON.parse(player.position), rotation: JSON.parse(player.rotation), lastSeen: new Date(player.lastSeen) },
       players: filteredPlayers.map((p: any) => ({ 
         ...p, 
-        position: JSON.parse(p.position), 
-        rotation: JSON.parse(p.rotation),
+        position: typeof p.position === 'string' ? JSON.parse(p.position) : p.position, 
+        rotation: typeof p.rotation === 'string' ? JSON.parse(p.rotation) : p.rotation,
         lastSeen: new Date(p.lastSeen)
       })),
     });
@@ -127,8 +133,8 @@ io.on('connection', (socket) => {
       },
       players: filteredPlayers.map((p: any) => ({ 
         ...p, 
-        position: JSON.parse(p.position), 
-        rotation: JSON.parse(p.rotation),
+        position: typeof p.position === 'string' ? JSON.parse(p.position) : p.position, 
+        rotation: typeof p.rotation === 'string' ? JSON.parse(p.rotation) : p.rotation,
         lastSeen: new Date(p.lastSeen)
       })),
       objects: mapDecorations, // Decoraciones del mapa desde Redis
@@ -257,8 +263,8 @@ io.on('connection', (socket) => {
         playerId: socket.id,
         players: worldPlayers.map((p: any) => ({ 
           ...p, 
-          position: JSON.parse(p.position), 
-          rotation: JSON.parse(p.rotation),
+          position: typeof p.position === 'string' ? JSON.parse(p.position) : p.position, 
+          rotation: typeof p.rotation === 'string' ? JSON.parse(p.rotation) : p.rotation,
           lastSeen: new Date(p.lastSeen)
         })),
       });

@@ -19,6 +19,7 @@
     "@types/three": "^0.180.0",
     "@upstash/redis": "^1.35.6",
     "cannon-es": "^0.20.0",
+    "dotenv": "^17.2.3",
     "next": "15.5.6",
     "react": "19.1.0",
     "react-dom": "19.1.0",
