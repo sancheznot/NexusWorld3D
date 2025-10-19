@@ -15,9 +15,10 @@ interface MovementInput {
 }
 
 export function useAdvancedMovement(enabled: boolean = true) {
-  const { setMoving, setRunning } = usePlayerStore();
+  const { setMoving, setRunning, rotation: playerRotation } = usePlayerStore();
   const keysRef = useRef<Set<string>>(new Set());
-  const { getCameraState } = useMouseCamera(enabled);
+  const { getCameraState, setCameraState } = useMouseCamera(enabled);
+  const playerRotationRef = useRef(playerRotation.y);
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     const key = event.key.toLowerCase();
@@ -38,40 +39,50 @@ export function useAdvancedMovement(enabled: boolean = true) {
     if (!enabled) {
       setMoving(false);
       setRunning(false);
-      const cameraState = getCameraState();
-      return { x: 0, z: 0, rotation: cameraState.horizontal, isRunning: false, isJumping: false, jumpType: null };
+      return { x: 0, z: 0, rotation: playerRotationRef.current, isRunning: false, isJumping: false, jumpType: null };
     }
 
-    // 1) Leer teclas como "intenciones" (adelante/atrás y strafe)
-    let fb = 0;      // forward/back
-    let strafe = 0;  // left/right
-    if (keys.has('w')) fb += 1;
-    if (keys.has('s')) fb -= 1;
-    if (keys.has('a')) strafe -= 1;
-    if (keys.has('d')) strafe += 1;
+    // NUEVO SISTEMA DE CONTROLES TIPO "TANK":
+    // A/D rotan al personaje
+    // W/S mueven adelante/atrás en la dirección del personaje
+    
+    const rotationSpeed = 0.05; // Velocidad de rotación
+    let currentRotation = playerRotationRef.current;
 
-    const cameraState = getCameraState();
-    const yaw = cameraState.horizontal;
+    // 1) Rotar con A/D (invertido para que coincida con la cámara)
+    if (keys.has('a')) {
+      currentRotation += rotationSpeed;  // A rota a la izquierda (positivo)
+    }
+    if (keys.has('d')) {
+      currentRotation -= rotationSpeed;  // D rota a la derecha (negativo)
+    }
 
-    // 2) Construir forward/right relativos a la cámara (plano XZ)
-    const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));            // hacia donde mira la cámara
-    const right   = new THREE.Vector3(Math.sin(yaw + Math.PI/2), 0, Math.cos(yaw + Math.PI/2));
+    // Actualizar la rotación del personaje
+    playerRotationRef.current = currentRotation;
 
-    // 3) Vector de movimiento en mundo (sin mutar los vectores originales)
+    // 2) Movimiento adelante/atrás con W/S
+    let forwardMovement = 0;
+    if (keys.has('w')) forwardMovement = 1;
+    if (keys.has('s')) forwardMovement = -1;
+
+    // 3) Calcular vector de movimiento basado en la rotación del personaje
     const move = new THREE.Vector3();
-    move.addScaledVector(forward, fb);
-    move.addScaledVector(right, strafe);
-
-    // 4) Normalizar si hace falta
-    if (move.lengthSq() > 1e-6) move.normalize();
-
-    // 5) Rotación del jugador hacia su vector de movimiento (si hay)
-    let rotation = yaw; // por defecto, mirando hacia donde mira la cámara
-    if (move.lengthSq() > 1e-6) {
-      rotation = Math.atan2(move.x, move.z); // ojo: atan2(x,z) en XZ
+    if (forwardMovement !== 0) {
+      // El personaje se mueve en la dirección que está mirando
+      move.x = Math.sin(currentRotation) * forwardMovement;
+      move.z = Math.cos(currentRotation) * forwardMovement;
     }
 
-    // 6) Correr / saltar
+    // 4) Actualizar la cámara para que siga al personaje
+    const cameraState = getCameraState();
+    const cameraOffset = cameraState.horizontal - currentRotation;
+    
+    // Mantener la cámara detrás del personaje con un offset suave
+    if (Math.abs(cameraOffset) > 0.1) {
+      setCameraState({ horizontal: currentRotation });
+    }
+
+    // 5) Correr / saltar
     const isRunning = keys.has('shift');
     let isJumping = false;
     let jumpType: MovementInput['jumpType'] = null;
@@ -82,25 +93,30 @@ export function useAdvancedMovement(enabled: boolean = true) {
       else                                     jumpType = 'normal';
     }
 
-    // 7) Devolver X/Z EN MUNDO (no en cámara): cannon los usa directo
-    const isMovingNow = move.lengthSq() > 1e-6;
+    // 6) Actualizar estados
+    const isMovingNow = forwardMovement !== 0;
     setMoving(isMovingNow);
     setRunning(isRunning);
 
     // Debug
-    if (isMovingNow || isJumping) {
-      console.log(`🎮 Movement: fb=${fb}, strafe=${strafe}, move=(${move.x.toFixed(2)}, ${move.z.toFixed(2)}), yaw=${yaw.toFixed(2)}, rotation=${rotation.toFixed(2)}`);
+    if (isMovingNow || isJumping || keys.has('a') || keys.has('d')) {
+      console.log(`🎮 Tank Controls: forward=${forwardMovement}, rotation=${currentRotation.toFixed(2)}, move=(${move.x.toFixed(2)}, ${move.z.toFixed(2)})`);
     }
 
     return {
       x: move.x,
       z: move.z,
-      rotation,
+      rotation: currentRotation,
       isRunning,
       isJumping,
       jumpType
     };
-  }, [enabled, setMoving, setRunning, getCameraState]);
+  }, [enabled, setMoving, setRunning, getCameraState, setCameraState]);
+
+  // Sincronizar la rotación del personaje desde el store
+  useEffect(() => {
+    playerRotationRef.current = playerRotation.y;
+  }, [playerRotation.y]);
 
   useEffect(() => {
     console.log(`🎮 Configurando event listeners, enabled: ${enabled}`);

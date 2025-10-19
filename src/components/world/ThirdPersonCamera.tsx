@@ -39,10 +39,11 @@ export default function ThirdPersonCamera({ target: _target }: ThirdPersonCamera
     const smooth = smoothness;
 
     const horizontalDist = baseDistance * Math.cos(pitch);
+    // Cámara DETRÁS del personaje: restar el offset en lugar de sumar
     const camOffset = new THREE.Vector3(
-      Math.sin(yaw) * horizontalDist,
+      -Math.sin(yaw) * horizontalDist,  // Negativo para estar detrás
       height + baseDistance * Math.sin(pitch),
-      Math.cos(yaw) * horizontalDist
+      -Math.cos(yaw) * horizontalDist   // Negativo para estar detrás
     );
 
     const target = p.clone().add(camOffset);

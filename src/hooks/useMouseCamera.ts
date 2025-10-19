@@ -7,8 +7,8 @@ interface CameraState {
   vertical: number;
 }
 
-// Singleton compartido
-const cameraStateGlobal = { horizontal: 0, vertical: 0 };
+// Singleton compartido - inicializar con el personaje mirando hacia atrás (180°)
+const cameraStateGlobal = { horizontal: Math.PI, vertical: 0 };
 let listenersBound = false;
 let isMouseDown = false;
 let lastMousePosition = { x: 0, y: 0 };

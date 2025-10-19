@@ -60,7 +60,7 @@ const initialState: Player = {
   id: '',
   username: '',
   position: { x: 0, y: 0.5, z: 0 },
-  rotation: { x: 0, y: 0, z: 0 },
+  rotation: { x: 0, y: Math.PI, z: 0 }, // Inicia mirando hacia adelante (180° en radianes)
   health: 100,
   maxHealth: 100,
   stamina: 100,
@@ -79,7 +79,7 @@ export const usePlayerStore = create<PlayerState>()(
       player: null,
       isOnline: false,
       position: { x: 0, y: 0.5, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: Math.PI, z: 0 }, // Inicia mirando hacia adelante (180° en radianes)
       velocity: { x: 0, y: 0, z: 0 },
       isMoving: false,
       isRunning: false,
@@ -234,7 +234,7 @@ export const usePlayerStore = create<PlayerState>()(
           player: null,
           isOnline: false,
           position: { x: 0, y: 0.5, z: 0 },
-          rotation: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: Math.PI, z: 0 }, // Inicia mirando hacia adelante (180° en radianes)
           velocity: { x: 0, y: 0, z: 0 },
           isMoving: false,
           isRunning: false,
