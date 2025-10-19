@@ -20,7 +20,7 @@ export class CollisionSystem {
     const correctedPosition = playerPosition.clone();
     
     // Manejar colisiones con el terreno (suelo)
-    const groundLevel = 1; // Nivel del suelo (terreno está en Y=0, jugador en Y=1)
+    const groundLevel = 0.5; // Nivel del suelo (terreno está en Y=-0.5, jugador en Y=0.5)
     
     // Si el jugador está por debajo del suelo, ponerlo en el suelo
     if (correctedPosition.y < groundLevel) {

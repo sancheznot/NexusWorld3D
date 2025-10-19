@@ -59,7 +59,7 @@ const initialStats: PlayerStats = {
 const initialState: Player = {
   id: '',
   username: '',
-  position: { x: 0, y: 2, z: 0 },
+  position: { x: 0, y: 0.5, z: 0 },
   rotation: { x: 0, y: 0, z: 0 },
   health: 100,
   maxHealth: 100,
@@ -78,7 +78,7 @@ export const usePlayerStore = create<PlayerState>()(
       // Initial state
       player: null,
       isOnline: false,
-      position: { x: 0, y: 2, z: 0 },
+      position: { x: 0, y: 0.5, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
       velocity: { x: 0, y: 0, z: 0 },
       isMoving: false,
@@ -233,7 +233,7 @@ export const usePlayerStore = create<PlayerState>()(
         set({
           player: null,
           isOnline: false,
-          position: { x: 0, y: 2, z: 0 },
+          position: { x: 0, y: 0.5, z: 0 },
           rotation: { x: 0, y: 0, z: 0 },
           velocity: { x: 0, y: 0, z: 0 },
           isMoving: false,

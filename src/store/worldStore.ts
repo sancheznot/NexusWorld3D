@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
-import { World, WorldObject, Player } from '@/types/world.types';
+import { World, WorldObject } from '@/types/world.types';
+import { Player } from '@/types/player.types';
 
 interface WorldState {
   // Current world

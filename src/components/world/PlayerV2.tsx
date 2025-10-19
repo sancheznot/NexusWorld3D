@@ -4,7 +4,7 @@ import { useRef, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAdvancedMovement } from '@/hooks/useAdvancedMovement';
-import { PlayerPhysics } from '@/lib/three/physics';
+import { useCannonPhysics } from '@/hooks/useCannonPhysics';
 import { collisionSystem } from '@/lib/three/collisionSystem';
 import AnimatedCharacter from '@/components/world/AnimatedCharacter';
 import { useCharacterAnimation } from '@/hooks/useCharacterAnimation';
@@ -28,7 +28,6 @@ export default function PlayerV2({
   customization,
   username,
 }: PlayerProps) {
-  const physicsRef = useRef<PlayerPhysics>(new PlayerPhysics());
   const lastPositionRef = useRef(new THREE.Vector3(...position));
   const { scene } = useThree();
   
@@ -42,7 +41,9 @@ export default function PlayerV2({
   } = usePlayerStore();
 
   const { calculateMovementInput } = useAdvancedMovement(isCurrentPlayer && keyboardEnabled);
+  const physicsRef = useCannonPhysics();
   const [input, setInput] = useState({ x: 0, z: 0, rotation: 0, isRunning: false, isJumping: false, jumpType: null as 'normal' | 'running' | 'backflip' | null });
+  const [isTabVisible, setIsTabVisible] = useState(true);
   const currentAnimation = useCharacterAnimation(input.jumpType);
 
   const defaultCustomization: PlayerCustomization = {
@@ -66,30 +67,58 @@ export default function PlayerV2({
     }
   }, [isCurrentPlayer, scene, custom.modelType]);
 
+  // Detectar cambios de visibilidad de la pestaña
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsTabVisible(!document.hidden);
+      console.log(`👁️ Tab visibility: ${!document.hidden}`);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
   useFrame((state, delta) => {
-    if (isCurrentPlayer) {
+    if (isCurrentPlayer && physicsRef.current && isTabVisible) {
       // Calcular input en useFrame, no durante el renderizado
       const currentInput = calculateMovementInput();
       setInput(currentInput);
       
-      // Calcular nueva posición basada en input
-      const currentPos = new THREE.Vector3(playerPosition.x, playerPosition.y, playerPosition.z);
-      const isOnGround = currentPos.y <= 1.02; // Muy estricto - solo cuando está en el suelo
-      const velocity = physicsRef.current.update(delta, currentInput, isOnGround);
+      // Limitar delta para evitar aceleración cuando cambias de pestaña
+      const clampedDelta = Math.min(delta, 1/30); // Máximo 30 FPS
       
-      // Aplicar movimiento
-      currentPos.x += velocity.x * delta;
-      currentPos.z += velocity.z * delta;
-      currentPos.y += velocity.y * delta;
+      // Actualizar física de Cannon.js
+      if (physicsRef.current) {
+        physicsRef.current.update(clampedDelta);
+      }
       
-      // Aplicar colisiones (solo suelo)
-      const correctedPosition = collisionSystem.checkCollision(currentPos);
+      // Usar sistema de movimiento gradual
+      if (physicsRef.current) {
+        physicsRef.current.updateMovement({
+          x: currentInput.x,
+          z: currentInput.z,
+          isRunning: currentInput.isRunning
+        }, clampedDelta);
+      }
       
-      // Actualizar store con nueva posición
+      // Manejar saltos
+      if (currentInput.isJumping && physicsRef.current.isGrounded()) {
+        let jumpForce = 4;
+        if (currentInput.jumpType === 'running') jumpForce = 5;
+        else if (currentInput.jumpType === 'backflip') jumpForce = 6;
+        
+        physicsRef.current.jump(jumpForce);
+      }
+      
+      // Obtener posición y velocidad de Cannon.js
+      const cannonPosition = physicsRef.current.getPlayerPosition();
+      const cannonVelocity = physicsRef.current.getPlayerVelocity();
+      
+      // Usar posición directa de Cannon.js (sin colisiones por ahora)
       updatePosition({
-        x: correctedPosition.x,
-        y: correctedPosition.y,
-        z: correctedPosition.z,
+        x: cannonPosition.x,
+        y: cannonPosition.y,
+        z: cannonPosition.z,
       });
 
       // Actualizar estados de animación
@@ -97,15 +126,18 @@ export default function PlayerV2({
       setMoving(isMoving);
       setRunning(currentInput.isRunning);
 
-      // Rotar personaje hacia la dirección de movimiento (siempre, no solo cuando se mueve)
-      const targetRotation = currentInput.rotation;
-      updateRotation({ x: 0, y: targetRotation, z: 0 });
+      // Rotar personaje solo cuando se está moviendo
+      if (isMoving) {
+        const targetRotation = currentInput.rotation;
+        updateRotation({ x: 0, y: targetRotation, z: 0 });
+      }
 
-      const distance = correctedPosition.distanceTo(lastPositionRef.current);
+      const currentPosition = new THREE.Vector3(cannonPosition.x, cannonPosition.y, cannonPosition.z);
+      const distance = currentPosition.distanceTo(lastPositionRef.current);
       
-      if (distance > 0.1 || currentInput.isJumping || Math.abs(velocity.y) > 0.1) {
-        console.log(`🎮 Movimiento: pos=${correctedPosition.x.toFixed(2)}, ${correctedPosition.y.toFixed(2)}, ${correctedPosition.z.toFixed(2)}, vel=${velocity.x.toFixed(2)}, ${velocity.y.toFixed(2)}, ${velocity.z.toFixed(2)}, jump=${currentInput.isJumping}, jumpType=${currentInput.jumpType}, isOnGround=${isOnGround}`);
-        lastPositionRef.current.copy(correctedPosition);
+      if (distance > 0.1 || currentInput.isJumping || Math.abs(cannonVelocity.y) > 0.1) {
+        console.log(`🎮 Cannon Physics: pos=${cannonPosition.x.toFixed(2)}, ${cannonPosition.y.toFixed(2)}, ${cannonPosition.z.toFixed(2)}, vel=${cannonVelocity.x.toFixed(2)}, ${cannonVelocity.y.toFixed(2)}, ${cannonVelocity.z.toFixed(2)}, jump=${currentInput.isJumping}, jumpType=${currentInput.jumpType}, isGrounded=${physicsRef.current.isGrounded()}`);
+        lastPositionRef.current.copy(currentPosition);
       }
     }
   });

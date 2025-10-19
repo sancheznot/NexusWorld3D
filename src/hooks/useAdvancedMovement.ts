@@ -70,8 +70,8 @@ export function useAdvancedMovement(enabled: boolean = true) {
       isRunning = true;
     }
 
-    if (keys.has('w')) z -= 1;
-    if (keys.has('s')) z += 1;
+    if (keys.has('w')) z += 1;  // W = hacia atrás
+    if (keys.has('s')) z -= 1;  // S = hacia adelante
     if (keys.has('a')) x -= 1;
     if (keys.has('d')) x += 1;
 
@@ -86,7 +86,8 @@ export function useAdvancedMovement(enabled: boolean = true) {
     
     if (inputVector.length() > 0) {
       // Calcular el ángulo de la dirección de movimiento relativa a la cámara
-      rotation = Math.atan2(inputVector.x, inputVector.y) + cameraState.horizontal;
+      // W = -Z, S = +Z, A = -X, D = +X
+      rotation = Math.atan2(inputVector.x, -inputVector.y) + cameraState.horizontal;
     } else {
       // Si no hay movimiento, mantener la rotación actual
       rotation = cameraState.horizontal;

@@ -154,7 +154,7 @@ export default function GameCanvas() {
             {/* Hotel Humboldt - 80% del tamaño original */}
             <HotelHumboldt 
               position={[0, 0, -100]} 
-              scale={[8, 8, 8]} 
+              scale={[6, 6, 6]} 
               rotation={[0, 0, 0]} 
             />
             
