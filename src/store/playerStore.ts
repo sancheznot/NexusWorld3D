@@ -56,29 +56,13 @@ const initialStats: PlayerStats = {
   luck: 10,
 };
 
-const initialState: Player = {
-  id: '',
-  username: '',
-  position: { x: 0, y: 0.5, z: 0 },
-  rotation: { x: 0, y: Math.PI, z: 0 }, // Inicia mirando hacia adelante (180° en radianes)
-  health: 100,
-  maxHealth: 100,
-  stamina: 100,
-  maxStamina: 100,
-  level: 1,
-  experience: 0,
-  worldId: 'default',
-  isOnline: false,
-  lastSeen: new Date(),
-};
-
 export const usePlayerStore = create<PlayerState>()(
   devtools(
     (set, get) => ({
       // Initial state
       player: null,
       isOnline: false,
-      position: { x: 0, y: 0.5, z: 0 },
+      position: { x: 0, y: 1.05, z: 0 }, // Y=1.05 (ligeramente elevado para evitar rebotes)
       rotation: { x: 0, y: Math.PI, z: 0 }, // Inicia mirando hacia adelante (180° en radianes)
       velocity: { x: 0, y: 0, z: 0 },
       isMoving: false,
@@ -233,7 +217,7 @@ export const usePlayerStore = create<PlayerState>()(
         set({
           player: null,
           isOnline: false,
-          position: { x: 0, y: 0.5, z: 0 },
+          position: { x: 0, y: 1.05, z: 0 }, // Y=1.05 (ligeramente elevado para evitar rebotes)
           rotation: { x: 0, y: Math.PI, z: 0 }, // Inicia mirando hacia adelante (180° en radianes)
           velocity: { x: 0, y: 0, z: 0 },
           isMoving: false,

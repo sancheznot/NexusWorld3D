@@ -38,7 +38,9 @@ export class CannonPhysics {
       groundMaterial,
       {
         friction: 0.8, // Alta fricción
-        restitution: 0.0, // Sin rebote
+        restitution: 0.0, // SIN REBOTE
+        contactEquationStiffness: 1e8,
+        contactEquationRelaxation: 3,
       }
     );
     this.world.addContactMaterial(groundContactMaterial);
@@ -50,7 +52,9 @@ export class CannonPhysics {
       groundMaterial,
       {
         friction: 0.9, // Alta fricción entre jugador y suelo
-        restitution: 0.0, // Sin rebote
+        restitution: 0.0, // SIN REBOTE - CRÍTICO
+        contactEquationStiffness: 1e8, // Muy rígido para evitar penetración
+        contactEquationRelaxation: 3, // Relajación para estabilidad
       }
     );
     this.world.addContactMaterial(playerGroundContact);
@@ -60,21 +64,26 @@ export class CannonPhysics {
     const groundShape = new CANNON.Plane();
     const groundBody = new CANNON.Body({ mass: 0 });
     groundBody.addShape(groundShape);
-    groundBody.position.set(0, -0.5, 0); // Bajar el suelo 0.5 metros
+    groundBody.position.set(0, 0, 0); // Suelo en Y=0 (nivel del terreno visual)
     groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
     groundBody.material = new CANNON.Material('ground');
     
     this.world.addBody(groundBody);
-    console.log('🏞️ Ground created');
+    console.log('🏞️ Ground created at Y=0');
     return groundBody;
   }
 
   createPlayer(position: { x: number; y: number; z: number }) {
-    // Crear cuerpo del jugador
-    const playerShape = new CANNON.Cylinder(0.5, 0.5, 2, 8);
+    // Crear cuerpo del jugador (cilindro de altura 2, radio 0.5)
+    // En Cannon.js, los cilindros YA están verticales por defecto (eje Y)
+    const cylinderHeight = 2;
+    const playerShape = new CANNON.Cylinder(0.5, 0.5, cylinderHeight, 8);
     const playerBody = new CANNON.Body({ mass: 1 });
     playerBody.addShape(playerShape);
-    playerBody.position.set(position.x, position.y, position.z);
+    
+    // Levantar ligeramente el cilindro para evitar colisión constante con el suelo
+    const adjustedY = cylinderHeight / 2 + 0.05; // Centro en Y=1.05 (base en Y=0.05)
+    playerBody.position.set(position.x, adjustedY, position.z);
     playerBody.material = new CANNON.Material('player');
     
     // Configurar propiedades físicas para evitar rebote
@@ -87,7 +96,7 @@ export class CannonPhysics {
     this.playerBody = playerBody;
     this.bodies.set('player', playerBody);
     
-    console.log('👤 Player body created');
+    console.log(`👤 Player body created at Y=${adjustedY} (aligned with visual model)`);
     return playerBody;
   }
 
@@ -170,8 +179,8 @@ export class CannonPhysics {
   jump(force: number) {
     if (!this.playerBody) return;
     
-    // Solo saltar si está cerca del suelo (ahora el suelo está en -0.5)
-    if (this.playerBody.position.y <= 0.6) {
+    // Solo saltar si está en el suelo (centro del cilindro en Y=1.05)
+    if (this.playerBody.position.y <= 1.15) {
       this.playerBody.velocity.y = force;
       console.log(`🦘 Jump applied: ${force}`);
     }
@@ -179,13 +188,18 @@ export class CannonPhysics {
 
   isGrounded(): boolean {
     if (!this.playerBody) return false;
-    return this.playerBody.position.y <= 0.6;
+    // El jugador está en el suelo cuando su centro está en Y=1.05 (±0.1 de tolerancia)
+    return this.playerBody.position.y <= 1.15;
   }
 
   setPlayerPosition(position: { x: number; y: number; z: number }) {
     if (!this.playerBody) return;
     
     this.playerBody.position.set(position.x, position.y, position.z);
+  }
+
+  getWorld(): CANNON.World {
+    return this.world;
   }
 
   dispose() {

@@ -153,7 +153,10 @@ export default function AnimatedCharacter({
 
   return (
     <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
-      <primitive object={scene} />
+      {/* Offset Y para bajar el modelo y alinearlo con el cilindro de física */}
+      <group position={[0, -1, 0]}>
+        <primitive object={scene} />
+      </group>
       {!isCurrentPlayer && username && (
         <Html position={[0, 2.5, 0]}>
           <div className="bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded-md">

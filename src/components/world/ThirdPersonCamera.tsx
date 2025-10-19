@@ -47,6 +47,13 @@ export default function ThirdPersonCamera({ target: _target }: ThirdPersonCamera
     );
 
     const target = p.clone().add(camOffset);
+    
+    // LIMITAR altura mínima de la cámara para que no atraviese el piso
+    const minCameraHeight = 0.5; // Altura mínima sobre el suelo
+    if (target.y < minCameraHeight) {
+      target.y = minCameraHeight;
+    }
+    
     currentPosition.current.lerp(target, smooth);
     camera.position.copy(currentPosition.current);
     camera.lookAt(p);
