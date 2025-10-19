@@ -4,7 +4,7 @@ import { ClientToServerEvents, ServerToClientEvents } from '../src/types/socket.
 import { gameRedis } from '../src/lib/services/redis';
 
 const PORT = process.env.PORT || 3001;
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:3000';
+const CLIENT_URL = process.env.CLIENT_URL || process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000';
 
 // Create HTTP server
 const httpServer = createServer();
@@ -20,8 +20,25 @@ const io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(httpSe
 });
 
 // Store connected players
-const players = new Map<string, any>();
+const players = new Map<string, PlayerData>();
 const worlds = new Map<string, Set<string>>();
+
+interface PlayerData {
+  id: string;
+  username: string;
+  position: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number };
+  health: number;
+  maxHealth: number;
+  stamina: number;
+  maxStamina: number;
+  level: number;
+  experience: number;
+  worldId: string;
+  isOnline: boolean;
+  lastSeen: Date;
+  lastUpdate?: number;
+}
 
 // Initialize default world
 worlds.set('default', new Set());
@@ -142,29 +159,29 @@ io.on('connection', (socket) => {
   });
 
   // Player attack event
-  socket.on('player:attack', (data) => {
-    console.log(`⚔️ Jugador ${socket.id} atacó a ${data.targetId}`);
+  socket.on('player:attack', (attackData) => {
+    console.log(`⚔️ Jugador ${socket.id} atacó a ${attackData.targetId}`);
     
     const player = players.get(socket.id);
     if (player) {
       // Broadcast attack to all players in the world
       socket.to(player.worldId).emit('player:attacked', {
         attackerId: socket.id,
-        targetId: data.targetId,
-        damage: data.damage,
+        targetId: attackData.targetId,
+        damage: attackData.damage,
       });
     }
   });
 
   // Player interact event
-  socket.on('player:interact', (data) => {
-    console.log(`🤝 Jugador ${socket.id} interactuó con ${data.objectId}`);
+  socket.on('player:interact', (interactData) => {
+    console.log(`🤝 Jugador ${socket.id} interactuó con ${interactData.objectId}`);
     // TODO: Implement interaction logic
   });
 
   // Chat message event
-  socket.on('chat:message', (data) => {
-    console.log(`💬 Chat: ${data.message}`);
+  socket.on('chat:message', (messageData) => {
+    console.log(`💬 Chat: ${messageData.message}`);
     
     const player = players.get(socket.id);
     if (player) {
@@ -172,22 +189,22 @@ io.on('connection', (socket) => {
       io.to(player.worldId).emit('chat:message', {
         playerId: socket.id,
         username: player.username,
-        message: data.message,
-        channel: data.channel,
+        message: messageData.message,
+        channel: messageData.channel,
         timestamp: new Date(),
       });
     }
   });
 
   // Inventory events
-  socket.on('inventory:update', (data) => {
+  socket.on('inventory:update', (_inventoryData) => {
     console.log(`🎒 Inventario actualizado para ${socket.id}`);
     // TODO: Implement inventory sync
   });
 
   // World change event
-  socket.on('world:change', (data) => {
-    console.log(`🌍 Jugador ${socket.id} cambió al mundo ${data.worldId}`);
+  socket.on('world:change', (worldData) => {
+    console.log(`🌍 Jugador ${socket.id} cambió al mundo ${worldData.worldId}`);
     
     const player = players.get(socket.id);
     if (player) {
@@ -195,21 +212,21 @@ io.on('connection', (socket) => {
       worlds.get(player.worldId)?.delete(socket.id);
       
       // Add to new world
-      if (!worlds.has(data.worldId)) {
-        worlds.set(data.worldId, new Set());
+      if (!worlds.has(worldData.worldId)) {
+        worlds.set(worldData.worldId, new Set());
       }
-      worlds.get(data.worldId)?.add(socket.id);
+      worlds.get(worldData.worldId)?.add(socket.id);
       
       // Update player world
-      player.worldId = data.worldId;
+      player.worldId = worldData.worldId;
       
       // Join new room
       socket.leave(player.worldId);
-      socket.join(data.worldId);
+      socket.join(worldData.worldId);
       
       // Notify player of world change
       socket.emit('world:changed', {
-        worldId: data.worldId,
+        worldId: worldData.worldId,
         spawnPoint: { x: 0, y: 0, z: 0 },
       });
     }
