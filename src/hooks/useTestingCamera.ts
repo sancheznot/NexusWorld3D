@@ -8,7 +8,7 @@ interface TestingCameraState {
   distance: number;
 }
 
-export function useTestingCamera() {
+export function useTestingCamera(isChatOpen: boolean = false) {
   const [cameraState, setCameraState] = useState<TestingCameraState>({
     isActive: false,
     height: 50,
@@ -16,8 +16,11 @@ export function useTestingCamera() {
   });
 
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
+    // Si el chat está abierto, no procesar teclas
+    if (isChatOpen) return;
+    
     // Activar/desactivar cámara de testing con tecla T
-    if (event.key.toLowerCase() === 't') {
+    if (event.key && event.key.toLowerCase() === 't') {
       setCameraState(prev => ({
         ...prev,
         isActive: !prev.isActive
@@ -58,7 +61,7 @@ export function useTestingCamera() {
       }));
       console.log(`🔍 Distancia de cámara: ${cameraState.distance + 10}`);
     }
-  }, [cameraState.isActive, cameraState.height, cameraState.distance]);
+  }, [isChatOpen, cameraState.isActive, cameraState.height, cameraState.distance]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyPress);

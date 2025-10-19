@@ -220,11 +220,12 @@ export const useSocket = () => {
       });
     });
 
+
     // Cleanup function
     return () => {
       socketClient.removeAllListeners();
     };
-  }, []);
+  }, [addChatMessage]);
 
   // Auto-reconnect logic
   useEffect(() => {

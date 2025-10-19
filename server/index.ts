@@ -54,9 +54,10 @@ console.log('🚀 Iniciando servidor Socket.IO...');
 io.on('connection', (socket) => {
   console.log(`🔌 Cliente conectado: ${socket.id}`);
 
-  // Player join event
-  socket.on('player:join', async (data) => {
-    console.log(`👤 Jugador ${data.username} se unió al mundo ${data.worldId}`);
+    // Player join event
+    socket.on('player:join', async (data) => {
+      console.log(`👤 Jugador ${data.username} se unió al mundo ${data.worldId}`);
+      console.log('🔍 Datos recibidos:', data);
     
     // Add player to the room for the specific world
     socket.join(data.worldId);
@@ -81,6 +82,10 @@ io.on('connection', (socket) => {
     
     // Store in Redis
     await gameRedis.addPlayer(socket.id, player);
+    // Join Socket.IO room (IMPORTANTE: esto permite que io.to(worldId) funcione)
+    socket.join(data.worldId);
+    console.log(`🚪 Socket ${socket.id} se unió a la sala ${data.worldId}`);
+    
     await gameRedis.joinRoom(data.worldId, socket.id);
     
     // Also store locally for quick access
@@ -100,21 +105,41 @@ io.on('connection', (socket) => {
     // Get all players in the world from Redis
     const worldPlayers = await gameRedis.getAllPlayers();
     const filteredPlayers = worldPlayers.filter((p: any) => p.worldId === data.worldId);
+    console.log(`🌍 Jugadores en el mundo ${data.worldId}:`, filteredPlayers.length);
+    console.log('👥 Lista de jugadores:', filteredPlayers.map(p => ({ id: p.id, username: p.username })));
     
     // Get map decorations from Redis
     const mapDecorations = await gameRedis.getMapDecorations(data.worldId);
     
     // Broadcast to all players in the world
-    socket.to(data.worldId).emit('player:joined', {
-      player: { ...player, position: JSON.parse(player.position), rotation: JSON.parse(player.rotation), lastSeen: new Date(player.lastSeen) },
-      players: filteredPlayers.map((p: any) => ({ 
-        ...p, 
-        position: typeof p.position === 'string' ? JSON.parse(p.position) : p.position, 
-        rotation: typeof p.rotation === 'string' ? JSON.parse(p.rotation) : p.rotation,
-        lastSeen: new Date(p.lastSeen)
-      })),
+    const playerData = { ...player, position: JSON.parse(player.position), rotation: JSON.parse(player.rotation), lastSeen: new Date(player.lastSeen) };
+    const playersData = filteredPlayers.map((p: any) => ({ 
+      ...p, 
+      position: typeof p.position === 'string' ? JSON.parse(p.position) : p.position, 
+      rotation: typeof p.rotation === 'string' ? JSON.parse(p.rotation) : p.rotation,
+      lastSeen: new Date(p.lastSeen)
+    }));
+    
+    // Verificar cuántos sockets hay en la sala
+    const roomSize = io.sockets.adapter.rooms.get(data.worldId)?.size || 0;
+    console.log(`📡 Sala ${data.worldId} tiene ${roomSize} sockets conectados`);
+    console.log('📡 Datos del jugador:', playerData.username);
+    console.log('📡 Lista de jugadores:', playersData.map(p => p.username));
+    
+    // Enviar a todos los jugadores en el mundo (incluyendo al que se acaba de unir)
+    io.to(data.worldId).emit('player:joined', {
+      player: playerData,
+      players: playersData,
     });
     
+    // Get recent chat messages from Redis
+    let recentMessages: any[] = [];
+    try {
+      recentMessages = await gameRedis.getChatMessages(50); // Last 50 messages
+    } catch (error) {
+      console.warn('⚠️ Redis no disponible para cargar mensajes de chat');
+    }
+
     // Send current world state to the new player
     socket.emit('world:update', {
       world: {
@@ -138,6 +163,7 @@ io.on('connection', (socket) => {
         lastSeen: new Date(p.lastSeen)
       })),
       objects: mapDecorations, // Decoraciones del mapa desde Redis
+      chatMessages: recentMessages, // Mensajes de chat desde Redis
     });
 
     // Update server stats
@@ -186,19 +212,37 @@ io.on('connection', (socket) => {
   });
 
   // Chat message event
-  socket.on('chat:message', (messageData) => {
+  socket.on('chat:message', async (messageData) => {
     console.log(`💬 Chat: ${messageData.message}`);
     
     const player = players.get(socket.id);
     if (player) {
-      // Broadcast message to all players in the world
-      io.to(player.worldId).emit('chat:message', {
+      const chatMessage = {
+        id: `msg_${Date.now()}_${socket.id}`,
         playerId: socket.id,
         username: player.username,
         message: messageData.message,
-        channel: messageData.channel,
+        channel: messageData.channel || 'global',
         timestamp: new Date(),
-      });
+        type: 'player'
+      };
+
+      // Save message to Redis
+      try {
+        await gameRedis.addChatMessage(chatMessage);
+      } catch (error) {
+        console.warn('⚠️ Redis no disponible para chat, usando solo memoria local');
+      }
+
+      // Broadcast message to all players in the world
+      io.to(player.worldId).emit('chat:message', chatMessage);
+      
+      // Update server stats
+      try {
+        await gameRedis.incrementServerStats('messages_sent');
+      } catch (error) {
+        // Redis no disponible, continuar sin estadísticas
+      }
     }
   });
 
@@ -297,6 +341,18 @@ setInterval(async () => {
     console.error('❌ Error en limpieza de datos:', error);
   }
 }, 5 * 60 * 1000); // 5 minutes
+
+// Cleanup on server shutdown
+process.on('SIGINT', async () => {
+  console.log('🛑 Cerrando servidor...');
+  try {
+    await gameRedis.cleanupAllData();
+    console.log('🧹 Datos de Redis limpiados');
+  } catch (error) {
+    console.warn('⚠️ Error limpiando datos:', error);
+  }
+  process.exit(0);
+});
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

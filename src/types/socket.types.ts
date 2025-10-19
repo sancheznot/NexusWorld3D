@@ -45,7 +45,7 @@ export interface ServerToClientEvents {
   'chat:system': (data: { message: string; type: 'info' | 'warning' | 'error' }) => void;
 
   // World events
-  'world:update': (data: { world: World; players: Player[]; objects: WorldObject[] }) => void;
+  'world:update': (data: { world: World; players: Player[]; objects: WorldObject[]; chatMessages?: ChatMessage[] }) => void;
   'world:changed': (data: { worldId: string; spawnPoint: Vector3 }) => void;
 
   // Monster events
@@ -111,4 +111,29 @@ export interface Monster {
   isAlive: boolean;
   targetId?: string;
   lastAttack: Date;
+}
+
+export interface ChatMessage {
+  id: string;
+  playerId: string;
+  username: string;
+  message: string;
+  channel: string;
+  timestamp: Date;
+  type?: string;
+}
+
+export interface World {
+  id: string;
+  name: string;
+  type: string;
+  maxPlayers: number;
+  currentPlayers: number;
+  spawnPoint: Vector3;
+  bounds: {
+    min: Vector3;
+    max: Vector3;
+  };
+  isActive: boolean;
+  createdAt: Date;
 }

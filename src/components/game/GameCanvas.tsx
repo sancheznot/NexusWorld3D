@@ -15,13 +15,16 @@ import NatureDecorations from '@/components/world/NatureDecorations';
 import HotelHumboldt from '@/components/world/HotelHumboldt';
 import GreenDomeStructure from '@/components/world/GreenDomeStructure';
 import Lighting from '@/components/world/Lighting';
+import Skybox from '@/components/world/Skybox';
 import ThirdPersonCamera from '@/components/world/ThirdPersonCamera';
 import TestingCamera from '@/components/world/TestingCamera';
 import { useTestingCamera } from '@/hooks/useTestingCamera';
+import { useKeyboard } from '@/hooks/useKeyboard';
 import LoginModal from '@/components/game/LoginModal';
 import CharacterCreatorV2 from '@/components/game/CharacterCreatorV2';
 import ModelInfo from '@/components/ui/ModelInfo';
 import FPSCounter from '@/components/ui/FPSCounter';
+import ChatWindow from '@/components/chat/ChatWindow';
 import { THREE_CONFIG } from '@/config/three.config';
 
 export default function GameCanvas() {
@@ -29,12 +32,14 @@ export default function GameCanvas() {
   const { position, health, maxHealth, stamina, maxStamina, level, isMoving, isRunning, player } = usePlayerStore();
   const { players } = useWorldStore();
   const { isInventoryOpen, isMapOpen, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals } = useUIStore();
-  const { isActive: isTestingCameraActive, height: testingHeight, distance: testingDistance } = useTestingCamera();
+  const { isActive: isTestingCameraActive, height: testingHeight, distance: testingDistance } = useTestingCamera(isChatOpen);
   
   // Game flow state
   const [showLogin, setShowLogin] = useState(true);
   const [showCharacterCreator, setShowCharacterCreator] = useState(false);
   const [isGameStarted, setIsGameStarted] = useState(false);
+  
+  useKeyboard(isGameStarted);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showModelInfo, setShowModelInfo] = useState(false);
   
@@ -61,6 +66,15 @@ export default function GameCanvas() {
     const handleKeyPress = (event: KeyboardEvent) => {
       if (!isGameStarted) return;
       
+      // Si el chat está abierto, solo permitir teclas específicas del chat
+      if (isChatOpen) {
+        if (['escape'].includes(event.key.toLowerCase())) {
+          event.preventDefault();
+          closeAllModals();
+        }
+        return; // No procesar otras teclas cuando el chat está abierto
+      }
+      
       console.log(`🎮 Tecla presionada: ${event.key}`);
       
       switch (event.key.toLowerCase()) {
@@ -85,7 +99,7 @@ export default function GameCanvas() {
 
     document.addEventListener('keydown', handleKeyPress);
     return () => document.removeEventListener('keydown', handleKeyPress);
-  }, [isGameStarted, toggleInventory, toggleMap, toggleChat, closeAllModals]);
+  }, [isGameStarted, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals]);
 
   // Handlers
   const handleLogin = async (username: string) => {
@@ -136,6 +150,9 @@ export default function GameCanvas() {
         <Suspense fallback={null}>
             {/* Lighting */}
             <Lighting />
+            
+            {/* Skybox */}
+            <Skybox />
             
             {/* Uniform Terrain - Solo Terrain_01 */}
             <UniformTerrain 
@@ -344,33 +361,7 @@ export default function GameCanvas() {
         </div>
       )}
 
-      {isChatOpen && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-20 bg-black bg-opacity-75 rounded-lg p-4 w-96">
-          <div className="text-white">
-            <div className="mb-2">
-              <span className="text-green-400">Chat Global</span>
-            </div>
-            <div className="bg-gray-800 rounded p-2 mb-2 h-32 overflow-y-auto">
-              <div className="text-sm text-gray-300">
-                <div>Bienvenido al Hotel Humboldt!</div>
-                <div>Usa WASD para moverte</div>
-                <div>Presiona Enter para enviar mensaje</div>
-              </div>
-            </div>
-            <input
-              type="text"
-              placeholder="Escribe tu mensaje..."
-              className="w-full bg-gray-700 text-white px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  toggleChat();
-                }
-              }}
-              autoFocus
-            />
-          </div>
-        </div>
-      )}
+      <ChatWindow />
 
       {/* Login Modal */}
       <LoginModal

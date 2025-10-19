@@ -182,6 +182,37 @@ export class GameRedis {
       }
     }
   }
+
+  async cleanupAllData() {
+    try {
+      // Limpiar todos los datos de jugadores
+      const playerKeys = await this.redis.keys('player:*');
+      if (playerKeys.length > 0) {
+        await this.redis.del(...playerKeys);
+        console.log(`🧹 ${playerKeys.length} jugadores eliminados`);
+      }
+      
+      // Limpiar todas las salas
+      const roomKeys = await this.redis.keys('room:*');
+      if (roomKeys.length > 0) {
+        await this.redis.del(...roomKeys);
+        console.log(`🧹 ${roomKeys.length} salas eliminadas`);
+      }
+      
+      // Limpiar jugadores en línea
+      await this.redis.del('online_players');
+      console.log('🧹 Jugadores en línea eliminados');
+      
+      // Limpiar estadísticas del servidor
+      await this.redis.del('server:stats');
+      console.log('🧹 Estadísticas del servidor eliminadas');
+      
+      console.log('✅ Limpieza completa de Redis realizada');
+    } catch (error) {
+      console.error('❌ Error en limpieza completa:', error);
+      throw error;
+    }
+  }
 }
 
 // Crear instancia global de forma lazy
@@ -215,4 +246,5 @@ export const gameRedis = {
   incrementServerStats: (...args: any[]) => getGameRedis().incrementServerStats(...args),
   getServerStats: (...args: any[]) => getGameRedis().getServerStats(...args),
   cleanupExpiredData: (...args: any[]) => getGameRedis().cleanupExpiredData(...args),
+  cleanupAllData: (...args: any[]) => getGameRedis().cleanupAllData(...args),
 };

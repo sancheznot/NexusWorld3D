@@ -53,6 +53,29 @@ export const useKeyboard = (enabled: boolean = true) => {
     if (!enabled || !event.key) return;
     
     const key = event.key.toLowerCase();
+    
+    // Si el chat está abierto, solo permitir teclas específicas del chat
+    if (isChatOpen) {
+      // Permitir solo teclas del chat: Enter, Escape, letras, números, etc.
+      if (['enter', 'escape'].includes(key)) {
+        switch (key) {
+          case 'enter':
+            // No hacer nada, el chat maneja esto
+            break;
+          case 'escape':
+            closeAllModals();
+            break;
+        }
+      }
+      // No agregar otras teclas al keysRef cuando el chat está abierto
+      return;
+    }
+    
+    // Bloquear tecla T cuando el chat está abierto
+    if (key === 't') {
+      return;
+    }
+    
     keysRef.current.add(key);
 
     // Prevent default for game keys
@@ -60,43 +83,57 @@ export const useKeyboard = (enabled: boolean = true) => {
       event.preventDefault();
     }
 
-    // Handle special keys
-    switch (key) {
-      case 'i':
-        if (!isChatOpen) {
+    // Handle special keys (solo si el chat NO está abierto)
+    if (!isChatOpen) {
+      switch (key) {
+        case 'i':
           toggleInventory();
-        }
-        break;
-      case 'm':
-        if (!isChatOpen) {
+          break;
+        case 'm':
           toggleMap();
-        }
-        break;
-      case 'enter':
-        toggleChat();
-        break;
-      case 'escape':
-        closeAllModals();
-        break;
-      case 'tab':
-        // Handle tab for targeting (future feature)
-        event.preventDefault();
-        break;
+          break;
+        case 'enter':
+          toggleChat();
+          break;
+        case 'escape':
+          closeAllModals();
+          break;
+        case 'tab':
+          // Handle tab for targeting (future feature)
+          event.preventDefault();
+          break;
+      }
+    } else {
+      // Si el chat está abierto, solo manejar Enter y Escape
+      switch (key) {
+        case 'enter':
+          // No hacer nada, el chat maneja esto
+          break;
+        case 'escape':
+          closeAllModals();
+          break;
+      }
     }
-  }, [isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals]);
+  }, [enabled, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals]);
 
   // Handle key up
   const handleKeyUp = useCallback((event: KeyboardEvent) => {
     if (!enabled || !event.key) return;
     
     const key = event.key.toLowerCase();
+    
+    // Si el chat está abierto, no procesar teclas de movimiento
+    if (isChatOpen) {
+      return;
+    }
+    
     keysRef.current.delete(key);
 
     // Prevent default for game keys
     if (['w', 'a', 's', 'd', 'shift', ' '].includes(key)) {
       event.preventDefault();
     }
-  }, [enabled]);
+  }, [enabled, isChatOpen]);
 
   // Handle mouse click
   const handleMouseClick = useCallback((event: MouseEvent) => {
@@ -112,6 +149,16 @@ export const useKeyboard = (enabled: boolean = true) => {
   // Calculate movement
   const calculateMovement = useCallback(() => {
     if (!enabled) return;
+    
+    // BLOQUEAR MOVIMIENTO SI EL CHAT ESTÁ ABIERTO
+    if (isChatOpen) {
+      // Detener movimiento si el chat está abierto
+      setMoving(false);
+      setRunning(false);
+      setJumping(false);
+      updateVelocity({ x: 0, y: 0, z: 0 });
+      return;
+    }
     
     const keys = keysRef.current;
     const now = Date.now();
@@ -171,7 +218,7 @@ export const useKeyboard = (enabled: boolean = true) => {
     }
 
     lastMovementRef.current = now;
-  }, [enabled, position, rotation, setMoving, setRunning, setJumping, updateVelocity]);
+  }, [enabled, isChatOpen, position, rotation, setMoving, setRunning, setJumping, updateVelocity]);
 
   // Game loop for movement
   useEffect(() => {

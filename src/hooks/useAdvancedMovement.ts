@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { usePlayerStore } from '@/store/playerStore';
+import { useUIStore } from '@/store/uiStore';
 import { useMouseCamera } from './useMouseCamera';
 import * as THREE from 'three';
 
@@ -16,27 +17,28 @@ interface MovementInput {
 
 export function useAdvancedMovement(enabled: boolean = true) {
   const { setMoving, setRunning, rotation: playerRotation } = usePlayerStore();
+  const { isChatOpen } = useUIStore();
   const keysRef = useRef<Set<string>>(new Set());
   const { getCameraState, setCameraState } = useMouseCamera(enabled);
   const playerRotationRef = useRef(playerRotation.y);
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     const key = event.key.toLowerCase();
-    console.log(`🎮 Tecla presionada: ${key}, enabled: ${enabled}`);
-    if (!enabled) return;
+    console.log(`🎮 Tecla presionada: ${key}, enabled: ${enabled}, chatOpen: ${isChatOpen}`);
+    if (!enabled || isChatOpen) return;
     keysRef.current.add(key);
     console.log(`🎮 Tecla agregada al set: ${key}, total keys: ${keysRef.current.size}`);
-  }, [enabled]);
+  }, [enabled, isChatOpen]);
 
   const handleKeyUp = useCallback((event: KeyboardEvent) => {
-    if (!enabled) return;
+    if (!enabled || isChatOpen) return;
     keysRef.current.delete(event.key.toLowerCase());
-  }, [enabled]);
+  }, [enabled, isChatOpen]);
 
   const calculateMovementInput = useCallback((): MovementInput => {
     const keys = keysRef.current;
 
-    if (!enabled) {
+    if (!enabled || isChatOpen) {
       setMoving(false);
       setRunning(false);
       return { x: 0, z: 0, rotation: playerRotationRef.current, isRunning: false, isJumping: false, jumpType: null };
@@ -111,7 +113,7 @@ export function useAdvancedMovement(enabled: boolean = true) {
       isJumping,
       jumpType
     };
-  }, [enabled, setMoving, setRunning, getCameraState, setCameraState]);
+  }, [enabled, isChatOpen, setMoving, setRunning, getCameraState, setCameraState]);
 
   // Sincronizar la rotación del personaje desde el store
   useEffect(() => {
