@@ -1,4 +1,5 @@
 import * as CANNON from 'cannon-es';
+import * as THREE from 'three';
 
 export class CannonPhysics {
   private world: CANNON.World;
@@ -8,6 +9,12 @@ export class CannonPhysics {
   private targetVelocity = { x: 0, z: 0 };
   private acceleration = 20; // Velocidad de aceleración (más rápida)
   private deceleration = 15; // Velocidad de desaceleración (más rápida)
+  private staticBodiesCreated = false; // Flag para evitar recrear colliders estáticos
+  
+  // Materiales compartidos (CRÍTICO para que funcionen las colisiones)
+  private playerMaterial!: CANNON.Material;
+  private groundMaterial!: CANNON.Material;
+  private staticMaterial!: CANNON.Material;
 
   constructor() {
     // Crear mundo de física
@@ -16,26 +23,47 @@ export class CannonPhysics {
     // Configurar gravedad
     this.world.gravity.set(0, -9.82, 0);
     
-    // Configurar solver
-    this.world.broadphase = new CANNON.NaiveBroadphase();
+    // Configurar solver MEJORADO para mejores colisiones
+    this.world.broadphase = new CANNON.SAPBroadphase(this.world);
+    const solver = new CANNON.GSSolver();
+    solver.iterations = 10; // Más iteraciones = mejor precisión
+    this.world.solver = solver;
     
-    // Habilitar sleep para mejor rendimiento
-    this.world.allowSleep = true;
+    // DESACTIVAR sleep temporalmente para debug de colisiones
+    this.world.allowSleep = false;
     this.world.defaultContactMaterial.restitution = 0; // Sin rebote por defecto
     this.world.defaultContactMaterial.friction = 0.6;
     
     // Configurar materiales
     this.setupMaterials();
     
-    console.log('🌍 Cannon.js physics world initialized');
+    // Debug: Listener de colisiones (FILTRADO para excluir el suelo)
+    this.world.addEventListener('postStep', () => {
+      if (this.playerBody) {
+        // Verificar si hay contactos con el jugador (EXCLUYENDO el suelo)
+        for (let i = 0; i < this.world.contacts.length; i++) {
+          const contact = this.world.contacts[i];
+          if (contact.bi === this.playerBody || contact.bj === this.playerBody) {
+            const otherBody = contact.bi === this.playerBody ? contact.bj : contact.bi;
+            
+            // FILTRAR: Ignorar el suelo (Y=0) y solo mostrar objetos reales (árboles, rocas, edificios)
+            if (otherBody.position.y > 0.1 || Math.abs(otherBody.position.x) > 0.1 || Math.abs(otherBody.position.z) > 0.1) {
+              console.log(`💥 COLISIÓN JUGADOR con objeto en pos=(${otherBody.position.x.toFixed(1)}, ${otherBody.position.y.toFixed(1)}, ${otherBody.position.z.toFixed(1)})`);
+            }
+          }
+        }
+      }
+    });
+    
+    console.log('🌍 Cannon.js physics world initialized with SAPBroadphase');
   }
 
   private setupMaterials() {
-    // Material del suelo
-    const groundMaterial = new CANNON.Material('ground');
+    // Material del suelo (guardar como propiedad)
+    this.groundMaterial = new CANNON.Material('ground');
     const groundContactMaterial = new CANNON.ContactMaterial(
-      groundMaterial,
-      groundMaterial,
+      this.groundMaterial,
+      this.groundMaterial,
       {
         friction: 0.8, // Alta fricción
         restitution: 0.0, // SIN REBOTE
@@ -45,11 +73,11 @@ export class CannonPhysics {
     );
     this.world.addContactMaterial(groundContactMaterial);
 
-    // Material del jugador
-    const playerMaterial = new CANNON.Material('player');
+    // Material del jugador (guardar como propiedad)
+    this.playerMaterial = new CANNON.Material('player');
     const playerGroundContact = new CANNON.ContactMaterial(
-      playerMaterial,
-      groundMaterial,
+      this.playerMaterial,
+      this.groundMaterial,
       {
         friction: 0.9, // Alta fricción entre jugador y suelo
         restitution: 0.0, // SIN REBOTE - CRÍTICO
@@ -58,15 +86,31 @@ export class CannonPhysics {
       }
     );
     this.world.addContactMaterial(playerGroundContact);
+
+    // Material para árboles, rocas y edificios (guardar como propiedad)
+    this.staticMaterial = new CANNON.Material('static');
+    const playerStaticContact = new CANNON.ContactMaterial(
+      this.playerMaterial,
+      this.staticMaterial,
+      {
+        friction: 0.3, // Baja fricción para deslizarse
+        restitution: 0.0, // SIN REBOTE
+        contactEquationStiffness: 1e8,
+        contactEquationRelaxation: 3,
+      }
+    );
+    this.world.addContactMaterial(playerStaticContact);
+    
+    console.log('✅ Materiales de física configurados correctamente');
   }
 
-  createGround(_size: number = 100) {
+  createGround() {
     const groundShape = new CANNON.Plane();
     const groundBody = new CANNON.Body({ mass: 0 });
     groundBody.addShape(groundShape);
     groundBody.position.set(0, 0, 0); // Suelo en Y=0 (nivel del terreno visual)
     groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
-    groundBody.material = new CANNON.Material('ground');
+    groundBody.material = this.groundMaterial; // Usar material compartido
     
     this.world.addBody(groundBody);
     console.log('🏞️ Ground created at Y=0');
@@ -84,10 +128,11 @@ export class CannonPhysics {
     // Levantar ligeramente el cilindro para evitar colisión constante con el suelo
     const adjustedY = cylinderHeight / 2 + 0.05; // Centro en Y=1.05 (base en Y=0.05)
     playerBody.position.set(position.x, adjustedY, position.z);
-    playerBody.material = new CANNON.Material('player');
+    playerBody.material = this.playerMaterial; // Usar material compartido
     
     // Configurar propiedades físicas para evitar rebote
     playerBody.allowSleep = false; // DESACTIVAR sleep para que siempre se actualice
+    playerBody.collisionResponse = true; // CRÍTICO: Responder a colisiones
     playerBody.linearDamping = 0.1; // Muy bajo para permitir movimiento fluido
     playerBody.angularDamping = 1.0;
     playerBody.fixedRotation = true; // Evitar rotación no deseada
@@ -104,11 +149,15 @@ export class CannonPhysics {
     // Timestep fijo para estabilidad
     this.world.step(1/60, deltaTime, 8); // fijo + substeps
     
-    // Debug: verificar si el cuerpo se movió
-    if (this.playerBody) {
-      console.log(`🔧 Cannon update AFTER step: pos=(${this.playerBody.position.x.toFixed(2)}, ${this.playerBody.position.y.toFixed(2)}, ${this.playerBody.position.z.toFixed(2)}), vel=(${this.playerBody.velocity.x.toFixed(2)}, ${this.playerBody.velocity.y.toFixed(2)}, ${this.playerBody.velocity.z.toFixed(2)})`);
+    // Debug: Mostrar cuántos bodies hay en el mundo (cada 3 segundos)
+    if (!this.lastDebugTime || Date.now() - this.lastDebugTime > 3000) {
+      console.log(`🌍 Bodies en el mundo: ${this.world.bodies.length} (player + ground + ${this.bodies.size - 1} colliders)`);
+      console.log(`📋 Colliders creados:`, Array.from(this.bodies.keys()));
+      this.lastDebugTime = Date.now();
     }
   }
+  
+  private lastDebugTime = 0;
 
   updateMovement(input: { x: number; z: number; isRunning: boolean }, deltaTime: number) {
     if (!this.playerBody) {
@@ -128,14 +177,14 @@ export class CannonPhysics {
     this.currentVelocity.x = this.lerp(this.currentVelocity.x, this.targetVelocity.x, lerpFactor);
     this.currentVelocity.z = this.lerp(this.currentVelocity.z, this.targetVelocity.z, lerpFactor);
 
-    // Aplicar velocidad al cuerpo
+    // Aplicar velocidad al cuerpo (restaurar movimiento normal)
     this.playerBody.velocity.x = this.currentVelocity.x;
     this.playerBody.velocity.z = this.currentVelocity.z;
 
-    // Debug
-    if (input.x !== 0 || input.z !== 0) {
-      console.log(`🔧 Cannon updateMovement: input=(${input.x.toFixed(2)}, ${input.z.toFixed(2)}), target=(${this.targetVelocity.x.toFixed(2)}, ${this.targetVelocity.z.toFixed(2)}), current=(${this.currentVelocity.x.toFixed(2)}, ${this.currentVelocity.z.toFixed(2)}), bodyVel=(${this.playerBody.velocity.x.toFixed(2)}, ${this.playerBody.velocity.z.toFixed(2)}), pos=(${this.playerBody.position.x.toFixed(2)}, ${this.playerBody.position.z.toFixed(2)})`);
-    }
+    // Debug (comentado para no llenar la consola)
+    // if (input.x !== 0 || input.z !== 0) {
+    //   console.log(`🔧 Cannon updateMovement: input=(${input.x.toFixed(2)}, ${input.z.toFixed(2)}), target=(${this.targetVelocity.x.toFixed(2)}, ${this.targetVelocity.z.toFixed(2)}), current=(${this.currentVelocity.x.toFixed(2)}, ${this.currentVelocity.z.toFixed(2)}), bodyVel=(${this.playerBody.velocity.x.toFixed(2)}, ${this.playerBody.velocity.z.toFixed(2)}), pos=(${this.playerBody.position.x.toFixed(2)}, ${this.playerBody.position.z.toFixed(2)})`);
+    // }
 
     // Cuando esté grounded, aplana pequeñas vibras verticales
     if (this.isGrounded() && Math.abs(this.playerBody.velocity.y) < 0.1) {
@@ -202,12 +251,155 @@ export class CannonPhysics {
     return this.world;
   }
 
+  // Crear collider cilíndrico para árboles
+  createTreeCollider(position: [number, number, number], radius: number = 0.5, height: number = 5, id: string) {
+    if (this.bodies.has(id)) {
+      console.log(`⚠️ Tree collider ${id} already exists`);
+      return;
+    }
+
+    const shape = new CANNON.Cylinder(radius, radius, height, 8);
+    const body = new CANNON.Body({ mass: 0 }); // mass 0 = estático
+    body.addShape(shape);
+    body.position.set(position[0], position[1] + height / 2, position[2]);
+    body.material = this.staticMaterial; // Usar material compartido
+    
+    // IMPORTANTE: Asegurar que el body no se duerma
+    body.allowSleep = false;
+    body.collisionResponse = true; // Asegurar respuesta de colisión
+    
+    this.world.addBody(body);
+    this.bodies.set(id, body);
+    console.log(`🌳 Tree collider created: ${id} at (${position[0].toFixed(1)}, ${position[1].toFixed(1)}, ${position[2].toFixed(1)}) radius=${radius.toFixed(2)} height=${height.toFixed(2)}`);
+  }
+
+  // Crear collider esférico para rocas
+  createRockCollider(position: [number, number, number], radius: number = 1.0, id: string) {
+    if (this.bodies.has(id)) {
+      console.log(`⚠️ Rock collider ${id} already exists`);
+      return;
+    }
+
+    const shape = new CANNON.Sphere(radius);
+    const body = new CANNON.Body({ mass: 0 }); // mass 0 = estático
+    body.addShape(shape);
+    body.position.set(position[0], position[1] + radius, position[2]);
+    body.material = this.staticMaterial; // Usar material compartido
+    
+    // IMPORTANTE: Asegurar que el body no se duerma
+    body.allowSleep = false;
+    body.collisionResponse = true; // Asegurar respuesta de colisión
+    
+    this.world.addBody(body);
+    this.bodies.set(id, body);
+    console.log(`🪨 Rock collider created: ${id} at (${position[0].toFixed(1)}, ${position[1].toFixed(1)}, ${position[2].toFixed(1)}) radius=${radius.toFixed(2)}`);
+  }
+
+  // Crear collider de caja para edificios
+  createBoxCollider(position: [number, number, number], size: [number, number, number], id: string) {
+    if (this.bodies.has(id)) {
+      console.log(`⚠️ Box collider ${id} already exists`);
+      return;
+    }
+
+    const shape = new CANNON.Box(new CANNON.Vec3(size[0] / 2, size[1] / 2, size[2] / 2));
+    const body = new CANNON.Body({ mass: 0 }); // mass 0 = estático
+    body.addShape(shape);
+    body.position.set(position[0], position[1] + size[1] / 2, position[2]);
+    body.material = this.staticMaterial; // Usar material compartido
+    
+    // IMPORTANTE: Asegurar que el body no se duerma y responda a colisiones
+    body.allowSleep = false;
+    body.collisionResponse = true; // CRÍTICO para bloquear al jugador
+    
+    this.world.addBody(body);
+    this.bodies.set(id, body);
+    console.log(`🏢 Building collider created: ${id} at (${position[0].toFixed(1)}, ${position[1].toFixed(1)}, ${position[2].toFixed(1)}) size=(${size[0]}, ${size[1]}, ${size[2]})`);
+  }
+
+  // Crear collider desde el mesh real de un modelo GLB
+  createMeshCollider(mesh: THREE.Object3D, position: [number, number, number], scale: [number, number, number], id: string) {
+    if (this.bodies.has(id)) {
+      console.log(`⚠️ Mesh collider ${id} already exists`);
+      return;
+    }
+
+    const body = new CANNON.Body({ mass: 0 }); // mass 0 = estático
+    let meshesProcessed = 0;
+
+    mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.geometry) {
+        const geometry = child.geometry;
+        
+        // Obtener vértices y caras del mesh
+        const vertices: number[] = [];
+        const indices: number[] = [];
+        
+        // Posición de los vértices
+        const positionAttribute = geometry.attributes.position;
+        if (positionAttribute) {
+          for (let i = 0; i < positionAttribute.count; i++) {
+            vertices.push(
+              positionAttribute.getX(i) * scale[0],
+              positionAttribute.getY(i) * scale[1],
+              positionAttribute.getZ(i) * scale[2]
+            );
+          }
+          
+          // Índices (caras)
+          if (geometry.index) {
+            for (let i = 0; i < geometry.index.count; i++) {
+              indices.push(geometry.index.getX(i));
+            }
+          } else {
+            // Si no hay índices, crear secuencia
+            for (let i = 0; i < positionAttribute.count; i++) {
+              indices.push(i);
+            }
+          }
+          
+          // Crear Trimesh con la geometría real
+          const trimesh = new CANNON.Trimesh(vertices, indices);
+          body.addShape(trimesh);
+          meshesProcessed++;
+        }
+      }
+    });
+
+    if (meshesProcessed === 0) {
+      console.warn(`⚠️ No meshes found in ${id}, skipping`);
+      return;
+    }
+
+    body.position.set(position[0], position[1], position[2]);
+    body.material = this.staticMaterial; // Usar material compartido
+    
+    // IMPORTANTE: Asegurar que el body no se duerma y responda a colisiones
+    body.allowSleep = false;
+    body.collisionResponse = true; // CRÍTICO para bloquear al jugador
+    
+    this.world.addBody(body);
+    this.bodies.set(id, body);
+    console.log(`🎨 Mesh collider created: ${id} with ${meshesProcessed} meshes at (${position[0].toFixed(1)}, ${position[1].toFixed(1)}, ${position[2].toFixed(1)})`);
+  }
+
+  // Marcar que los colliders estáticos ya fueron creados
+  markStaticBodiesCreated() {
+    this.staticBodiesCreated = true;
+  }
+
+  // Verificar si los colliders estáticos ya fueron creados
+  areStaticBodiesCreated(): boolean {
+    return this.staticBodiesCreated;
+  }
+
   dispose() {
     this.world.bodies.forEach((body: CANNON.Body) => {
       this.world.removeBody(body);
     });
     this.bodies.clear();
     this.playerBody = null;
+    this.staticBodiesCreated = false;
     console.log('🧹 Cannon.js physics disposed');
   }
 }

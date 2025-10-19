@@ -121,9 +121,8 @@ export default function PlayerV2({
       physicsRef.current.jump(jumpForce);
     }
     
-    // Obtener posición y velocidad de Cannon.js
+    // Obtener posición de Cannon.js
     const cannonPosition = physicsRef.current.getPlayerPosition();
-    const cannonVelocity = physicsRef.current.getPlayerVelocity();
     
     // Usar posición directa de Cannon.js (sin colisiones por ahora)
     updatePosition({
@@ -144,8 +143,12 @@ export default function PlayerV2({
     const currentPosition = new THREE.Vector3(cannonPosition.x, cannonPosition.y, cannonPosition.z);
     const distance = currentPosition.distanceTo(lastPositionRef.current);
     
-    if (distance > 0.1 || currentInput.isJumping || Math.abs(cannonVelocity.y) > 0.1) {
-      console.log(`🎮 Cannon Physics: pos=${cannonPosition.x.toFixed(2)}, ${cannonPosition.y.toFixed(2)}, ${cannonPosition.z.toFixed(2)}, vel=${cannonVelocity.x.toFixed(2)}, ${cannonVelocity.y.toFixed(2)}, ${cannonVelocity.z.toFixed(2)}, jump=${currentInput.isJumping}, jumpType=${currentInput.jumpType}, isGrounded=${physicsRef.current.isGrounded()}`);
+    // Debug (comentado para no llenar la consola)
+    // if (distance > 0.1 || currentInput.isJumping || Math.abs(cannonVelocity.y) > 0.1) {
+    //   console.log(`🎮 Cannon Physics: pos=${cannonPosition.x.toFixed(2)}, ${cannonPosition.y.toFixed(2)}, ${cannonPosition.z.toFixed(2)}, vel=${cannonVelocity.x.toFixed(2)}, ${cannonVelocity.y.toFixed(2)}, ${cannonVelocity.z.toFixed(2)}, jump=${currentInput.isJumping}, jumpType=${currentInput.jumpType}, isGrounded=${physicsRef.current.isGrounded()}`);
+    //   lastPositionRef.current.copy(currentPosition);
+    // }
+    if (distance > 0.1) {
       lastPositionRef.current.copy(currentPosition);
     }
   });

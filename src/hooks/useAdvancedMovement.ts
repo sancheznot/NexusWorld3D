@@ -98,10 +98,10 @@ export function useAdvancedMovement(enabled: boolean = true) {
     setMoving(isMovingNow);
     setRunning(isRunning);
 
-    // Debug
-    if (isMovingNow || isJumping || keys.has('a') || keys.has('d')) {
-      console.log(`🎮 Tank Controls: forward=${forwardMovement}, rotation=${currentRotation.toFixed(2)}, move=(${move.x.toFixed(2)}, ${move.z.toFixed(2)})`);
-    }
+    // Debug (comentado para no llenar la consola)
+    // if (isMovingNow || isJumping || keys.has('a') || keys.has('d')) {
+    //   console.log(`🎮 Tank Controls: forward=${forwardMovement}, rotation=${currentRotation.toFixed(2)}, move=(${move.x.toFixed(2)}, ${move.z.toFixed(2)})`);
+    // }
 
     return {
       x: move.x,

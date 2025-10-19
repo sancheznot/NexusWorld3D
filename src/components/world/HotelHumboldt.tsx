@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState, Suspense } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
+import { useCannonPhysics } from '@/hooks/useCannonPhysics';
 import * as THREE from 'three';
 
 interface HotelHumboldtProps {
@@ -11,9 +12,11 @@ interface HotelHumboldtProps {
   rotation?: [number, number, number];
 }
 
-function HotelModel({ position, rotation, scale }: HotelHumboldtProps) {
+function HotelModel({ position = [0, 0, -100], rotation, scale = [6, 6, 6] }: HotelHumboldtProps) {
   const meshRef = useRef<THREE.Group>(null);
   const { scene } = useGLTF('/models/hotel_humboldt_model.glb');
+  const physicsRef = useCannonPhysics();
+  const colliderCreatedRef = useRef(false);
 
   useEffect(() => {
     if (scene) {
@@ -29,6 +32,22 @@ function HotelModel({ position, rotation, scale }: HotelHumboldtProps) {
       console.log('🏨 Hotel Humboldt modelo optimizado cargado con colisiones completas');
     }
   }, [scene]);
+
+  // Crear collider de física para el hotel (solo una vez)
+  useEffect(() => {
+    if (!physicsRef.current || !scene || colliderCreatedRef.current) {
+      return;
+    }
+
+    // 🏢 Crear collider de CAJA SIMPLE para el hotel
+    // El hotel está en position=[0, 0, -100] con scale=[6, 6, 6]
+    // Tamaño aproximado del hotel real: ~15x25x15 (sin escalar)
+    // Con escala 6: 90x150x90
+    const hotelSize: [number, number, number] = [90, 150, 90]; // ancho, alto, profundidad
+    physicsRef.current.createBoxCollider(position, hotelSize, 'hotel-humboldt');
+    colliderCreatedRef.current = true;
+    console.log(`🏢 Hotel Humboldt BOX collider created at (${position[0]}, ${position[1]}, ${position[2]}) size=${hotelSize}`);
+  }, [physicsRef, scene, position, scale]);
 
   return (
     <group ref={meshRef} position={position} rotation={rotation} scale={scale}>
