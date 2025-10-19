@@ -21,9 +21,12 @@ export function useCharacterAnimation() {
       newAnimation = 'idle';
     }
     
-    console.log(`🎬 Cambiando animación de '${currentAnimation}' a '${newAnimation}'`);
-    setCurrentAnimation(newAnimation);
-  }, [isMoving, isRunning, currentAnimation]);
+    // Solo cambiar si es diferente para evitar loops
+    if (newAnimation !== currentAnimation) {
+      console.log(`🎬 Cambiando animación de '${currentAnimation}' a '${newAnimation}'`);
+      setCurrentAnimation(newAnimation);
+    }
+  }, [isMoving, isRunning]);
 
   return currentAnimation;
 }

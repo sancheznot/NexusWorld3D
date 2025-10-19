@@ -53,13 +53,13 @@ function CharacterPreview({ customization }: { customization: CharacterCustomiza
   // Determinar qué modelo usar (siempre idle para preview)
   const getModelPath = () => {
     switch (customization.modelType) {
-      case 'men': return '/models/characters/men/men_Idle.glb';
-      case 'woman': return '/models/characters/women/women_Idle.glb';
+      case 'men': return '/models/characters/men/men-all.glb';
+      case 'woman': return '/models/characters/women/women-all.glb';
       case 'custom': 
         return customization.customBaseModel === 'woman' 
-          ? '/models/characters/women/women_Idle.glb'
-          : '/models/characters/men/men_Idle.glb';
-      default: return '/models/characters/men/men_Idle.glb';
+          ? '/models/characters/women/women-all.glb'
+          : '/models/characters/men/men-all.glb';
+      default: return '/models/characters/men/men-all.glb';
     }
   };
 

@@ -115,8 +115,8 @@ export default function PlayerV2({
 
   const getModelPath = () => {
     const gender = custom.modelType === 'woman' ? 'women' : 'men';
-    const animationSuffix = currentAnimation.charAt(0).toUpperCase() + currentAnimation.slice(1);
-    return `/models/characters/${gender}/${gender}_${animationSuffix}.glb`;
+    // Usar modelo unificado con todas las animaciones
+    return `/models/characters/${gender}/${gender}-all.glb`;
   };
 
   return (

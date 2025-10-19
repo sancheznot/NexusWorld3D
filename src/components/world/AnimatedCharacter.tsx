@@ -12,23 +12,20 @@ const getAnimationName = (animationState: string, actions: Record<string, Animat
   console.log(`🔍 Buscando animación para estado: ${animationState}`);
   console.log(`🔍 Acciones disponibles:`, availableActions);
   
-  // Buscar patrones específicos en los nombres de animaciones
-  for (const actionName of availableActions) {
-    const lowerActionName = actionName.toLowerCase();
-    const lowerAnimationState = animationState.toLowerCase();
-    
-    // Mapear estados a patrones de nombres (tanto para man como woman)
-    if (lowerAnimationState === 'idle' && (lowerActionName.includes('idle_man') || lowerActionName.includes('idle_woman'))) {
-      console.log(`✅ Encontrada animación idle: ${actionName}`);
-      return actionName;
-    }
-    if (lowerAnimationState === 'walking' && (lowerActionName.includes('walking_man') || lowerActionName.includes('walking_woman'))) {
-      console.log(`✅ Encontrada animación walking: ${actionName}`);
-      return actionName;
-    }
-    if (lowerAnimationState === 'running' && (lowerActionName.includes('running_man') || lowerActionName.includes('running_woman'))) {
-      console.log(`✅ Encontrada animación running: ${actionName}`);
-      return actionName;
+  // Mapeo directo para el modelo men-all.glb
+  const animationMap: { [key: string]: string[] } = {
+    'idle': ['Idle_11', 'idle', 'Idle', 'IDLE'],
+    'walking': ['Walking', 'walking', 'WALKING', 'Walk'],
+    'running': ['Running', 'running', 'RUNNING', 'Run']
+  };
+  
+  const possibleNames = animationMap[animationState] || [animationState];
+  
+  // Buscar la primera animación que exista
+  for (const name of possibleNames) {
+    if (actions[name]) {
+      console.log(`✅ Encontrada animación: ${name}`);
+      return name;
     }
   }
   
@@ -106,32 +103,38 @@ export default function AnimatedCharacter({
       console.log(`🎬 Intentando reproducir: ${animation}`);
       console.log(`🎬 Acciones disponibles:`, Object.keys(actions));
       
-      // Detener todas las animaciones primero
-      Object.values(actions).forEach(action => {
-        if (action && action.isRunning()) {
-          action.fadeOut(0.2);
-          action.stop();
-        }
-      });
-      
       // Obtener el nombre real de la animación
       const targetActionName = getAnimationName(animation, actions);
       
       if (targetActionName && actions[targetActionName]) {
+        const targetAction = actions[targetActionName];
+        
         console.log(`🎬 Reproduciendo: ${animation} -> ${targetActionName}`);
-        actions[targetActionName].reset().fadeIn(0.2).play();
+        
+        // Detener todas las animaciones primero
+        Object.entries(actions).forEach(([name, action]) => {
+          if (action && action.isRunning()) {
+            action.stop();
+          }
+        });
+        
+        // Iniciar la nueva animación inmediatamente
+        targetAction.reset().fadeIn(0.005).play();
       } else {
         console.log(`⚠️ Animación '${animation}' no encontrada, usando idle`);
         const idleActionName = getAnimationName('idle', actions);
         if (idleActionName && actions[idleActionName]) {
-          actions[idleActionName].reset().fadeIn(0.2).play();
-        } else if (Object.keys(actions).length > 0) {
-          // Usar la primera animación disponible
-          const firstAction = Object.values(actions)[0];
-          if (firstAction) {
-            console.log(`🎬 Usando primera animación disponible: ${Object.keys(actions)[0]}`);
-            firstAction.reset().fadeIn(0.2).play();
-          }
+          const idleAction = actions[idleActionName];
+          
+          // Detener todas las animaciones
+          Object.entries(actions).forEach(([name, action]) => {
+            if (action && action.isRunning()) {
+              action.stop();
+            }
+          });
+          
+          // Iniciar idle inmediatamente
+          idleAction.reset().fadeIn(0.1).play();
         }
       }
     }
