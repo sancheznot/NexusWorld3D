@@ -41,14 +41,6 @@ export default function GameCanvas() {
   // Enable keyboard for movement when game is started (menus can be open)
   const keyboardEnabled = isGameStarted;
   
-  console.log('🎮 Keyboard state:', {
-    isGameStarted,
-    isInventoryOpen,
-    isMapOpen,
-    isChatOpen,
-    keyboardEnabled
-  });
-  
   // Debug: Log current state (only when there are issues)
   if (isGameStarted && !keyboardEnabled) {
     console.log('⚠️ Keyboard disabled but game started:', {

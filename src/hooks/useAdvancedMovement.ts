@@ -18,13 +18,13 @@ export function useAdvancedMovement(enabled: boolean = true) {
   const { setMoving, setRunning } = usePlayerStore();
   const keysRef = useRef<Set<string>>(new Set());
   const { getCameraState } = useMouseCamera(enabled);
-  
-  console.log(`🎮 useAdvancedMovement enabled: ${enabled}`);
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    const key = event.key.toLowerCase();
+    console.log(`🎮 Tecla presionada: ${key}, enabled: ${enabled}`);
     if (!enabled) return;
-    console.log(`🎮 Tecla presionada: ${event.key}`);
-    keysRef.current.add(event.key.toLowerCase());
+    keysRef.current.add(key);
+    console.log(`🎮 Tecla agregada al set: ${key}, total keys: ${keysRef.current.size}`);
   }, [enabled]);
 
   const handleKeyUp = useCallback((event: KeyboardEvent) => {
@@ -34,11 +34,6 @@ export function useAdvancedMovement(enabled: boolean = true) {
 
   const calculateMovementInput = useCallback((): MovementInput => {
     const keys = keysRef.current;
-    let x = 0;
-    let z = 0;
-    let isRunning = false;
-    let isJumping = false;
-    let jumpType: 'normal' | 'running' | 'backflip' | null = null;
 
     if (!enabled) {
       setMoving(false);
@@ -47,62 +42,64 @@ export function useAdvancedMovement(enabled: boolean = true) {
       return { x: 0, z: 0, rotation: cameraState.horizontal, isRunning: false, isJumping: false, jumpType: null };
     }
 
-    // Detectar saltos
-    if (keys.has(' ')) { // Espacio presionado
-      isJumping = true;
-      
-      if (keys.has('shift') && keys.has('s')) {
-        // Backflip: Espacio + Shift + S
-        jumpType = 'backflip';
-        console.log('🎮 Salto: BACKFLIP');
-      } else if (keys.has('shift')) {
-        // Salto corriendo: Shift + Espacio
-        jumpType = 'running';
-        console.log('🎮 Salto: CORRIENDO');
-      } else {
-        // Salto normal: Solo Espacio
-        jumpType = 'normal';
-        console.log('🎮 Salto: NORMAL');
-      }
-    }
+    // 1) Leer teclas como "intenciones" (adelante/atrás y strafe)
+    let fb = 0;      // forward/back
+    let strafe = 0;  // left/right
+    if (keys.has('w')) fb += 1;
+    if (keys.has('s')) fb -= 1;
+    if (keys.has('a')) strafe -= 1;
+    if (keys.has('d')) strafe += 1;
 
-    if (keys.has('shift')) {
-      isRunning = true;
-    }
-
-    if (keys.has('w')) z += 1;  // W = hacia atrás
-    if (keys.has('s')) z -= 1;  // S = hacia adelante
-    if (keys.has('a')) x -= 1;
-    if (keys.has('d')) x += 1;
-
-    const inputVector = new THREE.Vector2(x, z);
-    if (inputVector.length() > 1) {
-      inputVector.normalize();
-    }
-
-    // Calcular rotación basada en la dirección de movimiento relativa a la cámara
-    let rotation = 0;
     const cameraState = getCameraState();
-    
-    if (inputVector.length() > 0) {
-      // Calcular el ángulo de la dirección de movimiento relativa a la cámara
-      // W = -Z, S = +Z, A = -X, D = +X
-      rotation = Math.atan2(inputVector.x, -inputVector.y) + cameraState.horizontal;
-    } else {
-      // Si no hay movimiento, mantener la rotación actual
-      rotation = cameraState.horizontal;
+    const yaw = cameraState.horizontal;
+
+    // 2) Construir forward/right relativos a la cámara (plano XZ)
+    const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));            // hacia donde mira la cámara
+    const right   = new THREE.Vector3(Math.sin(yaw + Math.PI/2), 0, Math.cos(yaw + Math.PI/2));
+
+    // 3) Vector de movimiento en mundo (sin mutar los vectores originales)
+    const move = new THREE.Vector3();
+    move.addScaledVector(forward, fb);
+    move.addScaledVector(right, strafe);
+
+    // 4) Normalizar si hace falta
+    if (move.lengthSq() > 1e-6) move.normalize();
+
+    // 5) Rotación del jugador hacia su vector de movimiento (si hay)
+    let rotation = yaw; // por defecto, mirando hacia donde mira la cámara
+    if (move.lengthSq() > 1e-6) {
+      rotation = Math.atan2(move.x, move.z); // ojo: atan2(x,z) en XZ
     }
 
-    const isMoving = inputVector.length() > 0;
-    setMoving(isMoving);
+    // 6) Correr / saltar
+    const isRunning = keys.has('shift');
+    let isJumping = false;
+    let jumpType: MovementInput['jumpType'] = null;
+    if (keys.has(' ')) {
+      isJumping = true;
+      if (keys.has('shift') && keys.has('s')) jumpType = 'backflip';
+      else if (keys.has('shift'))              jumpType = 'running';
+      else                                     jumpType = 'normal';
+    }
+
+    // 7) Devolver X/Z EN MUNDO (no en cámara): cannon los usa directo
+    const isMovingNow = move.lengthSq() > 1e-6;
+    setMoving(isMovingNow);
     setRunning(isRunning);
 
-    // Debug: mostrar input cuando hay movimiento o salto
-    if (isMoving || isJumping) {
-      console.log(`🎮 Input calculado: x=${inputVector.x.toFixed(2)}, z=${inputVector.y.toFixed(2)}, running=${isRunning}, jumping=${isJumping}, jumpType=${jumpType}`);
+    // Debug
+    if (isMovingNow || isJumping) {
+      console.log(`🎮 Movement: fb=${fb}, strafe=${strafe}, move=(${move.x.toFixed(2)}, ${move.z.toFixed(2)}), yaw=${yaw.toFixed(2)}, rotation=${rotation.toFixed(2)}`);
     }
 
-    return { x: inputVector.x, z: inputVector.y, rotation, isRunning, isJumping, jumpType };
+    return {
+      x: move.x,
+      z: move.z,
+      rotation,
+      isRunning,
+      isJumping,
+      jumpType
+    };
   }, [enabled, setMoving, setRunning, getCameraState]);
 
   useEffect(() => {

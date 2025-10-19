@@ -23,9 +23,10 @@ function HotelModel({ position, rotation, scale }: HotelHumboldtProps) {
           child.receiveShadow = true;
           child.userData.isCollider = true;
           child.userData.collisionType = 'building';
+          child.userData.buildingName = 'HotelHumboldt';
         }
       });
-      console.log('🏨 Hotel Humboldt modelo optimizado cargado (414KB)');
+      console.log('🏨 Hotel Humboldt modelo optimizado cargado con colisiones completas');
     }
   }, [scene]);
 
@@ -42,22 +43,22 @@ function HotelPlaceholder({ position, rotation, scale }: HotelHumboldtProps) {
   return (
     <group ref={meshRef} position={position} rotation={rotation} scale={scale}>
       {/* Base del hotel */}
-      <mesh castShadow receiveShadow userData={{ isCollider: true, collisionType: 'building' }}>
+      <mesh castShadow receiveShadow userData={{ isCollider: true, collisionType: 'building', buildingName: 'HotelHumboldt' }}>
         <boxGeometry args={[30, 15, 30]} />
         <meshStandardMaterial color={0x8b4513} roughness={0.8} metalness={0.2} />
       </mesh>
       {/* Segundo piso */}
-      <mesh position={[0, 22.5, 0]} castShadow receiveShadow userData={{ isCollider: true, collisionType: 'building' }}>
+      <mesh position={[0, 22.5, 0]} castShadow receiveShadow userData={{ isCollider: true, collisionType: 'building', buildingName: 'HotelHumboldt' }}>
         <boxGeometry args={[36, 15, 36]} />
         <meshStandardMaterial color={0x696969} roughness={0.7} metalness={0.3} />
       </mesh>
       {/* Tercer piso */}
-      <mesh position={[0, 37.5, 0]} castShadow receiveShadow userData={{ isCollider: true, collisionType: 'building' }}>
+      <mesh position={[0, 37.5, 0]} castShadow receiveShadow userData={{ isCollider: true, collisionType: 'building', buildingName: 'HotelHumboldt' }}>
         <boxGeometry args={[42, 12, 42]} />
         <meshStandardMaterial color={0x555555} roughness={0.6} metalness={0.4} />
       </mesh>
       {/* Techo */}
-      <mesh position={[0, 48, 0]} castShadow receiveShadow userData={{ isCollider: true, collisionType: 'building' }}>
+      <mesh position={[0, 48, 0]} castShadow receiveShadow userData={{ isCollider: true, collisionType: 'building', buildingName: 'HotelHumboldt' }}>
         <boxGeometry args={[48, 8, 48]} />
         <meshStandardMaterial color={0x333333} roughness={0.5} metalness={0.5} />
       </mesh>

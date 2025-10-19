@@ -6,8 +6,8 @@ export class CannonPhysics {
   private playerBody: CANNON.Body | null = null;
   private currentVelocity = { x: 0, z: 0 };
   private targetVelocity = { x: 0, z: 0 };
-  private acceleration = 8; // Velocidad de aceleración (más suave)
-  private deceleration = 12; // Velocidad de desaceleración (más rápida)
+  private acceleration = 20; // Velocidad de aceleración (más rápida)
+  private deceleration = 15; // Velocidad de desaceleración (más rápida)
 
   constructor() {
     // Crear mundo de física
@@ -18,6 +18,11 @@ export class CannonPhysics {
     
     // Configurar solver
     this.world.broadphase = new CANNON.NaiveBroadphase();
+    
+    // Habilitar sleep para mejor rendimiento
+    this.world.allowSleep = true;
+    this.world.defaultContactMaterial.restitution = 0; // Sin rebote por defecto
+    this.world.defaultContactMaterial.friction = 0.6;
     
     // Configurar materiales
     this.setupMaterials();
@@ -51,7 +56,7 @@ export class CannonPhysics {
     this.world.addContactMaterial(playerGroundContact);
   }
 
-  createGround(size: number = 100) {
+  createGround(_size: number = 100) {
     const groundShape = new CANNON.Plane();
     const groundBody = new CANNON.Body({ mass: 0 });
     groundBody.addShape(groundShape);
@@ -72,9 +77,10 @@ export class CannonPhysics {
     playerBody.position.set(position.x, position.y, position.z);
     playerBody.material = new CANNON.Material('player');
     
-    // Configurar propiedades físicas
-    playerBody.linearDamping = 0.8; // Alta amortiguación para estabilidad
-    playerBody.angularDamping = 0.9; // Alta amortiguación angular
+    // Configurar propiedades físicas para evitar rebote
+    playerBody.allowSleep = false; // DESACTIVAR sleep para que siempre se actualice
+    playerBody.linearDamping = 0.1; // Muy bajo para permitir movimiento fluido
+    playerBody.angularDamping = 1.0;
     playerBody.fixedRotation = true; // Evitar rotación no deseada
     
     this.world.addBody(playerBody);
@@ -86,14 +92,23 @@ export class CannonPhysics {
   }
 
   update(deltaTime: number) {
-    this.world.step(deltaTime);
+    // Timestep fijo para estabilidad
+    this.world.step(1/60, deltaTime, 8); // fijo + substeps
+    
+    // Debug: verificar si el cuerpo se movió
+    if (this.playerBody) {
+      console.log(`🔧 Cannon update AFTER step: pos=(${this.playerBody.position.x.toFixed(2)}, ${this.playerBody.position.y.toFixed(2)}, ${this.playerBody.position.z.toFixed(2)}), vel=(${this.playerBody.velocity.x.toFixed(2)}, ${this.playerBody.velocity.y.toFixed(2)}, ${this.playerBody.velocity.z.toFixed(2)})`);
+    }
   }
 
   updateMovement(input: { x: number; z: number; isRunning: boolean }, deltaTime: number) {
-    if (!this.playerBody) return;
+    if (!this.playerBody) {
+      console.log('⚠️ updateMovement: playerBody is null');
+      return;
+    }
 
-    // Calcular velocidad objetivo
-    const maxSpeed = input.isRunning ? 8 : 5;
+    // Calcular velocidad objetivo (aumentada para movimiento más rápido)
+    const maxSpeed = input.isRunning ? 12 : 7;
     this.targetVelocity.x = input.x * maxSpeed;
     this.targetVelocity.z = input.z * maxSpeed;
 
@@ -108,7 +123,15 @@ export class CannonPhysics {
     this.playerBody.velocity.x = this.currentVelocity.x;
     this.playerBody.velocity.z = this.currentVelocity.z;
 
-    console.log(`🏃 Velocidad: actual(${this.currentVelocity.x.toFixed(2)}, ${this.currentVelocity.z.toFixed(2)}) objetivo(${this.targetVelocity.x}, ${this.targetVelocity.z})`);
+    // Debug
+    if (input.x !== 0 || input.z !== 0) {
+      console.log(`🔧 Cannon updateMovement: input=(${input.x.toFixed(2)}, ${input.z.toFixed(2)}), target=(${this.targetVelocity.x.toFixed(2)}, ${this.targetVelocity.z.toFixed(2)}), current=(${this.currentVelocity.x.toFixed(2)}, ${this.currentVelocity.z.toFixed(2)}), bodyVel=(${this.playerBody.velocity.x.toFixed(2)}, ${this.playerBody.velocity.z.toFixed(2)}), pos=(${this.playerBody.position.x.toFixed(2)}, ${this.playerBody.position.z.toFixed(2)})`);
+    }
+
+    // Cuando esté grounded, aplana pequeñas vibras verticales
+    if (this.isGrounded() && Math.abs(this.playerBody.velocity.y) < 0.1) {
+      this.playerBody.velocity.y = 0;
+    }
   }
 
   private lerp(start: number, end: number, factor: number): number {

@@ -1,89 +1,84 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect } from 'react';
 
 interface CameraState {
   horizontal: number;
   vertical: number;
 }
 
+// Singleton compartido
+const cameraStateGlobal = { horizontal: 0, vertical: 0 };
+let listenersBound = false;
+let isMouseDown = false;
+let lastMousePosition = { x: 0, y: 0 };
+
 export function useMouseCamera(enabled: boolean = true) {
-  const cameraState = useRef<CameraState>({ horizontal: 0, vertical: 0 });
-  const isMouseDown = useRef(false);
-  const lastMousePosition = useRef({ x: 0, y: 0 });
+  // usa el singleton:
+  const cameraState = cameraStateGlobal;
 
   const handleMouseDown = useCallback((event: MouseEvent) => {
-    if (!enabled) return;
-    isMouseDown.current = true;
-    lastMousePosition.current = { x: event.clientX, y: event.clientY };
-    console.log('🖱️ Mouse down - iniciando control de cámara');
-  }, [enabled]);
+    isMouseDown = true;
+    lastMousePosition = { x: event.clientX, y: event.clientY };
+  }, []);
 
   const handleMouseUp = useCallback(() => {
-    if (!enabled) return;
-    isMouseDown.current = false;
-    console.log('🖱️ Mouse up - deteniendo control de cámara');
-  }, [enabled]);
+    isMouseDown = false;
+  }, []);
 
   const handleMouseMove = useCallback((event: MouseEvent) => {
-    if (!enabled || !isMouseDown.current) return;
+    if (!isMouseDown) return;
 
-    const deltaX = event.clientX - lastMousePosition.current.x;
-    const deltaY = event.clientY - lastMousePosition.current.y;
+    const deltaX = event.clientX - lastMousePosition.x;
+    const deltaY = event.clientY - lastMousePosition.y;
 
     // Sensibilidad del mouse (ajustable)
     const sensitivity = 0.003;
 
     // Actualizar rotación horizontal (Y-axis)
-    cameraState.current.horizontal += deltaX * sensitivity;
+    cameraState.horizontal += deltaX * sensitivity;
 
     // Actualizar rotación vertical (X-axis) con límites
-    cameraState.current.vertical += deltaY * sensitivity;
-    cameraState.current.vertical = Math.max(
+    cameraState.vertical += deltaY * sensitivity;
+    cameraState.vertical = Math.max(
       -Math.PI / 2, // -90 grados
-      Math.min(Math.PI / 2, cameraState.current.vertical) // +90 grados
+      Math.min(Math.PI / 2, cameraState.vertical) // +90 grados
     );
 
-    lastMousePosition.current = { x: event.clientX, y: event.clientY };
-
-    console.log(`🖱️ Cámara: H=${cameraState.current.horizontal.toFixed(2)}, V=${cameraState.current.vertical.toFixed(2)}`);
-  }, [enabled]);
+    lastMousePosition = { x: event.clientX, y: event.clientY };
+  }, []);
 
   const handleWheel = useCallback((event: WheelEvent) => {
-    if (!enabled) return;
     event.preventDefault();
-    
-    // Control de zoom con scroll (opcional)
-    console.log('🖱️ Wheel scroll:', event.deltaY);
-  }, [enabled]);
+  }, []);
 
+  // bindea listeners solo una vez globalmente
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || listenersBound) return;
 
-    console.log('🖱️ Configurando control de cámara con mouse');
-    
     document.addEventListener('mousedown', handleMouseDown);
     document.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('wheel', handleWheel, { passive: false });
 
+    listenersBound = true;
     return () => {
       document.removeEventListener('mousedown', handleMouseDown);
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('wheel', handleWheel);
-      console.log('🖱️ Control de cámara removido');
+      listenersBound = false;
     };
   }, [enabled, handleMouseDown, handleMouseUp, handleMouseMove, handleWheel]);
 
-  const getCameraState = useCallback(() => cameraState.current, []);
+  const getCameraState = useCallback(() => cameraState, []);
   
   const setCameraState = useCallback((newState: Partial<CameraState>) => {
     if (newState.horizontal !== undefined) {
-      cameraState.current.horizontal = newState.horizontal;
+      cameraState.horizontal = newState.horizontal;
     }
     if (newState.vertical !== undefined) {
-      cameraState.current.vertical = newState.vertical;
+      cameraState.vertical = newState.vertical;
     }
   }, []);
 

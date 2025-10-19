@@ -79,66 +79,74 @@ export default function PlayerV2({
   }, []);
 
   useFrame((state, delta) => {
-    if (isCurrentPlayer && physicsRef.current && isTabVisible) {
-      // Calcular input en useFrame, no durante el renderizado
-      const currentInput = calculateMovementInput();
-      setInput(currentInput);
+    if (!isCurrentPlayer) return;
+    
+    if (!physicsRef.current) {
+      console.log('⚠️ PlayerV2 useFrame: physicsRef.current is null');
+      return;
+    }
+    
+    if (!isTabVisible) {
+      console.log('⚠️ PlayerV2 useFrame: tab not visible');
+      return;
+    }
+    
+    // Calcular input en useFrame, no durante el renderizado
+    const currentInput = calculateMovementInput();
+    setInput(currentInput);
+    
+    // Limitar delta para evitar aceleración cuando cambias de pestaña
+    const clampedDelta = Math.min(delta, 1/30); // Máximo 30 FPS
+    
+    // Aplicar movimiento ANTES de actualizar la física
+    if (physicsRef.current) {
+      physicsRef.current.updateMovement({
+        x: currentInput.x,
+        z: currentInput.z,
+        isRunning: currentInput.isRunning
+      }, clampedDelta);
+    }
+    
+    // Actualizar física de Cannon.js (esto mueve el cuerpo con la velocidad aplicada)
+    if (physicsRef.current) {
+      physicsRef.current.update(clampedDelta);
+    }
+    
+    // Manejar saltos
+    if (currentInput.isJumping && physicsRef.current.isGrounded()) {
+      let jumpForce = 4;
+      if (currentInput.jumpType === 'running') jumpForce = 5;
+      else if (currentInput.jumpType === 'backflip') jumpForce = 6;
       
-      // Limitar delta para evitar aceleración cuando cambias de pestaña
-      const clampedDelta = Math.min(delta, 1/30); // Máximo 30 FPS
-      
-      // Actualizar física de Cannon.js
-      if (physicsRef.current) {
-        physicsRef.current.update(clampedDelta);
-      }
-      
-      // Usar sistema de movimiento gradual
-      if (physicsRef.current) {
-        physicsRef.current.updateMovement({
-          x: currentInput.x,
-          z: currentInput.z,
-          isRunning: currentInput.isRunning
-        }, clampedDelta);
-      }
-      
-      // Manejar saltos
-      if (currentInput.isJumping && physicsRef.current.isGrounded()) {
-        let jumpForce = 4;
-        if (currentInput.jumpType === 'running') jumpForce = 5;
-        else if (currentInput.jumpType === 'backflip') jumpForce = 6;
-        
-        physicsRef.current.jump(jumpForce);
-      }
-      
-      // Obtener posición y velocidad de Cannon.js
-      const cannonPosition = physicsRef.current.getPlayerPosition();
-      const cannonVelocity = physicsRef.current.getPlayerVelocity();
-      
-      // Usar posición directa de Cannon.js (sin colisiones por ahora)
-      updatePosition({
-        x: cannonPosition.x,
-        y: cannonPosition.y,
-        z: cannonPosition.z,
-      });
+      physicsRef.current.jump(jumpForce);
+    }
+    
+    // Obtener posición y velocidad de Cannon.js
+    const cannonPosition = physicsRef.current.getPlayerPosition();
+    const cannonVelocity = physicsRef.current.getPlayerVelocity();
+    
+    // Usar posición directa de Cannon.js (sin colisiones por ahora)
+    updatePosition({
+      x: cannonPosition.x,
+      y: cannonPosition.y,
+      z: cannonPosition.z,
+    });
 
-      // Actualizar estados de animación
-      const isMoving = currentInput.x !== 0 || currentInput.z !== 0;
-      setMoving(isMoving);
-      setRunning(currentInput.isRunning);
+    // Actualizar estados de animación
+    const isMoving = currentInput.x !== 0 || currentInput.z !== 0;
+    setMoving(isMoving);
+    setRunning(currentInput.isRunning);
 
-      // Rotar personaje solo cuando se está moviendo
-      if (isMoving) {
-        const targetRotation = currentInput.rotation;
-        updateRotation({ x: 0, y: targetRotation, z: 0 });
-      }
+    // Rotar personaje siempre hacia la dirección de movimiento o cámara
+    const targetRotation = currentInput.rotation;
+    updateRotation({ x: 0, y: targetRotation, z: 0 });
 
-      const currentPosition = new THREE.Vector3(cannonPosition.x, cannonPosition.y, cannonPosition.z);
-      const distance = currentPosition.distanceTo(lastPositionRef.current);
-      
-      if (distance > 0.1 || currentInput.isJumping || Math.abs(cannonVelocity.y) > 0.1) {
-        console.log(`🎮 Cannon Physics: pos=${cannonPosition.x.toFixed(2)}, ${cannonPosition.y.toFixed(2)}, ${cannonPosition.z.toFixed(2)}, vel=${cannonVelocity.x.toFixed(2)}, ${cannonVelocity.y.toFixed(2)}, ${cannonVelocity.z.toFixed(2)}, jump=${currentInput.isJumping}, jumpType=${currentInput.jumpType}, isGrounded=${physicsRef.current.isGrounded()}`);
-        lastPositionRef.current.copy(currentPosition);
-      }
+    const currentPosition = new THREE.Vector3(cannonPosition.x, cannonPosition.y, cannonPosition.z);
+    const distance = currentPosition.distanceTo(lastPositionRef.current);
+    
+    if (distance > 0.1 || currentInput.isJumping || Math.abs(cannonVelocity.y) > 0.1) {
+      console.log(`🎮 Cannon Physics: pos=${cannonPosition.x.toFixed(2)}, ${cannonPosition.y.toFixed(2)}, ${cannonPosition.z.toFixed(2)}, vel=${cannonVelocity.x.toFixed(2)}, ${cannonVelocity.y.toFixed(2)}, ${cannonVelocity.z.toFixed(2)}, jump=${currentInput.isJumping}, jumpType=${currentInput.jumpType}, isGrounded=${physicsRef.current.isGrounded()}`);
+      lastPositionRef.current.copy(currentPosition);
     }
   });
 
