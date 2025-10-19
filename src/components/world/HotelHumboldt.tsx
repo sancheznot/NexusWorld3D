@@ -41,12 +41,19 @@ function HotelModel({ position = [0, 0, -100], rotation, scale = [6, 6, 6] }: Ho
 
     // 🏢 Crear collider de CAJA SIMPLE para el hotel
     // El hotel está en position=[0, 0, -100] con scale=[6, 6, 6]
-    // Tamaño aproximado del hotel real: ~15x25x15 (sin escalar)
-    // Con escala 6: 90x150x90
-    const hotelSize: [number, number, number] = [90, 150, 90]; // ancho, alto, profundidad
-    physicsRef.current.createBoxCollider(position, hotelSize, 'hotel-humboldt');
+    // Dimensiones que funcionaban: 110x200x115
+    const hotelSize: [number, number, number] = [110, 200, 115]; // ancho, alto, profundidad - FUNCIONABA
+    
+    // Ajustar posición del collider para centrarlo correctamente con el edificio
+    const colliderPosition: [number, number, number] = [
+      position[0] + 20,   // X: mover 20 unidades a la derecha para centrarlo
+      position[1],        // Y: mismo nivel
+      position[2] + 0     // Z: centrado
+    ];
+    
+    physicsRef.current.createBoxCollider(colliderPosition, hotelSize, 'hotel-humboldt');
     colliderCreatedRef.current = true;
-    console.log(`🏢 Hotel Humboldt BOX collider created at (${position[0]}, ${position[1]}, ${position[2]}) size=${hotelSize}`);
+    console.log(`🏢 Hotel Humboldt BOX collider created at (${colliderPosition[0]}, ${colliderPosition[1]}, ${colliderPosition[2]}) size=${hotelSize}`);
   }, [physicsRef, scene, position, scale]);
 
   return (
