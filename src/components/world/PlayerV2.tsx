@@ -1,8 +1,7 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { useGLTF } from '@react-three/drei';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAdvancedMovement } from '@/hooks/useAdvancedMovement';
 import { PlayerPhysics } from '@/lib/three/physics';
@@ -43,7 +42,8 @@ export default function PlayerV2({
   } = usePlayerStore();
 
   const { calculateMovementInput } = useAdvancedMovement(isCurrentPlayer && keyboardEnabled);
-  const currentAnimation = useCharacterAnimation();
+  const [input, setInput] = useState({ x: 0, z: 0, rotation: 0, isRunning: false, isJumping: false, jumpType: null as 'normal' | 'running' | 'backflip' | null });
+  const currentAnimation = useCharacterAnimation(input.jumpType);
 
   const defaultCustomization: PlayerCustomization = {
     bodyColor: '#007bff',
@@ -68,16 +68,14 @@ export default function PlayerV2({
 
   useFrame((state, delta) => {
     if (isCurrentPlayer) {
-      const input = calculateMovementInput();
-      
-      if (input.x !== 0 || input.z !== 0) {
-        console.log(`🎮 Movimiento detectado:`, input);
-      }
+      // Calcular input en useFrame, no durante el renderizado
+      const currentInput = calculateMovementInput();
+      setInput(currentInput);
       
       // Calcular nueva posición basada en input
       const currentPos = new THREE.Vector3(playerPosition.x, playerPosition.y, playerPosition.z);
-      const isOnGround = currentPos.y <= 1.5;
-      const velocity = physicsRef.current.update(delta, input, isOnGround);
+      const isOnGround = currentPos.y <= 1.02; // Muy estricto - solo cuando está en el suelo
+      const velocity = physicsRef.current.update(delta, currentInput, isOnGround);
       
       // Aplicar movimiento
       currentPos.x += velocity.x * delta;
@@ -95,19 +93,18 @@ export default function PlayerV2({
       });
 
       // Actualizar estados de animación
-      const isMoving = input.x !== 0 || input.z !== 0;
+      const isMoving = currentInput.x !== 0 || currentInput.z !== 0;
       setMoving(isMoving);
-      setRunning(input.isRunning);
+      setRunning(currentInput.isRunning);
 
-      // Rotar personaje hacia la dirección de movimiento
-      if (isMoving) {
-        const targetRotation = input.rotation;
-        updateRotation({ x: 0, y: targetRotation, z: 0 });
-      }
+      // Rotar personaje hacia la dirección de movimiento (siempre, no solo cuando se mueve)
+      const targetRotation = currentInput.rotation;
+      updateRotation({ x: 0, y: targetRotation, z: 0 });
 
       const distance = correctedPosition.distanceTo(lastPositionRef.current);
       
-      if (distance > 0.1) {
+      if (distance > 0.1 || currentInput.isJumping || Math.abs(velocity.y) > 0.1) {
+        console.log(`🎮 Movimiento: pos=${correctedPosition.x.toFixed(2)}, ${correctedPosition.y.toFixed(2)}, ${correctedPosition.z.toFixed(2)}, vel=${velocity.x.toFixed(2)}, ${velocity.y.toFixed(2)}, ${velocity.z.toFixed(2)}, jump=${currentInput.isJumping}, jumpType=${currentInput.jumpType}, isOnGround=${isOnGround}`);
         lastPositionRef.current.copy(correctedPosition);
       }
     }

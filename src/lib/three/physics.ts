@@ -50,32 +50,53 @@ export class CollisionDetector {
 export class PlayerPhysics {
   private velocity = new THREE.Vector3();
   private acceleration = new THREE.Vector3();
-  private friction = 0.8;
-  private maxSpeed = 10;
+  private friction = 0.3;
+  private maxSpeed = 100;
 
-  update(deltaTime: number, input: { x: number; z: number; isRunning?: boolean }, isGrounded: boolean = true) {
+  update(deltaTime: number, input: { x: number; z: number; isRunning?: boolean; isJumping?: boolean; jumpType?: 'normal' | 'running' | 'backflip' | null }, isGrounded: boolean = true) {
     // Apply input force
     this.acceleration.set(input.x, 0, input.z);
-    const forceMultiplier = input.isRunning ? 30 : 20; // More force when running
+    const forceMultiplier = input.isRunning ? 200 : 150; // More force when running
     this.acceleration.multiplyScalar(forceMultiplier);
 
-    // Apply gravity if not grounded
+    // Handle jumping
+    if (input.isJumping && isGrounded) {
+      let jumpForce = 4; // Fuerza base de salto (muy reducida)
+      
+      if (input.jumpType === 'running') {
+        jumpForce = 5; // Salto más alto corriendo
+      } else if (input.jumpType === 'backflip') {
+        jumpForce = 6; // Salto más alto para backflip
+      }
+      
+      this.velocity.y = jumpForce;
+      console.log(`🦘 Salto ejecutado: ${input.jumpType}, fuerza: ${jumpForce}`);
+    }
+
+    // Apply gravity ALWAYS (except when grounded and not jumping)
     if (!isGrounded) {
-      this.acceleration.y = -9.81;
+      this.acceleration.y = -9.81; // Gravedad real constante
+      console.log(`🌍 Aplicando gravedad: ${this.acceleration.y}, velocidad Y: ${this.velocity.y.toFixed(2)}`);
     } else {
-      // Reset Y velocity when grounded
-      this.velocity.y = 0;
+      // Solo resetear velocidad Y cuando realmente toca el suelo
+      if (this.velocity.y < 0) {
+        this.velocity.y = 0;
+        console.log(`🏃 Aterrizando - velocidad Y reseteada`);
+      }
     }
 
     // Update velocity
     this.velocity.add(this.acceleration.clone().multiplyScalar(deltaTime));
 
-    // Apply friction
-    this.velocity.multiplyScalar(this.friction);
+    // Apply friction (only to horizontal movement)
+    this.velocity.x *= this.friction;
+    this.velocity.z *= this.friction;
 
-    // Limit speed
-    if (this.velocity.length() > this.maxSpeed) {
-      this.velocity.normalize().multiplyScalar(this.maxSpeed);
+    // Limit speed (only horizontal)
+    const horizontalSpeed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
+    if (horizontalSpeed > this.maxSpeed) {
+      this.velocity.x = (this.velocity.x / horizontalSpeed) * this.maxSpeed;
+      this.velocity.z = (this.velocity.z / horizontalSpeed) * this.maxSpeed;
     }
 
     // Reset acceleration

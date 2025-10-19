@@ -16,6 +16,8 @@ import HotelHumboldt from '@/components/world/HotelHumboldt';
 import GreenDomeStructure from '@/components/world/GreenDomeStructure';
 import Lighting from '@/components/world/Lighting';
 import ThirdPersonCamera from '@/components/world/ThirdPersonCamera';
+import TestingCamera from '@/components/world/TestingCamera';
+import { useTestingCamera } from '@/hooks/useTestingCamera';
 import LoginModal from '@/components/game/LoginModal';
 import CharacterCreatorV2 from '@/components/game/CharacterCreatorV2';
 import ModelInfo from '@/components/ui/ModelInfo';
@@ -27,6 +29,7 @@ export default function GameCanvas() {
   const { position, health, maxHealth, stamina, maxStamina, level, isMoving, isRunning, player } = usePlayerStore();
   const { players } = useWorldStore();
   const { isInventoryOpen, isMapOpen, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals } = useUIStore();
+  const { isActive: isTestingCameraActive, height: testingHeight, distance: testingDistance } = useTestingCamera();
   
   // Game flow state
   const [showLogin, setShowLogin] = useState(true);
@@ -148,10 +151,10 @@ export default function GameCanvas() {
               tileSize={25}
             />
             
-            {/* Hotel Humboldt - 100X MÁS GRANDE */}
+            {/* Hotel Humboldt - 80% del tamaño original */}
             <HotelHumboldt 
               position={[0, 0, -100]} 
-              scale={[10, 10, 10]} 
+              scale={[8, 8, 8]} 
               rotation={[0, 0, 0]} 
             />
             
@@ -191,12 +194,36 @@ export default function GameCanvas() {
           
                     {/* Camera Controller */}
                     <ThirdPersonCamera />
+                    
+                    {/* Testing Camera */}
+                    <TestingCamera />
         </Suspense>
         </Canvas>
       )}
 
       {/* FPS Counter */}
       <FPSCounter />
+      
+      {/* Testing Camera Info Panel */}
+      {isTestingCameraActive && (
+        <div style={{
+          position: 'fixed',
+          top: '10px',
+          right: '10px',
+          background: 'rgba(0, 0, 0, 0.8)',
+          color: 'white',
+          padding: '10px',
+          borderRadius: '5px',
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          zIndex: 1000
+        }}>
+          <div>🔍 CÁMARA DE TESTING</div>
+          <div>Altura: {testingHeight}m (+/- para ajustar)</div>
+          <div>Distancia: {testingDistance}m ([/] para ajustar)</div>
+          <div>Presiona T para salir</div>
+        </div>
+      )}
       
       {/* Debug Info */}
       <div className="absolute top-4 left-4 z-10 space-y-2">

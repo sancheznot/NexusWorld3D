@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { usePlayerStore } from '@/store/playerStore';
+import { useMouseCamera } from './useMouseCamera';
 import * as THREE from 'three';
 
 interface MovementInput {
@@ -9,12 +10,14 @@ interface MovementInput {
   z: number;
   rotation: number;
   isRunning: boolean;
+  isJumping: boolean;
+  jumpType: 'normal' | 'running' | 'backflip' | null;
 }
 
 export function useAdvancedMovement(enabled: boolean = true) {
   const { setMoving, setRunning } = usePlayerStore();
   const keysRef = useRef<Set<string>>(new Set());
-  const cameraAngle = useRef({ horizontal: 0, vertical: 0 });
+  const { getCameraState } = useMouseCamera(enabled);
   
   console.log(`🎮 useAdvancedMovement enabled: ${enabled}`);
 
@@ -34,11 +37,33 @@ export function useAdvancedMovement(enabled: boolean = true) {
     let x = 0;
     let z = 0;
     let isRunning = false;
+    let isJumping = false;
+    let jumpType: 'normal' | 'running' | 'backflip' | null = null;
 
     if (!enabled) {
       setMoving(false);
       setRunning(false);
-      return { x: 0, z: 0, rotation: cameraAngle.current.horizontal, isRunning: false };
+      const cameraState = getCameraState();
+      return { x: 0, z: 0, rotation: cameraState.horizontal, isRunning: false, isJumping: false, jumpType: null };
+    }
+
+    // Detectar saltos
+    if (keys.has(' ')) { // Espacio presionado
+      isJumping = true;
+      
+      if (keys.has('shift') && keys.has('s')) {
+        // Backflip: Espacio + Shift + S
+        jumpType = 'backflip';
+        console.log('🎮 Salto: BACKFLIP');
+      } else if (keys.has('shift')) {
+        // Salto corriendo: Shift + Espacio
+        jumpType = 'running';
+        console.log('🎮 Salto: CORRIENDO');
+      } else {
+        // Salto normal: Solo Espacio
+        jumpType = 'normal';
+        console.log('🎮 Salto: NORMAL');
+      }
     }
 
     if (keys.has('shift')) {
@@ -55,19 +80,29 @@ export function useAdvancedMovement(enabled: boolean = true) {
       inputVector.normalize();
     }
 
-    const rotation = cameraAngle.current.horizontal;
+    // Calcular rotación basada en la dirección de movimiento relativa a la cámara
+    let rotation = 0;
+    const cameraState = getCameraState();
+    
+    if (inputVector.length() > 0) {
+      // Calcular el ángulo de la dirección de movimiento relativa a la cámara
+      rotation = Math.atan2(inputVector.x, inputVector.y) + cameraState.horizontal;
+    } else {
+      // Si no hay movimiento, mantener la rotación actual
+      rotation = cameraState.horizontal;
+    }
 
     const isMoving = inputVector.length() > 0;
     setMoving(isMoving);
     setRunning(isRunning);
 
-    // Debug: mostrar input cuando hay movimiento
-    if (isMoving) {
-      console.log(`🎮 Input calculado: x=${inputVector.x.toFixed(2)}, z=${inputVector.y.toFixed(2)}, running=${isRunning}`);
+    // Debug: mostrar input cuando hay movimiento o salto
+    if (isMoving || isJumping) {
+      console.log(`🎮 Input calculado: x=${inputVector.x.toFixed(2)}, z=${inputVector.y.toFixed(2)}, running=${isRunning}, jumping=${isJumping}, jumpType=${jumpType}`);
     }
 
-    return { x: inputVector.x, z: inputVector.y, rotation, isRunning };
-  }, [enabled, setMoving, setRunning]);
+    return { x: inputVector.x, z: inputVector.y, rotation, isRunning, isJumping, jumpType };
+  }, [enabled, setMoving, setRunning, getCameraState]);
 
   useEffect(() => {
     console.log(`🎮 Configurando event listeners, enabled: ${enabled}`);
@@ -85,7 +120,5 @@ export function useAdvancedMovement(enabled: boolean = true) {
     };
   }, [enabled, handleKeyDown, handleKeyUp]);
 
-  const getCameraAngle = useCallback(() => cameraAngle.current, []);
-
-  return { calculateMovementInput, getCameraAngle };
+  return { calculateMovementInput, getCameraState };
 }

@@ -5,34 +5,37 @@ import { useGLTF, useAnimations, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { AnimationAction } from 'three';
 
-// Mapeo de animaciones - mapear estados a nombres reales de animaciones
-const getAnimationName = (animationState: string, actions: Record<string, AnimationAction | null>) => {
-  const availableActions = Object.keys(actions || {});
-  
-  console.log(`🔍 Buscando animación para estado: ${animationState}`);
-  console.log(`🔍 Acciones disponibles:`, availableActions);
-  
-  // Mapeo directo para el modelo men-all.glb
-  const animationMap: { [key: string]: string[] } = {
-    'idle': ['Idle_11', 'idle', 'Idle', 'IDLE'],
-    'walking': ['Walking', 'walking', 'WALKING', 'Walk'],
-    'running': ['Running', 'running', 'RUNNING', 'Run']
-  };
-  
-  const possibleNames = animationMap[animationState] || [animationState];
-  
-  // Buscar la primera animación que exista
-  for (const name of possibleNames) {
-    if (actions[name]) {
-      console.log(`✅ Encontrada animación: ${name}`);
-      return name;
+  // Mapeo de animaciones - mapear estados a nombres reales de animaciones
+  const getAnimationName = (animationState: string, actions: Record<string, AnimationAction | null>) => {
+    const availableActions = Object.keys(actions || {});
+    
+    console.log(`🔍 Buscando animación para estado: ${animationState}`);
+    console.log(`🔍 Acciones disponibles:`, availableActions);
+    
+    // Mapeo directo para el modelo men-all.glb y women-all.glb
+    const animationMap: { [key: string]: string[] } = {
+      'idle': ['Idle_11', 'idle', 'Idle', 'IDLE'],
+      'walking': ['Walking', 'walking', 'WALKING', 'Walk'],
+      'running': ['Running', 'running', 'RUNNING', 'Run'],
+      'jump': ['Regular Jump', 'jump', 'Jump', 'JUMP', 'Regular_Jump'],
+      'jump_run': ['Jump Run', 'jump_run', 'JumpRun', 'JUMP_RUN', 'jumpRun'],
+      'backflip': ['Backflip Jump', 'backflip', 'Backflip', 'BACKFLIP', 'Backflip_Jump']
+    };
+    
+    const possibleNames = animationMap[animationState] || [animationState];
+    
+    // Buscar la primera animación que exista
+    for (const name of possibleNames) {
+      if (actions[name]) {
+        console.log(`✅ Encontrada animación: ${name}`);
+        return name;
+      }
     }
-  }
-  
-  console.log(`⚠️ No se encontró animación para '${animationState}', usando primera disponible`);
-  // Si no se encuentra, usar la primera animación disponible
-  return availableActions[0] || null;
-};
+    
+    console.log(`⚠️ No se encontró animación para '${animationState}', usando primera disponible`);
+    // Si no se encuentra, usar la primera animación disponible
+    return availableActions[0] || null;
+  };
 
 interface AnimatedCharacterProps {
   modelPath: string;

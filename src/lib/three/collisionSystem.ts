@@ -25,7 +25,10 @@ export class CollisionSystem {
     // Si el jugador está por debajo del suelo, ponerlo en el suelo
     if (correctedPosition.y < groundLevel) {
       correctedPosition.y = groundLevel;
+      console.log(`🏃 Aterrizando en suelo: ${correctedPosition.y}`);
     }
+    
+    // Removido: dejar que la gravedad natural funcione
     
     // Verificar colisiones con edificios/árboles (solo bloquear, no empujar)
     for (const collider of this.colliders) {
