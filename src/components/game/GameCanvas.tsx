@@ -7,9 +7,9 @@ import { usePlayerStore } from '@/store/playerStore';
 import { useUIStore } from '@/store/uiStore';
 import { useWorldStore } from '@/store/worldStore';
 import PlayerV2 from '@/components/world/PlayerV2';
-import Terrain from '@/components/world/Terrain';
-import EnhancedTerrain from '@/components/world/EnhancedTerrain';
-import GLBTerrain from '@/components/world/GLBTerrain';
+// import Terrain from '@/components/world/Terrain';
+// import EnhancedTerrain from '@/components/world/EnhancedTerrain';
+// import GLBTerrain from '@/components/world/GLBTerrain';
 import UniformTerrain from '@/components/world/UniformTerrain';
 import NatureDecorations from '@/components/world/NatureDecorations';
 import HotelHumboldt from '@/components/world/HotelHumboldt';
@@ -118,9 +118,14 @@ export default function GameCanvas() {
     setShowCharacterCreator(false);
     setIsGameStarted(true);
     
-    // Join the game with player data
+    // Join the game with player data after a short delay to ensure event listeners are registered
     if (player && isConnected) {
-      joinGame(player.id, player.username, player.worldId);
+      console.log('🎮 Llamando joinGame:', { playerId: player.id, username: player.username, worldId: player.worldId });
+      setTimeout(() => {
+        joinGame(player.id, player.username, player.worldId);
+      }, 1000);
+    } else {
+      console.log('⚠️ No se puede unir al juego:', { hasPlayer: !!player, isConnected });
     }
   };
 
@@ -189,7 +194,14 @@ export default function GameCanvas() {
           />
           
           {/* Other Players */}
-          {players.map((otherPlayer) => (
+          {(() => {
+            const otherPlayers = players.filter(p => p.username !== player?.username);
+            console.log('🎮 Total jugadores en store:', players.length, players.map(p => p.username));
+            console.log('🎮 Jugador local Username:', player?.username);
+            console.log('🎮 Jugadores remotos a renderizar:', otherPlayers.length, otherPlayers.map(p => p.username));
+            return null;
+          })()}
+          {players.filter(p => p.username !== player?.username).map((otherPlayer) => (
             <PlayerV2
               key={otherPlayer.id}
               position={[otherPlayer.position.x, otherPlayer.position.y, otherPlayer.position.z]}

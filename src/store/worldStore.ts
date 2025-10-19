@@ -76,19 +76,23 @@ export const useWorldStore = create<WorldState>()(
       },
 
       addPlayer: (player) => {
+        console.log('🏪 worldStore.addPlayer llamado:', player.username);
         set((state) => {
           const existingPlayerIndex = state.players.findIndex(p => p.id === player.id);
           let newPlayers;
           
           if (existingPlayerIndex >= 0) {
             // Update existing player
+            console.log('🔄 Actualizando jugador existente:', player.username);
             newPlayers = [...state.players];
             newPlayers[existingPlayerIndex] = player;
           } else {
             // Add new player
+            console.log('➕ Agregando nuevo jugador:', player.username);
             newPlayers = [...state.players, player];
           }
           
+          console.log('🏪 Total jugadores después de agregar:', newPlayers.length);
           return {
             players: newPlayers,
             playerCount: newPlayers.length,
@@ -116,6 +120,7 @@ export const useWorldStore = create<WorldState>()(
       },
 
       setPlayers: (players) => {
+        console.log('🏪 worldStore.setPlayers llamado con', players.length, 'jugadores:', players.map(p => p.username));
         set({
           players,
           playerCount: players.length,

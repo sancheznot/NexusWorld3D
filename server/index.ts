@@ -102,18 +102,31 @@ io.on('connection', (socket) => {
     }
     worlds.get(data.worldId)?.add(socket.id);
     
+    // Limpiar jugadores duplicados antes de obtener la lista
+    await gameRedis.cleanupExpiredData();
+    
     // Get all players in the world from Redis
     const worldPlayers = await gameRedis.getAllPlayers();
     const filteredPlayers = worldPlayers.filter((p: any) => p.worldId === data.worldId);
-    console.log(`🌍 Jugadores en el mundo ${data.worldId}:`, filteredPlayers.length);
-    console.log('👥 Lista de jugadores:', filteredPlayers.map(p => ({ id: p.id, username: p.username })));
+    
+    // Eliminar duplicados por username (mantener el más reciente)
+    const uniquePlayers = new Map();
+    filteredPlayers.forEach((player: any) => {
+      const existing = uniquePlayers.get(player.username);
+      if (!existing || new Date(player.lastSeen) > new Date(existing.lastSeen)) {
+        uniquePlayers.set(player.username, player);
+      }
+    });
+    const deduplicatedPlayers = Array.from(uniquePlayers.values());
+    console.log(`🌍 Jugadores en el mundo ${data.worldId}:`, deduplicatedPlayers.length);
+    console.log('👥 Lista de jugadores (sin duplicados):', deduplicatedPlayers.map(p => ({ id: p.id, username: p.username })));
     
     // Get map decorations from Redis
     const mapDecorations = await gameRedis.getMapDecorations(data.worldId);
     
     // Broadcast to all players in the world
     const playerData = { ...player, position: JSON.parse(player.position), rotation: JSON.parse(player.rotation), lastSeen: new Date(player.lastSeen) };
-    const playersData = filteredPlayers.map((p: any) => ({ 
+    const playersData = deduplicatedPlayers.map((p: any) => ({ 
       ...p, 
       position: typeof p.position === 'string' ? JSON.parse(p.position) : p.position, 
       rotation: typeof p.rotation === 'string' ? JSON.parse(p.rotation) : p.rotation,
@@ -126,11 +139,36 @@ io.on('connection', (socket) => {
     console.log('📡 Datos del jugador:', playerData.username);
     console.log('📡 Lista de jugadores:', playersData.map(p => p.username));
     
-    // Enviar a todos los jugadores en el mundo (incluyendo al que se acaba de unir)
+    // Enviar a TODOS los jugadores en el mundo (incluyendo al que se acaba de unir)
+    // Esto asegura que todos tengan la lista completa de jugadores
     io.to(data.worldId).emit('player:joined', {
       player: playerData,
       players: playersData,
     });
+    
+    // También enviar world:update para sincronizar a todos
+    io.to(data.worldId).emit('world:update', {
+      world: {
+        id: data.worldId,
+        name: 'Hotel Humboldt',
+        type: 'hotel',
+        maxPlayers: 50,
+        currentPlayers: deduplicatedPlayers.length,
+        spawnPoint: { x: 0, y: 0, z: 0 },
+        bounds: {
+          min: { x: -100, y: 0, z: -100 },
+          max: { x: 100, y: 50, z: 100 }
+        },
+        isActive: true,
+        createdAt: new Date(),
+      },
+      players: playersData,
+      objects: mapDecorations || [],
+    });
+    
+    console.log(`📡 Enviando player:joined a ${roomSize} jugadores en la sala ${data.worldId}`);
+    console.log(`📡 Jugador que se unió: ${playerData.username} (${playerData.id})`);
+    console.log(`📡 Lista completa enviada:`, playersData.map(p => `${p.username} (${p.id})`));
     
     // Get recent chat messages from Redis
     let recentMessages: any[] = [];

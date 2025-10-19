@@ -10,7 +10,7 @@ export const useSocket = () => {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const { setPlayer, updatePosition, updateHealth, updateStamina, updateLevel, updateExperience } = usePlayerStore();
-  const { addPlayer, removePlayer, updatePlayer, setPlayers } = useWorldStore();
+  const { addPlayer, removePlayer, updatePlayer, setPlayers, players } = useWorldStore();
   const { addChatMessage, addNotification } = useUIStore();
 
   // Connect to socket server
@@ -29,12 +29,15 @@ export const useSocket = () => {
 
   // Join game with player data
   const joinGame = (playerId: string, username: string, worldId: string = 'default') => {
+    console.log('🎮 joinGame llamado:', { playerId, username, worldId, isConnected });
     if (isConnected) {
       socketClient.joinPlayer({
         playerId,
         username,
         worldId
       });
+    } else {
+      console.log('❌ Socket no conectado, no se puede unir al juego');
     }
   };
 
@@ -46,15 +49,18 @@ export const useSocket = () => {
 
   // Setup event listeners
   useEffect(() => {
-    if (!socketClient.getSocket()) return;
+    console.log('🔧 Registrando event listeners en useSocket...', { isConnected, hasSocket: !!socketClient.getSocket() });
+    if (!isConnected || !socketClient.getSocket()) return;
 
     // Player events
     socketClient.onPlayerJoined((data) => {
-      console.log('👤 Jugador se unió:', data);
-      if (data.player) {
-        addPlayer(data.player);
-      }
+      console.log('🔥 EVENTO player:joined RECIBIDO EN SOCKET CLIENT:', data);
+      console.log('🔥 data.player:', data.player);
+      console.log('🔥 data.players:', data.players);
+      
+      // Solo usar setPlayers para establecer la lista completa de jugadores
       if (data.players) {
+        console.log('🔥 Estableciendo lista completa de jugadores:', data.players.length, 'jugadores:', data.players.map(p => ({ id: p.id, username: p.username })));
         setPlayers(data.players);
       }
     });
@@ -221,11 +227,13 @@ export const useSocket = () => {
     });
 
 
+    console.log('✅ Event listeners registrados correctamente');
+    
     // Cleanup function
     return () => {
       socketClient.removeAllListeners();
     };
-  }, [addChatMessage]);
+  }, [isConnected]);
 
   // Auto-reconnect logic
   useEffect(() => {

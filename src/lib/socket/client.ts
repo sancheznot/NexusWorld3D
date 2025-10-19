@@ -100,8 +100,11 @@ class SocketClient {
 
   // Player events
   public joinPlayer(data: { playerId: string; username: string; worldId: string }): void {
+    console.log('📤 Enviando player:join:', data, 'Socket conectado:', this.socket?.connected);
     if (this.socket?.connected) {
       this.socket.emit('player:join', data);
+    } else {
+      console.log('❌ Socket no conectado, no se puede enviar player:join');
     }
   }
 
@@ -182,7 +185,11 @@ class SocketClient {
 
   // Event listeners
   public onPlayerJoined(callback: (data: any) => void): void {
-    this.socket?.on('player:joined', callback);
+    console.log('🔧 Registrando listener para player:joined');
+    this.socket?.on('player:joined', (data) => {
+      console.log('🔥 EVENTO player:joined RECIBIDO EN SOCKET.IO:', data);
+      callback(data);
+    });
   }
 
   public onPlayerLeft(callback: (data: any) => void): void {

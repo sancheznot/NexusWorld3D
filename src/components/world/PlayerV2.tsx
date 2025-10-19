@@ -41,7 +41,8 @@ export default function PlayerV2({
   } = usePlayerStore();
 
   const { calculateMovementInput } = useAdvancedMovement(isCurrentPlayer && keyboardEnabled);
-  const physicsRef = useCannonPhysics();
+  // Solo el jugador local debe tener physics body
+  const physicsRef = useCannonPhysics(isCurrentPlayer);
   const [input, setInput] = useState({ x: 0, z: 0, rotation: 0, isRunning: false, isJumping: false, jumpType: null as 'normal' | 'running' | 'backflip' | null });
   const [isTabVisible, setIsTabVisible] = useState(true);
   const currentAnimation = useCharacterAnimation(input.jumpType);
@@ -79,9 +80,10 @@ export default function PlayerV2({
   }, []);
 
   useFrame((state, delta) => {
+    // Solo el jugador local debe ejecutar useFrame
     if (!isCurrentPlayer) return;
     
-    if (!physicsRef.current) {
+    if (!physicsRef || !physicsRef.current) {
       console.log('⚠️ PlayerV2 useFrame: physicsRef.current is null');
       return;
     }

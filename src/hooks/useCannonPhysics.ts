@@ -10,7 +10,7 @@ let globalPhysics: CannonPhysics | null = null;
 let globalDebugRenderer: { update: () => void } | null = null;
 let initializationCount = 0;
 
-export function useCannonPhysics() {
+export function useCannonPhysics(createPhysicsBody: boolean = true) {
   const physicsRef = useRef<CannonPhysics | null>(null);
   const debugRendererRef = useRef<{ update: () => void } | null>(null);
   const { scene } = useThree();
@@ -18,6 +18,14 @@ export function useCannonPhysics() {
   useEffect(() => {
     initializationCount++;
     console.log(`🔧 useCannonPhysics: Initialization #${initializationCount}`);
+
+    // Si no se debe crear physics body, solo retornar la referencia existente
+    if (!createPhysicsBody) {
+      physicsRef.current = globalPhysics;
+      debugRendererRef.current = globalDebugRenderer;
+      console.log('🚫 No crear physics body para jugador remoto');
+      return;
+    }
 
     // Si ya existe una instancia global, usarla
     if (globalPhysics) {
@@ -59,7 +67,7 @@ export function useCannonPhysics() {
         globalDebugRenderer = null;
       }
     };
-  }, [scene]);
+  }, [scene, createPhysicsBody]);
 
   // Actualizar debugger en cada frame
   useFrame(() => {
