@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useRef, useCallback } from 'react';
+import { Suspense, useState, useRef, useCallback, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Environment, Stats } from '@react-three/drei';
 import { Group } from 'three';
@@ -289,18 +289,38 @@ function WorldObjectMesh({
   onUpdate: (updates: Partial<WorldObject>) => void;
 }) {
   const meshRef = useRef<Group>(null);
-  // const [isDragging, setIsDragging] = useState(false);
+  const [model, setModel] = useState<Group | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Handle object transformation (for future use)
-  // const handleTransform = useCallback((newPosition: Vector3) => {
-  //   onUpdate({
-  //     position: {
-  //       x: newPosition.x,
-  //       y: newPosition.y,
-  //       z: newPosition.z,
-  //     },
-  //   });
-  // }, [onUpdate]);
+  // Load the actual GLB model
+  useEffect(() => {
+    const loadModel = async () => {
+      if (!object.model) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Import GLTFLoader dynamically
+        const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
+        const loader = new GLTFLoader();
+        
+        const gltf = await loader.loadAsync(object.model);
+        setModel(gltf.scene);
+      } catch (err) {
+        console.error('Error loading model:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load model');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadModel();
+  }, [object.model]);
 
   return (
     <group
@@ -310,15 +330,23 @@ function WorldObjectMesh({
       scale={[object.scale.x, object.scale.y, object.scale.z]}
       onClick={onSelect}
     >
-      {/* Placeholder mesh for now */}
-      <mesh castShadow receiveShadow>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial
-          color={isSelected ? '#4ade80' : '#6b7280'}
-          transparent
-          opacity={0.8}
-        />
-      </mesh>
+      {loading && (
+        <mesh>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshBasicMaterial color="#ffa500" transparent opacity={0.5} />
+        </mesh>
+      )}
+      
+      {error && (
+        <mesh>
+          <boxGeometry args={[1, 1, 1]} />
+          <meshBasicMaterial color="#ff0000" transparent opacity={0.5} />
+        </mesh>
+      )}
+      
+      {model && !loading && !error && (
+        <primitive object={model.clone()} castShadow receiveShadow />
+      )}
       
       {/* Selection indicator */}
       {isSelected && (
