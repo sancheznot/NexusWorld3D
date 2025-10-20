@@ -1,7 +1,11 @@
 {
-  "name": "hotel-humboldt",
+  "name": "nexusworld3d-framework",
   "version": "0.1.0",
-  "private": true,
+  "description": "An open-source framework for creating 3D multiplayer worlds without Blender or advanced programming",
+  "keywords": ["3d", "multiplayer", "framework", "threejs", "colyseus", "nextjs", "gaming", "world-builder"],
+  "author": "NexusWorld3D Team",
+  "license": "MIT",
+  "private": false,
   "scripts": {
     "dev": "concurrently \"next dev\" \"tsx server/index.ts\"",
     "build": "next build",

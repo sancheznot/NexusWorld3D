@@ -1,8 +1,8 @@
-# Hotel Humboldt Framework - Visión y Roadmap
+# NexusWorld3D Framework - Visión y Roadmap
 
 ## 🎯 Objetivo Principal
 
-Convertir Hotel Humboldt en un **framework open-source** para crear mundos 3D multijugador sin necesidad de conocimientos de Blender o programación avanzada.
+Crear un **framework open-source** para crear mundos 3D multijugador sin necesidad de conocimientos de Blender o programación avanzada.
 
 ## 🌟 Propuesta de Valor
 
@@ -229,7 +229,7 @@ export class AssetStorage {
   private projectName: string;
   
   constructor() {
-    this.projectName = process.env.PROJECT_NAME || 'hotel-humboldt';
+    this.projectName = process.env.PROJECT_NAME || 'nexusworld3d';
   }
   
   async uploadTemp(file: File): Promise<string> {
@@ -271,7 +271,7 @@ export class AssetStorage {
 ### Estructura S3 Propuesta
 
 ```
-s3://tu-bucket/hotel-humboldt/
+s3://tu-bucket/nexusworld3d/
 ├── temp/                           # Modelos temporales (editor)
 │   ├── model-abc123.glb           # Se eliminan después de 24h
 │   └── model-def456.glb
@@ -296,14 +296,14 @@ s3://tu-bucket/hotel-humboldt/
 
 ### Flujo de trabajo mejorado
 
-1. **Usuario sube modelo** → `s3://bucket/hotel-humboldt/temp/model-abc123.glb`
+1. **Usuario sube modelo** → `s3://bucket/nexusworld3d/temp/model-abc123.glb`
 2. **Usuario arrastra al editor** → Se muestra en la escena (desde S3)
 3. **Usuario guarda mundo** → 
-   - Modelo se mueve a `s3://bucket/hotel-humboldt/maps/main-world/models/terrain.glb`
+   - Modelo se mueve a `s3://bucket/nexusworld3d/maps/main-world/models/terrain.glb`
    - JSON del mundo guarda la URL final
 4. **Carga del mundo** → 
-   - Si CDN: `https://cdn.example.com/hotel-humboldt/maps/main-world/models/terrain.glb`
-   - Si S3: `https://s3.amazonaws.com/bucket/hotel-humboldt/maps/main-world/models/terrain.glb`
+   - Si CDN: `https://cdn.example.com/nexusworld3d/maps/main-world/models/terrain.glb`
+   - Si S3: `https://s3.amazonaws.com/bucket/nexusworld3d/maps/main-world/models/terrain.glb`
    - Si local: `/models/default/terrain.glb` (solo assets pequeños)
 
 ### Ventajas de esta estrategia

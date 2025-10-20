@@ -1,4 +1,4 @@
-# Hotel Humboldt – Deploy (Single Service) y Roadmap de Framework
+# NexusWorld3D Framework – Deploy (Single Service) y Roadmap
 
 > **📚 Para la visión completa del framework, ver:** [FRAMEWORK_VISION.md](./FRAMEWORK_VISION.md)
 
