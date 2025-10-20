@@ -1,7 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { usePlayerStore } from '@/store/playerStore';
 import { useUIStore } from '@/store/uiStore';
-import { socketClient } from '@/lib/socket/client';
+import { colyseusClient } from '@/lib/colyseus/client';
 
 interface KeyboardState {
   keys: Set<string>;
@@ -14,6 +14,7 @@ export const useKeyboard = (enabled: boolean = true) => {
   const keysRef = useRef<Set<string>>(new Set());
   const lastMovementRef = useRef<number>(0);
   const movementThrottle = 100; // ms
+  const lastWasMovingRef = useRef<boolean>(false);
 
   const {
     position,
@@ -206,16 +207,32 @@ export const useKeyboard = (enabled: boolean = true) => {
 
     // Send movement to server (throttled)
     if (isMoving) {
-      socketClient.movePlayer({
+      colyseusClient.movePlayer({
         position,
         rotation,
         velocity,
         isMoving,
         isRunning: isRunningKeyPressed,
         isJumping,
+        animation: isRunningKeyPressed ? 'running' : 'walking',
+        timestamp: now,
+      });
+    } else if (lastWasMovingRef.current) {
+      // Transition to idle: enviar una actualización para que los remotos vuelvan a idle
+      colyseusClient.movePlayer({
+        position,
+        rotation,
+        velocity: { x: 0, y: 0, z: 0 },
+        isMoving: false,
+        isRunning: false,
+        isJumping: false,
+        animation: 'idle',
         timestamp: now,
       });
     }
+
+    // Record last moving state
+    lastWasMovingRef.current = isMoving;
 
     lastMovementRef.current = now;
   }, [enabled, isChatOpen, position, rotation, setMoving, setRunning, setJumping, updateVelocity]);

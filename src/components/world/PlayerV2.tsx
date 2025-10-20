@@ -18,6 +18,7 @@ interface PlayerProps {
   keyboardEnabled?: boolean;
   customization?: PlayerCustomization;
   username?: string;
+  remoteAnimation?: string; // animación enviada desde servidor para jugadores remotos
 }
 
 export default function PlayerV2({ 
@@ -27,6 +28,7 @@ export default function PlayerV2({
   keyboardEnabled = true,
   customization,
   username,
+  remoteAnimation,
 }: PlayerProps) {
   const lastPositionRef = useRef(new THREE.Vector3(...position));
   const { scene } = useThree();
@@ -123,15 +125,11 @@ export default function PlayerV2({
       physicsRef.current.jump(jumpForce);
     }
     
-    // Obtener posición de Cannon.js
+    // Obtener posición de Cannon.js y sincronizar con el store
     const cannonPosition = physicsRef.current.getPlayerPosition();
     
-    // Usar posición directa de Cannon.js (sin colisiones por ahora)
-    updatePosition({
-      x: cannonPosition.x,
-      y: cannonPosition.y,
-      z: cannonPosition.z,
-    });
+    // Actualizar store (para HUD y networking) y que AnimatedCharacter reciba por props
+    updatePosition({ x: cannonPosition.x, y: cannonPosition.y, z: cannonPosition.z });
 
     // Actualizar estados de animación
     const isMoving = currentInput.x !== 0 || currentInput.z !== 0;
@@ -169,7 +167,7 @@ export default function PlayerV2({
       scale={[1, 1, 1]}
       isCurrentPlayer={isCurrentPlayer}
       username={username || ''}
-      animation={currentAnimation}
+      animation={isCurrentPlayer ? currentAnimation : (remoteAnimation || 'idle')}
     />
   );
 }

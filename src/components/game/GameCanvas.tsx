@@ -7,6 +7,7 @@ import { usePlayerStore } from '@/store/playerStore';
 import { useUIStore } from '@/store/uiStore';
 import { useWorldStore } from '@/store/worldStore';
 import PlayerV2 from '@/components/world/PlayerV2';
+import { colyseusClient } from '@/lib/colyseus/client';
 // import Terrain from '@/components/world/Terrain';
 // import EnhancedTerrain from '@/components/world/EnhancedTerrain';
 // import GLBTerrain from '@/components/world/GLBTerrain';
@@ -195,23 +196,30 @@ export default function GameCanvas() {
           
           {/* Other Players */}
           {(() => {
-            const otherPlayers = players.filter(p => p.username !== player?.username);
+            const sessionId = colyseusClient.getSessionId();
+            const otherPlayers = players.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
             console.log('🎮 Total jugadores en store:', players.length, players.map(p => p.username));
-            console.log('🎮 Jugador local Username:', player?.username);
+            console.log('🎮 Jugador local Username:', player?.username, 'sessionId:', sessionId);
             console.log('🎮 Jugadores remotos a renderizar:', otherPlayers.length, otherPlayers.map(p => p.username));
             return null;
           })()}
-          {players.filter(p => p.username !== player?.username).map((otherPlayer) => (
-            <PlayerV2
-              key={otherPlayer.id}
-              position={[otherPlayer.position.x, otherPlayer.position.y, otherPlayer.position.z]}
-              rotation={[otherPlayer.rotation.x, otherPlayer.rotation.y, otherPlayer.rotation.z]}
-              isCurrentPlayer={false}
-              keyboardEnabled={false}
-              customization={otherPlayer.customization}
-              username={otherPlayer.username}
-            />
-          ))}
+          {(() => {
+            const sessionId = colyseusClient.getSessionId();
+            return players
+              .filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id)
+              .map((otherPlayer) => (
+                <PlayerV2
+                  key={otherPlayer.id}
+                  position={[otherPlayer.position.x, otherPlayer.position.y, otherPlayer.position.z]}
+                  rotation={[otherPlayer.rotation.x, otherPlayer.rotation.y, otherPlayer.rotation.z]}
+                  isCurrentPlayer={false}
+                  keyboardEnabled={false}
+                  customization={otherPlayer.customization}
+                  username={otherPlayer.username}
+                  remoteAnimation={otherPlayer.animation}
+                />
+              ));
+          })()}
           
                     {/* Camera Controller */}
                     <ThirdPersonCamera />

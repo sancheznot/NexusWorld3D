@@ -1,8 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
-import { socketClient } from '@/lib/socket/client';
+import { colyseusClient } from '@/lib/colyseus/client';
 import { usePlayerStore } from '@/store/playerStore';
 import { useWorldStore } from '@/store/worldStore';
 import { useUIStore } from '@/store/uiStore';
+
+interface Player {
+  id: string;
+  username: string;
+  position: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number };
+  health: number;
+  maxHealth: number;
+  stamina: number;
+  maxStamina: number;
+  level: number;
+  experience: number;
+  worldId: string;
+  isOnline: boolean;
+  lastSeen: Date;
+}
+
 
 export const useSocket = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -13,13 +30,17 @@ export const useSocket = () => {
   const { addPlayer, removePlayer, updatePlayer, setPlayers, players } = useWorldStore();
   const { addChatMessage, addNotification } = useUIStore();
 
-  // Connect to socket server
+  // Connect to Colyseus server
   const connect = async () => {
     try {
       setConnectionError(null);
-      await socketClient.connect();
+      await colyseusClient.connect();
+      
+      // Esperar un poco para que el servidor esté listo
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       setIsConnected(true);
-      console.log('✅ Conectado al servidor Socket.IO');
+      console.log('✅ Conectado al servidor Colyseus');
     } catch (error) {
       console.error('❌ Error conectando al servidor:', error);
       setConnectionError(error instanceof Error ? error.message : 'Error desconocido');
@@ -31,41 +52,41 @@ export const useSocket = () => {
   const joinGame = (playerId: string, username: string, worldId: string = 'default') => {
     console.log('🎮 joinGame llamado:', { playerId, username, worldId, isConnected });
     if (isConnected) {
-      socketClient.joinPlayer({
+      colyseusClient.joinPlayer({
         playerId,
         username,
         worldId
       });
     } else {
-      console.log('❌ Socket no conectado, no se puede unir al juego');
+      console.log('❌ Colyseus no conectado, no se puede unir al juego');
     }
   };
 
-  // Disconnect from socket server
+  // Disconnect from Colyseus server
   const disconnect = () => {
-    socketClient.disconnect();
+    colyseusClient.disconnect();
     setIsConnected(false);
   };
 
   // Setup event listeners
   useEffect(() => {
-    console.log('🔧 Registrando event listeners en useSocket...', { isConnected, hasSocket: !!socketClient.getSocket() });
-    if (!isConnected || !socketClient.getSocket()) return;
+    console.log('🔧 Registrando event listeners en useSocket...', { isConnected, hasSocket: !!colyseusClient.getSocket() });
+    if (!isConnected || !colyseusClient.getSocket()) return;
 
     // Player events
-    socketClient.onPlayerJoined((data) => {
-      console.log('🔥 EVENTO player:joined RECIBIDO EN SOCKET CLIENT:', data);
+    colyseusClient.onPlayerJoined((data) => {
+      console.log('🔥 EVENTO player:joined RECIBIDO EN COLYSEUS CLIENT:', data);
       console.log('🔥 data.player:', data.player);
       console.log('🔥 data.players:', data.players);
       
       // Solo usar setPlayers para establecer la lista completa de jugadores
       if (data.players) {
-        console.log('🔥 Estableciendo lista completa de jugadores:', data.players.length, 'jugadores:', data.players.map(p => ({ id: p.id, username: p.username })));
+        console.log('🔥 Estableciendo lista completa de jugadores:', data.players.length, 'jugadores:', data.players.map((p: any) => ({ id: p.id, username: p.username })));
         setPlayers(data.players);
       }
     });
 
-    socketClient.onPlayerLeft((data) => {
+    colyseusClient.onPlayerLeft((data) => {
       console.log('👤 Jugador salió:', data);
       if (data.playerId) {
         removePlayer(data.playerId);
@@ -75,17 +96,20 @@ export const useSocket = () => {
       }
     });
 
-    socketClient.onPlayerMoved((data) => {
+    colyseusClient.onPlayerMoved((data) => {
       console.log('🚶 Jugador se movió:', data);
       if (data.playerId && data.movement) {
         updatePlayer(data.playerId, {
           position: data.movement.position,
           rotation: data.movement.rotation,
+          isMoving: data.movement.isMoving,
+          isRunning: data.movement.isRunning,
+          animation: data.movement.animation || (data.movement.isRunning ? 'running' : data.movement.isMoving ? 'walking' : 'idle'),
         });
       }
     });
 
-    socketClient.onPlayerAttacked((data) => {
+    colyseusClient.onPlayerAttacked((data) => {
       console.log('⚔️ Ataque:', data);
       addNotification({
         id: `attack-${Date.now()}`,
@@ -97,7 +121,7 @@ export const useSocket = () => {
       });
     });
 
-    socketClient.onPlayerDamaged((data) => {
+    colyseusClient.onPlayerDamaged((data) => {
       console.log('💥 Daño recibido:', data);
       if (data.playerId) {
         updatePlayer(data.playerId, { health: data.newHealth });
@@ -105,7 +129,7 @@ export const useSocket = () => {
       updateHealth(data.newHealth);
     });
 
-    socketClient.onPlayerDied((data) => {
+    colyseusClient.onPlayerDied((data) => {
       console.log('💀 Jugador murió:', data);
       addNotification({
         id: `death-${Date.now()}`,
@@ -117,14 +141,14 @@ export const useSocket = () => {
       });
     });
 
-    socketClient.onPlayerRespawned((data) => {
+    colyseusClient.onPlayerRespawned((data) => {
       console.log('🔄 Jugador respawned:', data);
       if (data.playerId) {
         updatePlayer(data.playerId, { position: data.position, health: 100 });
       }
     });
 
-    socketClient.onPlayerLevelUp((data) => {
+    colyseusClient.onPlayerLevelUp((data) => {
       console.log('📈 Level up:', data);
       updateLevel(data.newLevel);
       addNotification({
@@ -138,20 +162,20 @@ export const useSocket = () => {
     });
 
     // Chat events
-    socketClient.onChatMessage((data) => {
-      console.log('💬 Mensaje de chat:', data);
+    colyseusClient.onChatMessage((data) => {
+      console.log('💬 Mensaje de chat RECIBIDO en useSocket:', data);
       addChatMessage({
-        id: `msg-${Date.now()}-${Math.random()}`,
+        id: data.id, // Usar el ID generado por el servidor
         playerId: data.playerId,
         username: data.username,
         message: data.message,
         channel: data.channel,
-        timestamp: data.timestamp,
-        type: 'player',
+        timestamp: new Date(data.timestamp), // Asegurarse de que sea un objeto Date
+        type: data.type,
       });
     });
 
-    socketClient.onChatSystem((data) => {
+    colyseusClient.onChatSystem((data) => {
       console.log('🔧 Mensaje del sistema:', data);
       addChatMessage({
         id: `system-${Date.now()}`,
@@ -165,14 +189,14 @@ export const useSocket = () => {
     });
 
     // World events
-    socketClient.onWorldUpdate((data) => {
+    colyseusClient.onWorldUpdate((data) => {
       console.log('🌍 Actualización del mundo:', data);
       if (data.players) {
         setPlayers(data.players);
       }
     });
 
-    socketClient.onWorldChanged((data) => {
+    colyseusClient.onWorldChanged((data) => {
       console.log('🌍 Mundo cambiado:', data);
       addNotification({
         id: `world-change-${Date.now()}`,
@@ -185,11 +209,11 @@ export const useSocket = () => {
     });
 
     // Monster events
-    socketClient.onMonsterSpawned((data) => {
+    colyseusClient.onMonsterSpawned((data) => {
       console.log('👹 Monstruo apareció:', data);
     });
 
-    socketClient.onMonsterDied((data) => {
+    colyseusClient.onMonsterDied((data) => {
       console.log('💀 Monstruo murió:', data);
       addNotification({
         id: `monster-death-${Date.now()}`,
@@ -202,7 +226,7 @@ export const useSocket = () => {
     });
 
     // System events
-    socketClient.onSystemError((data) => {
+    colyseusClient.onSystemError((data) => {
       console.error('❌ Error del sistema:', data);
       addNotification({
         id: `system-error-${Date.now()}`,
@@ -214,7 +238,7 @@ export const useSocket = () => {
       });
     });
 
-    socketClient.onSystemMaintenance((data) => {
+    colyseusClient.onSystemMaintenance((data) => {
       console.log('🔧 Mantenimiento:', data);
       addNotification({
         id: `maintenance-${Date.now()}`,
@@ -226,12 +250,21 @@ export const useSocket = () => {
       });
     });
 
+        // Sincronización de jugadores desde el servidor
+        colyseusClient.onPlayersUpdated((data) => {
+          console.log('🔥 EVENTO players:updated RECIBIDO DEL SERVIDOR:', data);
+          console.log('🔥 data.players:', data.players);
+          if (data.players) {
+            console.log('🔥 Estableciendo jugadores desde servidor:', data.players.length, 'jugadores');
+            setPlayers(data.players);
+          }
+        });
 
     console.log('✅ Event listeners registrados correctamente');
     
     // Cleanup function
     return () => {
-      socketClient.removeAllListeners();
+      colyseusClient.removeAllListeners();
     };
   }, [isConnected]);
 
@@ -244,9 +277,10 @@ export const useSocket = () => {
 
   // Cleanup on unmount
   useEffect(() => {
+    const timeout = reconnectTimeoutRef.current;
     return () => {
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
+      if (timeout) {
+        clearTimeout(timeout);
       }
       disconnect();
     };
@@ -258,6 +292,6 @@ export const useSocket = () => {
     connect,
     disconnect,
     joinGame,
-    socket: socketClient.getSocket(),
+    socket: colyseusClient.getSocket(),
   };
 };

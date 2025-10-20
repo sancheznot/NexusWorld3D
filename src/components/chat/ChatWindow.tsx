@@ -25,29 +25,7 @@ export default function ChatWindow() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  // Listen for chat messages from server
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleChatMessage = (data: any) => {
-      const chatMessage: ChatMessage = {
-        id: data.id || `msg-${Date.now()}-${Math.random()}`,
-        playerId: data.playerId,
-        username: data.username,
-        message: data.message,
-        channel: data.channel || 'global',
-        timestamp: new Date(data.timestamp),
-        type: data.type || 'player'
-      };
-      addChatMessage(chatMessage);
-    };
-
-    socket.on('chat:message', handleChatMessage);
-
-    return () => {
-      socket.off('chat:message', handleChatMessage);
-    };
-  }, [socket, addChatMessage]);
+  // Los mensajes de chat se manejan en useSocket hook
 
   // Send message function
   const sendMessage = async () => {
@@ -60,8 +38,8 @@ export default function ChatWindow() {
 
     try {
       console.log('📤 Enviando mensaje:', messageData);
-      // Send to server
-      socket.emit('chat:message', messageData);
+      // Send to server using Colyseus send method
+      socket.send('chat:message', messageData);
       
       // Clear input immediately (optimistic update)
       setInputValue('');
@@ -114,8 +92,13 @@ export default function ChatWindow() {
               <div className="mt-1">Presiona Enter para enviar mensaje</div>
             </div>
           ) : (
-            chatMessages.map((msg) => (
-              <div key={msg.id} className="mb-2 text-sm">
+            chatMessages
+              .filter((msg, index, self) => 
+                // Filtrar mensajes duplicados por ID
+                index === self.findIndex(m => m.id === msg.id)
+              )
+              .map((msg) => (
+              <div key={`${msg.id}-${msg.timestamp}`} className="mb-2 text-sm">
                 <span className="text-gray-400 text-xs">
                   {new Date(msg.timestamp).toLocaleTimeString()}
                 </span>

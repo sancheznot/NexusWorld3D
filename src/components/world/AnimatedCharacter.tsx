@@ -1,6 +1,7 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
+import { SkeletonUtils } from 'three-stdlib';
 import { useGLTF, useAnimations, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { AnimationAction } from 'three';
@@ -59,13 +60,15 @@ export default function AnimatedCharacter({
   const groupRef = useRef<THREE.Group>(null);
   // useGLTF de @react-three/drei ya soporta Draco automáticamente
   const { scene, animations } = useGLTF(modelPath);
+  // Clonar con SkeletonUtils para preservar rigs/skins y evitar T-pose
+  const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
   const { actions } = useAnimations(animations, groupRef);
   const [modelLoaded, setModelLoaded] = useState(false);
 
   // Cargar modelo y configurar
   useEffect(() => {
-    if (scene) {
-      scene.traverse((child) => {
+    if (clonedScene) {
+      clonedScene.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           child.castShadow = true;
           child.receiveShadow = true;
@@ -98,7 +101,7 @@ export default function AnimatedCharacter({
         }
       }
     }
-  }, [scene, modelPath, actions, animations]);
+  }, [clonedScene, modelPath, actions, animations]);
 
   // Reproducir animación
   useEffect(() => {
@@ -155,7 +158,7 @@ export default function AnimatedCharacter({
     <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
       {/* Offset Y para bajar el modelo y alinearlo con el cilindro de física */}
       <group position={[0, -1, 0]}>
-        <primitive object={scene} />
+        <primitive object={clonedScene} />
       </group>
       {!isCurrentPlayer && username && (
         <Html position={[0, 2.5, 0]}>
