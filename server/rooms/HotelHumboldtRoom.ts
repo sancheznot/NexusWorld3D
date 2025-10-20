@@ -59,6 +59,24 @@ export class HotelHumboldtRoom extends Room {
     
     // Configurar limpieza automática
     this.setupCleanup();
+
+    // Limpieza periódica de jugadores inactivos (cada 30s)
+    setInterval(() => {
+      const now = Date.now();
+      const removed: string[] = [];
+      for (const [id, player] of this.players.entries()) {
+        const last = player.lastUpdate || 0;
+        if (now - last > 60000) { // 60s inactivo
+          this.players.delete(id);
+          this.state.players.delete(id);
+          removed.push(id);
+        }
+      }
+      if (removed.length > 0) {
+        console.log(`🧹 Eliminados por inactividad: ${removed.length}`);
+        this.broadcast('players:updated', { players: Array.from(this.players.values()) });
+      }
+    }, 30000);
   }
 
   onJoin(client: Client, options: any) {
@@ -148,7 +166,8 @@ export class HotelHumboldtRoom extends Room {
       // Guardar estado final en Redis
       this.savePlayerToRedis(player);
       
-          // Remover de la sala después de un delay
+          // Remover de la sala: inmediato si cierre consentido, pequeño delay si no
+          const delayMs = consented ? 0 : 2000;
           setTimeout(() => {
             this.players.delete(client.sessionId);
             this.state.players.delete(client.sessionId);
@@ -165,7 +184,7 @@ export class HotelHumboldtRoom extends Room {
             });
             
             console.log(`🗑️ Jugador ${player.username} removido. Total: ${this.players.size}`);
-          }, 5000); // 5 segundos de gracia
+          }, delayMs);
       
       this.sendSystemMessage(`${player.username} se desconectó`);
     }
@@ -205,7 +224,7 @@ export class HotelHumboldtRoom extends Room {
 
     // Movimiento del jugador (reutilizando tu lógica)
     this.onMessage('player:move', (client: Client, data: any) => {
-      const player = this.players.get(client.id);
+      const player = this.players.get(client.sessionId);
       if (player) {
         player.position = data.position;
         player.rotation = data.rotation;
@@ -213,6 +232,20 @@ export class HotelHumboldtRoom extends Room {
         player.isMoving = data.isMoving || false;
         player.isRunning = data.isRunning || false;
         player.lastUpdate = Date.now();
+        // Reflejar movimiento también en el estado sincronizado
+        const statePlayer = this.state.players.get(client.sessionId);
+        if (statePlayer) {
+          statePlayer.x = player.position.x;
+          statePlayer.y = player.position.y;
+          statePlayer.z = player.position.z;
+          statePlayer.rotationX = player.rotation.x;
+          statePlayer.rotationY = player.rotation.y;
+          statePlayer.rotationZ = player.rotation.z;
+          statePlayer.animation = player.animation;
+          statePlayer.isMoving = player.isMoving;
+          statePlayer.isRunning = player.isRunning;
+          statePlayer.lastUpdate = player.lastUpdate;
+        }
         
         // Broadcast a otros jugadores
         this.broadcast('player:moved', {
@@ -221,19 +254,32 @@ export class HotelHumboldtRoom extends Room {
         }, { except: client });
         
         // Actualizar en Redis (menos frecuente para optimizar)
-        if (Date.now() - (player.lastUpdate || 0) > 1000) {
-          this.savePlayerToRedis(player);
+        // Guardar de forma ocasional
+        // if (Date.now() - (player.lastUpdate || 0) > 1000) {
+        //   this.savePlayerToRedis(player);
+        // }
+      }
+    });
+
+    // Heartbeat del jugador para refrescar lastUpdate sin necesidad de movimiento
+    this.onMessage('player:heartbeat', (client: Client, data: any) => {
+      const player = this.players.get(client.sessionId);
+      if (player) {
+        player.lastUpdate = Date.now();
+        const statePlayer = this.state.players.get(client.sessionId);
+        if (statePlayer) {
+          statePlayer.lastUpdate = player.lastUpdate;
         }
       }
     });
 
     // Chat (reutilizando tu lógica)
     this.onMessage('chat:message', (client: Client, data: any) => {
-      const player = this.players.get(client.id);
+      const player = this.players.get(client.sessionId);
       if (player && data.message) {
         const chatMessage: ChatMessage = {
-          id: `msg_${Date.now()}_${client.id}_${Math.random().toString(36).substring(2, 9)}`,
-          playerId: client.id,
+          id: `msg_${Date.now()}_${client.sessionId}_${Math.random().toString(36).substring(2, 9)}`,
+          playerId: client.sessionId,
           username: player.username,
           message: data.message,
           channel: data.channel || 'global',

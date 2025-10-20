@@ -15,6 +15,7 @@ export const useKeyboard = (enabled: boolean = true) => {
   const lastMovementRef = useRef<number>(0);
   const movementThrottle = 100; // ms
   const lastWasMovingRef = useRef<boolean>(false);
+  const lastHeartbeatRef = useRef<number>(0);
 
   const {
     position,
@@ -245,6 +246,12 @@ export const useKeyboard = (enabled: boolean = true) => {
 
     const gameLoop = () => {
       calculateMovement();
+      // Enviar heartbeat cada 10s para mantener lastUpdate fresco incluso sin movimiento
+      const now = Date.now();
+      if (now - lastHeartbeatRef.current > 10000) {
+        colyseusClient.sendHeartbeat();
+        lastHeartbeatRef.current = now;
+      }
       animationFrameId = requestAnimationFrame(gameLoop);
     };
 

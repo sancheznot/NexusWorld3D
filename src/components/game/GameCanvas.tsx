@@ -197,16 +197,38 @@ export default function GameCanvas() {
           {/* Other Players */}
           {(() => {
             const sessionId = colyseusClient.getSessionId();
-            const otherPlayers = players.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
+            const now = Date.now();
+            // 1) Filtrar jugadores muy antiguos (solo si lastUpdate existe y > 60s)
+            const freshPlayers = players.filter(p => (p as any).lastUpdate ? (now - (p as any).lastUpdate) <= 60000 : true);
+            // 2) Excluir al local
+            const otherPlayers = freshPlayers.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
+            // 3) Limitar a los 12 más cercanos al local
+            const origin = { x: position.x, y: position.y, z: position.z };
+            const dist = (p: any) => {
+              const dx = p.position.x - origin.x;
+              const dz = p.position.z - origin.z;
+              return dx*dx + dz*dz;
+            };
+            otherPlayers.sort((a, b) => dist(a) - dist(b));
+            const limited = otherPlayers.slice(0, 12);
             console.log('🎮 Total jugadores en store:', players.length, players.map(p => p.username));
             console.log('🎮 Jugador local Username:', player?.username, 'sessionId:', sessionId);
-            console.log('🎮 Jugadores remotos a renderizar:', otherPlayers.length, otherPlayers.map(p => p.username));
+            console.log('🎮 Jugadores remotos a renderizar (filtrados):', limited.length, limited.map(p => p.username));
             return null;
           })()}
           {(() => {
             const sessionId = colyseusClient.getSessionId();
-            return players
-              .filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id)
+            const now = Date.now();
+            const fresh = players.filter(p => (p as any).lastUpdate ? (now - (p as any).lastUpdate) <= 60000 : true);
+            const others = fresh.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
+            const origin = { x: position.x, y: position.y, z: position.z };
+            const dist = (p: any) => {
+              const dx = p.position.x - origin.x;
+              const dz = p.position.z - origin.z;
+              return dx*dx + dz*dz;
+            };
+            const limited = others.sort((a, b) => dist(a) - dist(b)).slice(0, 12);
+            return limited
               .map((otherPlayer) => (
                 <PlayerV2
                   key={otherPlayer.id}

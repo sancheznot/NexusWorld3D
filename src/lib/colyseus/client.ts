@@ -184,6 +184,13 @@ class ColyseusClient {
     }
   }
 
+  // Heartbeat to keep session alive
+  public sendHeartbeat(): void {
+    if (this.room?.connection.isOpen) {
+      this.room.send('player:heartbeat', { t: Date.now() });
+    }
+  }
+
   // Event listeners - manteniendo la misma interfaz
   public onPlayerJoined(callback: (data: any) => void): void {
     console.log('🔧 Registrando listener para player:joined');

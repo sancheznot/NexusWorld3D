@@ -24,6 +24,11 @@ export interface Player {
   isOnline: boolean;
   lastSeen: Date;
   customization?: PlayerCustomization;
+  // Multiplayer runtime fields (optional)
+  animation?: string;        // 'idle' | 'walking' | 'running' | etc.
+  isMoving?: boolean;
+  isRunning?: boolean;
+  lastUpdate?: number;       // server timestamp (ms)
 }
 
 export interface Vector3 {
