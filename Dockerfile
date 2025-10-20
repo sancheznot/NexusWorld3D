@@ -1,5 +1,11 @@
 # Multi-stage build for production
-FROM node:20-alpine AS base
+FROM ghcr.io/railwayapp/nixpacks:ubuntu-1745885067 AS base
+
+# Install Node.js 20
+RUN apt-get update && apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install dependencies only when needed
 FROM base AS deps
