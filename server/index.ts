@@ -9,7 +9,7 @@ dotenv.config({ path: '.env.local' });
 // Importar Redis DESPUÉS de cargar las variables
 import { gameRedis } from '../src/lib/services/redis';
 
-const PORT = process.env.PORT || 3001;
+const PORT: number = Number(process.env.PORT) || 3001;
 const CLIENT_URL = process.env.CLIENT_URL || process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000';
 
 // Create Colyseus server
