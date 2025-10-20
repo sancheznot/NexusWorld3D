@@ -26,9 +26,21 @@ class ColyseusClient {
         return;
       }
 
-      const serverUrl = process.env.NODE_ENV === 'production' 
-        ? process.env.NEXT_PUBLIC_SOCKET_URL || 'wss://your-domain.com'
-        : 'ws://localhost:3001';
+      // Resolve WebSocket server URL
+      let serverUrl: string;
+      if (process.env.NODE_ENV === 'production') {
+        const envUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
+        if (envUrl && /^wss?:\/\//.test(envUrl)) {
+          serverUrl = envUrl;
+        } else if (typeof window !== 'undefined') {
+          const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+          serverUrl = `${protocol}://${window.location.host}`; // same domain/port as frontend (unified server)
+        } else {
+          serverUrl = 'wss://localhost';
+        }
+      } else {
+        serverUrl = 'ws://localhost:3001'; // dev: separate Colyseus server
+      }
 
       console.log('🔌 Conectando a Colyseus server:', serverUrl);
 
