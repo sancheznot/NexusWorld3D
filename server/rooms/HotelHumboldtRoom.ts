@@ -60,20 +60,20 @@ export class HotelHumboldtRoom extends Room {
     // Configurar limpieza automática
     this.setupCleanup();
 
-    // Limpieza periódica de jugadores inactivos (cada 30s)
+    // Limpieza periódica: solo elimina jugadores marcados offline y antiguos (cada 30s)
     setInterval(() => {
       const now = Date.now();
       const removed: string[] = [];
       for (const [id, player] of this.players.entries()) {
         const last = player.lastUpdate || 0;
-        if (now - last > 60000) { // 60s inactivo
+        if (player.isOnline === false && now - last > 60000) {
           this.players.delete(id);
           this.state.players.delete(id);
           removed.push(id);
         }
       }
       if (removed.length > 0) {
-        console.log(`🧹 Eliminados por inactividad: ${removed.length}`);
+        console.log(`🧹 Eliminados por inactividad (offline): ${removed.length}`);
         this.broadcast('players:updated', { players: Array.from(this.players.values()) });
       }
     }, 30000);

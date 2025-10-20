@@ -197,11 +197,8 @@ export default function GameCanvas() {
           {/* Other Players */}
           {(() => {
             const sessionId = colyseusClient.getSessionId();
-            const now = Date.now();
-            // 1) Filtrar jugadores muy antiguos (solo si lastUpdate existe y > 60s)
-            const freshPlayers = players.filter(p => (p as any).lastUpdate ? (now - (p as any).lastUpdate) <= 60000 : true);
-            // 2) Excluir al local
-            const otherPlayers = freshPlayers.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
+            // Excluir al local únicamente (sin ocultar por lastUpdate, lo maneja el server)
+            const otherPlayers = players.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
             // 3) Limitar a los 12 más cercanos al local
             const origin = { x: position.x, y: position.y, z: position.z };
             const dist = (p: any) => {
@@ -218,9 +215,7 @@ export default function GameCanvas() {
           })()}
           {(() => {
             const sessionId = colyseusClient.getSessionId();
-            const now = Date.now();
-            const fresh = players.filter(p => (p as any).lastUpdate ? (now - (p as any).lastUpdate) <= 60000 : true);
-            const others = fresh.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
+            const others = players.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
             const origin = { x: position.x, y: position.y, z: position.z };
             const dist = (p: any) => {
               const dx = p.position.x - origin.x;
