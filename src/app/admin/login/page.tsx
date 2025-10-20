@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { validateAdminCredentials, createAdminSession, setSessionCookie, isAdminEnabled } from '@/core/auth';
+import { isAdminEnabled } from '@/core/auth';
 
 export default function AdminLoginPage() {
   const router = useRouter();

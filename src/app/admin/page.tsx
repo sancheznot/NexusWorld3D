@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { isAdminAuthenticated, getActiveSessions } from '@/core/auth';
-import { worldManager, type WorldData } from '@/core/worlds';
+import { getActiveSessions } from '@/core/auth';
+import { worldManagerClient, type WorldData } from '@/core/worlds-client';
 import WorldEditor from '@/components/admin/WorldEditor';
 import AssetPanel from '@/components/admin/AssetPanel';
 import PropertiesPanel from '@/components/admin/PropertiesPanel';
@@ -44,7 +44,7 @@ export default function AdminPage() {
   // Load worlds
   const loadWorlds = async () => {
     try {
-      const worldsList = await worldManager.listWorlds();
+      const worldsList = await worldManagerClient.listWorlds();
       setWorlds(worldsList);
     } catch (error) {
       console.error('Error loading worlds:', error);
@@ -63,7 +63,7 @@ export default function AdminPage() {
     if (!name) return;
 
     const id = name.toLowerCase().replace(/\s+/g, '-');
-    const result = await worldManager.createWorld(id, name);
+    const result = await worldManagerClient.createWorld(id, name);
     
     if (result.success) {
       loadWorlds();
@@ -78,7 +78,7 @@ export default function AdminPage() {
   const handleDeleteWorld = async (worldId: string) => {
     if (!confirm('Are you sure you want to delete this world?')) return;
 
-    const result = await worldManager.deleteWorld(worldId);
+    const result = await worldManagerClient.deleteWorld(worldId);
     
     if (result.success) {
       loadWorlds();
@@ -260,15 +260,15 @@ export default function AdminPage() {
   );
 }
 
-// Helper function to get session ID from cookie
-function getSessionIdFromCookie(): string | null {
-  if (typeof document === 'undefined') return null;
-  
-  const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-    const [key, value] = cookie.trim().split('=');
-    acc[key] = value;
-    return acc;
-  }, {} as Record<string, string>);
+// Helper function to get session ID from cookie (for future use)
+// function getSessionIdFromCookie(): string | null {
+//   if (typeof document === 'undefined') return null;
+//   
+//   const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+//     const [key, value] = cookie.trim().split('=');
+//     acc[key] = value;
+//     return acc;
+//   }, {} as Record<string, string>);
 
-  return cookies['admin_session'] || null;
-}
+//   return cookies['admin_session'] || null;
+// }

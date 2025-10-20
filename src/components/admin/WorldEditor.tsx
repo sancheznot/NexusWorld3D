@@ -4,7 +4,7 @@ import { Suspense, useState, useRef, useCallback } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Grid, Environment, Stats } from '@react-three/drei';
 import { Group } from 'three';
-import { worldManager, type WorldData, type WorldObject } from '@/core/worlds';
+import { worldManagerClient, type WorldData, type WorldObject } from '@/core/worlds-client';
 
 interface WorldEditorProps {
   worldId?: string;
@@ -27,7 +27,7 @@ export default function WorldEditor({ worldId, onSave, onClose }: WorldEditorPro
     setError(null);
     
     try {
-      const result = await worldManager.loadWorld(worldId);
+      const result = await worldManagerClient.loadWorld(worldId);
       if (result.success && result.world) {
         setWorld(result.world);
       } else {
@@ -48,7 +48,7 @@ export default function WorldEditor({ worldId, onSave, onClose }: WorldEditorPro
     setError(null);
     
     try {
-      const result = await worldManager.saveWorld(world);
+      const result = await worldManagerClient.saveWorld(world);
       if (result.success) {
         setIsDirty(false);
         onSave?.(world);
@@ -148,7 +148,7 @@ export default function WorldEditor({ worldId, onSave, onClose }: WorldEditorPro
           <h3 className="text-lg font-semibold text-white mb-3">Objects</h3>
           {world ? (
             <div className="space-y-2">
-              {world.objects.map((obj) => (
+              {world.objects.map((obj: WorldObject) => (
                 <div
                   key={obj.id}
                   className={`p-3 bg-gray-700 rounded cursor-pointer hover:bg-gray-600 ${
@@ -264,7 +264,7 @@ function WorldObjects({
 }) {
   return (
     <>
-      {objects.map((obj) => (
+      {objects.map((obj: WorldObject) => (
         <WorldObjectMesh
           key={obj.id}
           object={obj}
