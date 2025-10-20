@@ -1,5 +1,7 @@
 # Hotel Humboldt – Deploy (Single Service) y Roadmap de Framework
 
+> **📚 Para la visión completa del framework, ver:** [FRAMEWORK_VISION.md](./FRAMEWORK_VISION.md)
+
 ## Despliegue en un solo servicio (Railway / Docker)
 
 - Servidor unificado
