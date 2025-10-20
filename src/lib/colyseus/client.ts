@@ -292,7 +292,7 @@ class ColyseusClient {
     }
   }
 
-  public on(event: string, callback: Function): void {
+  public on(event: string, callback: (data: unknown) => void): void {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, []);
     }
