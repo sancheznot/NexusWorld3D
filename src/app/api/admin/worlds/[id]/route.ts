@@ -3,7 +3,7 @@ import { worldManager } from '@/core/worlds';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check authentication via cookie
@@ -17,7 +17,7 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid session format' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = await params;
     const result = await worldManager.loadWorld(id);
     
     if (result.success) {
