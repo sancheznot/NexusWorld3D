@@ -1,0 +1,101 @@
+{
+  "id": "main-world",
+  "name": "Mundo Principal",
+  "description": "El mundo principal del Hotel Humboldt",
+  "version": "1.0.0",
+  "createdAt": "2024-12-20T10:00:00.000Z",
+  "updatedAt": "2024-12-20T10:00:00.000Z",
+  "spawnPoint": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+  },
+  "skybox": "/models/sky/sky_43_2k.png",
+  "objects": [
+    {
+      "id": "terrain-1",
+      "type": "terrain",
+      "model": "/models/terrain/Terrain_01.glb",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "hasCollision": true,
+      "metadata": {
+        "description": "Terreno principal del mundo"
+      }
+    },
+    {
+      "id": "hotel-1",
+      "type": "building",
+      "model": "/models/hotel_humboldt_model.glb",
+      "position": {
+        "x": 0,
+        "y": 0,
+        "z": -100
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 6,
+        "y": 6,
+        "z": 6
+      },
+      "hasCollision": true,
+      "metadata": {
+        "description": "Hotel Humboldt principal"
+      }
+    },
+    {
+      "id": "dome-1",
+      "type": "building",
+      "model": "/models/Green_Dome_Structure.glb",
+      "position": {
+        "x": 30,
+        "y": 0,
+        "z": -30
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 3,
+        "y": 3,
+        "z": 3
+      },
+      "hasCollision": true,
+      "metadata": {
+        "description": "Estructura de cúpula verde"
+      }
+    }
+  ],
+  "settings": {
+    "gravity": -9.8,
+    "lighting": {
+      "ambient": 0.4,
+      "directional": 0.8
+    },
+    "fog": {
+      "enabled": true,
+      "color": "#87CEEB",
+      "near": 50,
+      "far": 200
+    }
+  }
+}
