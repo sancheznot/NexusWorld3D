@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { assetStorage, type UploadResult } from '@/core/storage';
 
 interface AssetPanelProps {
   onAssetSelect: (asset: { url: string; name: string; type: string }) => void;
@@ -32,21 +31,29 @@ export default function AssetPanel({ onAssetSelect }: AssetPanelProps) {
     setUploadProgress(0);
 
     try {
-      const results: UploadResult[] = [];
-      
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const result = await assetStorage.uploadTemp(file);
-        results.push(result);
+        
+        // Create form data
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Upload via API
+        const response = await fetch('/api/admin/assets/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        const data = await response.json();
         
         setUploadProgress(((i + 1) / files.length) * 100);
         
-        if (result.success) {
+        if (response.ok && data.success) {
           // Add to assets list
           const newAsset: AssetItem = {
-            id: result.key,
+            id: data.key,
             name: file.name,
-            url: result.url,
+            url: data.url,
             type: 'glb',
             size: file.size,
             isTemporary: true,
@@ -54,7 +61,7 @@ export default function AssetPanel({ onAssetSelect }: AssetPanelProps) {
           
           setAssets(prev => [...prev, newAsset]);
         } else {
-          setError(result.error || 'Upload failed');
+          setError(data.error || 'Upload failed');
         }
       }
       

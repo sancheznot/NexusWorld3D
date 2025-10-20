@@ -2,7 +2,16 @@
   "name": "nexusworld3d-framework",
   "version": "0.1.0",
   "description": "An open-source framework for creating 3D multiplayer worlds without Blender or advanced programming",
-  "keywords": ["3d", "multiplayer", "framework", "threejs", "colyseus", "nextjs", "gaming", "world-builder"],
+  "keywords": [
+    "3d",
+    "multiplayer",
+    "framework",
+    "threejs",
+    "colyseus",
+    "nextjs",
+    "gaming",
+    "world-builder"
+  ],
   "author": "NexusWorld3D Team",
   "license": "MIT",
   "private": false,
@@ -13,6 +22,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.913.0",
+    "@aws-sdk/s3-request-presigner": "^3.913.0",
     "@colyseus/schema": "^3.0.64",
     "@colyseus/ws-transport": "^0.16.5",
     "@react-three/cannon": "^6.6.0",

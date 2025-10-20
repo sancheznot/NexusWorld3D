@@ -5,6 +5,8 @@
  * Supports S3, Cloudflare R2, and local storage.
  */
 
+import { S3Client, PutObjectCommand, DeleteObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getAssetsConfig } from './config';
 
 export interface UploadResult {
@@ -30,6 +32,8 @@ export class AssetStorage {
   private projectName: string;
   private maxFileSize: number;
   private tempCleanupHours: number;
+  private s3Client?: S3Client;
+  private s3BucketName?: string;
 
   constructor() {
     const config = getAssetsConfig();
@@ -38,6 +42,18 @@ export class AssetStorage {
     this.projectName = config.projectName;
     this.maxFileSize = config.maxFileSize;
     this.tempCleanupHours = config.tempCleanupHours;
+    this.s3BucketName = config.s3BucketName;
+
+    // Initialize S3 client if S3 is configured
+    if (this.provider === 's3' && config.s3AccessKeyId && config.s3SecretAccessKey) {
+      this.s3Client = new S3Client({
+        region: config.s3Region || 'us-east-1',
+        credentials: {
+          accessKeyId: config.s3AccessKeyId,
+          secretAccessKey: config.s3SecretAccessKey,
+        },
+      });
+    }
   }
 
   /**
@@ -45,9 +61,9 @@ export class AssetStorage {
    */
   getS3Paths() {
     return {
-      temp: `${this.projectName}/temp/`,
-      maps: `${this.projectName}/maps/`,
-      shared: `${this.projectName}/shared/`,
+      temp: `nexusworld3d/temp/`,
+      maps: `nexusworld3d/maps/`,
+      shared: `nexusworld3d/shared/`,
     };
   }
 
@@ -124,11 +140,12 @@ export class AssetStorage {
    */
   getAssetUrl(key: string): string {
     if (this.cdnUrl) {
+      // Use CDN URL with the key as path
       return `${this.cdnUrl}/${key}`;
     }
 
-    if (this.provider === 's3') {
-      return `https://s3.amazonaws.com/${this.projectName}/${key}`;
+    if (this.provider === 's3' && this.s3BucketName) {
+      return `https://${this.s3BucketName}.s3.${this.s3Client?.config.region || 'us-east-2'}.amazonaws.com/${key}`;
     }
 
     if (this.provider === 'cloudflare-r2') {
@@ -206,15 +223,50 @@ export class AssetStorage {
    * Upload to S3 (production)
    */
   private async uploadToS3(file: File, key: string): Promise<UploadResult> {
-    // This would use AWS SDK or similar
-    // For now, we'll simulate it
-    const url = `https://s3.amazonaws.com/${this.projectName}/${key}`;
-    
-    return {
-      success: true,
-      url,
-      key,
-    };
+    if (!this.s3Client || !this.s3BucketName) {
+      return {
+        success: false,
+        url: '',
+        key: '',
+        error: 'S3 not configured properly',
+      };
+    }
+
+    try {
+      // Convert File to Buffer
+      const buffer = await file.arrayBuffer();
+      
+      // Upload to S3
+      const command = new PutObjectCommand({
+        Bucket: this.s3BucketName,
+        Key: key,
+        Body: Buffer.from(buffer),
+        ContentType: 'model/gltf-binary',
+        Metadata: {
+          originalName: file.name,
+          uploadedAt: new Date().toISOString(),
+        },
+      });
+
+      await this.s3Client.send(command);
+
+      // Generate URL
+      const url = this.getAssetUrl(key);
+
+      return {
+        success: true,
+        url,
+        key,
+      };
+    } catch (error) {
+      console.error('S3 upload error:', error);
+      return {
+        success: false,
+        url: '',
+        key: '',
+        error: error instanceof Error ? error.message : 'S3 upload failed',
+      };
+    }
   }
 
   /**
@@ -236,15 +288,50 @@ export class AssetStorage {
    * Move S3 file
    */
   private async moveS3File(fromKey: string, toKey: string): Promise<UploadResult> {
-    // This would copy the file in S3 and delete the original
-    // For now, we'll simulate it
-    const url = `https://s3.amazonaws.com/${this.projectName}/${toKey}`;
-    
-    return {
-      success: true,
-      url,
-      key: toKey,
-    };
+    if (!this.s3Client || !this.s3BucketName) {
+      return {
+        success: false,
+        url: '',
+        key: '',
+        error: 'S3 not configured properly',
+      };
+    }
+
+    try {
+      // Copy file to new location
+      const copyCommand = new CopyObjectCommand({
+        Bucket: this.s3BucketName,
+        CopySource: `${this.s3BucketName}/${fromKey}`,
+        Key: toKey,
+      });
+
+      await this.s3Client.send(copyCommand);
+
+      // Delete original file
+      const deleteCommand = new DeleteObjectCommand({
+        Bucket: this.s3BucketName,
+        Key: fromKey,
+      });
+
+      await this.s3Client.send(deleteCommand);
+
+      // Generate URL
+      const url = this.getAssetUrl(toKey);
+
+      return {
+        success: true,
+        url,
+        key: toKey,
+      };
+    } catch (error) {
+      console.error('S3 move error:', error);
+      return {
+        success: false,
+        url: '',
+        key: '',
+        error: error instanceof Error ? error.message : 'S3 move failed',
+      };
+    }
   }
 
   /**
