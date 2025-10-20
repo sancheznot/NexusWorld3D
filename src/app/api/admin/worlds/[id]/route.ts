@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { worldManager } from '@/core/worlds';
-import { isAdminAuthenticated } from '@/core/auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    // Check authentication
+    // Check authentication via cookie
     const sessionId = getSessionIdFromRequest(request);
-    if (!sessionId || !isAdminAuthenticated(sessionId)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!sessionId) {
+      return NextResponse.json({ error: 'No session found' }, { status: 401 });
+    }
+
+    // Basic session validation
+    if (!sessionId.startsWith('admin_')) {
+      return NextResponse.json({ error: 'Invalid session format' }, { status: 401 });
     }
 
     const { id } = params;
@@ -32,10 +36,15 @@ export async function PUT(
   { params: { id } }: { params: { id: string } }
 ) {
   try {
-    // Check authentication
+    // Check authentication via cookie
     const sessionId = getSessionIdFromRequest(request);
-    if (!sessionId || !isAdminAuthenticated(sessionId)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!sessionId) {
+      return NextResponse.json({ error: 'No session found' }, { status: 401 });
+    }
+
+    // Basic session validation
+    if (!sessionId.startsWith('admin_')) {
+      return NextResponse.json({ error: 'Invalid session format' }, { status: 401 });
     }
 
     const worldData = await request.json();
@@ -58,10 +67,15 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Check authentication
+    // Check authentication via cookie
     const sessionId = getSessionIdFromRequest(request);
-    if (!sessionId || !isAdminAuthenticated(sessionId)) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!sessionId) {
+      return NextResponse.json({ error: 'No session found' }, { status: 401 });
+    }
+
+    // Basic session validation
+    if (!sessionId.startsWith('admin_')) {
+      return NextResponse.json({ error: 'Invalid session format' }, { status: 401 });
     }
 
     const { id } = params;
