@@ -1,4 +1,3 @@
-import { createServer } from 'http';
 import { Server } from 'colyseus';
 import { HotelHumboldtRoom } from './rooms/HotelHumboldtRoom';
 import dotenv from 'dotenv';
@@ -24,13 +23,12 @@ console.log('🚀 Iniciando servidor Colyseus...');
 // CORS is handled by Colyseus automatically
 
 // Start server
-gameServer.listen(PORT, () => {
-  console.log(`🚀 Servidor Colyseus ejecutándose en puerto ${PORT}`);
-  console.log(`🌐 Cliente URL: ${CLIENT_URL}`);
-  console.log(`📡 WebSocket disponible en: ws://localhost:${PORT}`);
-  console.log(`🏨 Hotel Humboldt Room disponible`);
-  console.log(`🔴 Redis conectado a Upstash`);
-});
+gameServer.listen(PORT);
+console.log(`🚀 Servidor Colyseus ejecutándose en puerto ${PORT}`);
+console.log(`🌐 Cliente URL: ${CLIENT_URL}`);
+console.log(`📡 WebSocket disponible en: ws://localhost:${PORT}`);
+console.log(`🏨 Hotel Humboldt Room disponible`);
+console.log(`🔴 Redis conectado a Upstash`);
 
 // Graceful shutdown
 process.on('SIGINT', () => {
