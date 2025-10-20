@@ -17,7 +17,7 @@ export interface WorldObject {
   rotation: { x: number; y: number; z: number };
   scale: { x: number; y: number; z: number };
   hasCollision: boolean;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface WorldData {

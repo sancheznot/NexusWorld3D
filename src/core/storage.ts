@@ -143,7 +143,7 @@ export class AssetStorage {
    */
   async cleanupTemp(): Promise<{ cleaned: number; errors: string[] }> {
     const errors: string[] = [];
-    let cleaned = 0;
+    const cleaned: number = 0;
 
     try {
       if (this.provider === 'local') {
