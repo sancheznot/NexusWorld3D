@@ -35,21 +35,23 @@ export default function AdminLoginPage() {
     setError(null);
 
     try {
-      // Validate credentials
-      if (!validateAdminCredentials(credentials)) {
-        setError('Invalid username or password');
-        setIsLoading(false);
-        return;
-      }
+      // Call API to authenticate
+      const response = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(credentials),
+      });
 
-      // Create session
-      const sessionId = createAdminSession(credentials.username);
-      
-      // Set session cookie
-      document.cookie = setSessionCookie(sessionId);
-      
-      // Redirect to admin panel
-      router.push('/admin');
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Redirect to admin panel
+        router.push('/admin');
+      } else {
+        setError(data.error || 'Login failed');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {

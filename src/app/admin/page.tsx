@@ -19,15 +19,23 @@ export default function AdminPage() {
 
   // Check authentication on mount
   useEffect(() => {
-    const checkAuth = () => {
-      const sessionId = getSessionIdFromCookie();
-      if (sessionId && isAdminAuthenticated(sessionId)) {
-        setIsAuthenticated(true);
-        loadWorlds();
-      } else {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/admin/verify');
+        const data = await response.json();
+        
+        if (data.authenticated) {
+          setIsAuthenticated(true);
+          loadWorlds();
+        } else {
+          router.push('/admin/login');
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
         router.push('/admin/login');
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     checkAuth();
