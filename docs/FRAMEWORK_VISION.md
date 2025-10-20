@@ -140,8 +140,9 @@ hotel-humboldt/
 │   └── pvp-arena.json
 ├── public/
 │   └── models/
-│       ├── temp/               # 🆕 Modelos temporales (no persistentes)
-│       └── persistent/         # Modelos usados en mundos guardados
+│       └── default/            # Solo assets por defecto (pequeños < 10MB)
+│           ├── characters/
+│           └── terrain/
 ├── server/
 │   ├── combined.ts             # Servidor unificado
 │   └── rooms/
@@ -218,54 +219,101 @@ hotel-humboldt/
 
 ## 📦 Sistema de Storage (S3 + CDN)
 
-### Estrategia de Assets
+### Estrategia de Assets Mejorada
 
 ```typescript
 // src/core/storage.ts
 export class AssetStorage {
   private provider: 'local' | 's3' | 'cloudflare-r2';
   private cdnUrl?: string;
+  private projectName: string;
+  
+  constructor() {
+    this.projectName = process.env.PROJECT_NAME || 'hotel-humboldt';
+  }
   
   async uploadTemp(file: File): Promise<string> {
-    // Upload a /public/models/temp/
+    // Upload a S3: s3://bucket/project-name/temp/model-abc123.glb
     // Retorna URL temporal
   }
   
   async makePersistent(tempUrl: string, worldId: string): Promise<string> {
-    // Mover de temp/ a persistent/worlds/{worldId}/
-    // Si S3 está configurado, subir allá también
-    // Retorna URL final (CDN si existe, sino S3/local)
+    // Mover de temp/ a maps/{worldId}/models/
+    // s3://bucket/project-name/maps/main-world/models/terrain.glb
+    // Retorna URL final (CDN si existe, sino S3)
   }
   
   async cleanupTemp(): Promise<void> {
-    // Eliminar archivos en /temp/ más viejos de 24h
+    // Eliminar archivos en S3 temp/ más viejos de 24h
   }
   
   async deleteWorld(worldId: string): Promise<void> {
-    // Eliminar carpeta /persistent/worlds/{worldId}/
-    // Eliminar de S3 si existe
+    // Eliminar carpeta S3 maps/{worldId}/
   }
   
   getAssetUrl(path: string): string {
-    // Si CDN existe: CDN_URL + path
-    // Si S3 existe: S3 URL + path
-    // Sino: URL local
+    // Si CDN: CDN_URL + path
+    // Si S3: S3 URL + path
+    // Si local: /models/default/ + path (solo assets pequeños)
+  }
+  
+  // Estructura S3
+  getS3Paths() {
+    return {
+      temp: `${this.projectName}/temp/`,
+      maps: `${this.projectName}/maps/`,
+      shared: `${this.projectName}/shared/`,
+    };
   }
 }
 ```
 
-### Flujo de trabajo
+### Estructura S3 Propuesta
 
-1. **Usuario sube modelo** → `/public/models/temp/model-abc123.glb`
-2. **Usuario arrastra al editor** → Se muestra en la escena
+```
+s3://tu-bucket/hotel-humboldt/
+├── temp/                           # Modelos temporales (editor)
+│   ├── model-abc123.glb           # Se eliminan después de 24h
+│   └── model-def456.glb
+├── maps/                          # Mundos guardados
+│   ├── main-world/
+│   │   ├── map.json              # Metadatos del mundo
+│   │   └── models/
+│   │       ├── terrain.glb       # Assets específicos del mundo
+│   │       └── hotel.glb
+│   └── dungeon-1/
+│       ├── map.json
+│       └── models/
+│           └── castle.glb
+└── shared/                        # Assets compartidos
+    ├── characters/
+    │   ├── male.glb              # Personajes por defecto
+    │   └── female.glb
+    └── default/
+        ├── terrain.glb           # Terreno por defecto
+        └── skybox.png            # Skybox por defecto
+```
+
+### Flujo de trabajo mejorado
+
+1. **Usuario sube modelo** → `s3://bucket/hotel-humboldt/temp/model-abc123.glb`
+2. **Usuario arrastra al editor** → Se muestra en la escena (desde S3)
 3. **Usuario guarda mundo** → 
-   - Modelo se mueve a `/public/models/persistent/worlds/main-world/model-abc123.glb`
-   - Si S3 configurado: Se sube a S3 también
+   - Modelo se mueve a `s3://bucket/hotel-humboldt/maps/main-world/models/terrain.glb`
    - JSON del mundo guarda la URL final
 4. **Carga del mundo** → 
-   - Si CDN: `https://cdn.example.com/models/persistent/worlds/main-world/model-abc123.glb`
-   - Si S3: `https://s3.amazonaws.com/bucket/models/persistent/worlds/main-world/model-abc123.glb`
-   - Si local: `/models/persistent/worlds/main-world/model-abc123.glb`
+   - Si CDN: `https://cdn.example.com/hotel-humboldt/maps/main-world/models/terrain.glb`
+   - Si S3: `https://s3.amazonaws.com/bucket/hotel-humboldt/maps/main-world/models/terrain.glb`
+   - Si local: `/models/default/terrain.glb` (solo assets pequeños)
+
+### Ventajas de esta estrategia
+
+- ✅ **Sin límites de GitHub** - Todo pesado en S3
+- ✅ **Organización clara** - temp/ vs maps/ vs shared/
+- ✅ **Limpieza automática** - temp/ se limpia cada 24h
+- ✅ **Escalable** - Sin límites de tamaño
+- ✅ **CDN ready** - URLs consistentes para cache
+- ✅ **Desarrollo local** - Solo assets pequeños en `/public/models/default/`
 
 ## 🔐 Sistema de Admin (Sin DB)
 
