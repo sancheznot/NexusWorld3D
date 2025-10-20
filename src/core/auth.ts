@@ -151,7 +151,7 @@ export function requireAdminAuth(handler: Function) {
 /**
  * Extract session ID from request (cookie or header)
  */
-function getSessionIdFromRequest(req: Request): string | null {
+export function getSessionIdFromRequest(req: Request): string | null {
   // Try to get from cookie
   const cookieHeader = req.headers.get('cookie');
   if (cookieHeader) {

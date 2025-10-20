@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 
 interface AssetPanelProps {
   onAssetSelect: (asset: { url: string; name: string; type: string }) => void;
@@ -20,7 +20,34 @@ export default function AssetPanel({ onAssetSelect }: AssetPanelProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load existing assets
+  const loadAssets = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/admin/assets');
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setAssets(data.assets || []);
+      } else {
+        setError(data.error || 'Failed to load assets');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load assets');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Load assets on mount
+  React.useEffect(() => {
+    loadAssets();
+  }, [loadAssets]);
 
   // Handle file upload
   const handleFileUpload = useCallback(async (files: FileList | null) => {
@@ -119,8 +146,19 @@ export default function AssetPanel({ onAssetSelect }: AssetPanelProps) {
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="p-4 border-b border-gray-700">
-        <h3 className="text-lg font-semibold text-white">Assets</h3>
-        <p className="text-sm text-gray-400">Upload and manage 3D models</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Assets</h3>
+            <p className="text-sm text-gray-400">Upload and manage 3D models</p>
+          </div>
+          <button
+            onClick={loadAssets}
+            disabled={isLoading}
+            className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-500 disabled:opacity-50"
+          >
+            {isLoading ? '⏳' : '🔄'}
+          </button>
+        </div>
       </div>
 
       {/* Upload Area */}
@@ -163,7 +201,12 @@ export default function AssetPanel({ onAssetSelect }: AssetPanelProps) {
 
       {/* Assets List */}
       <div className="flex-1 overflow-y-auto p-4">
-        {assets.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center text-gray-400 py-8">
+            <div className="text-4xl mb-2">⏳</div>
+            <div>Loading assets...</div>
+          </div>
+        ) : assets.length === 0 ? (
           <div className="text-center text-gray-400 py-8">
             <div className="text-4xl mb-2">📦</div>
             <div>No assets uploaded</div>

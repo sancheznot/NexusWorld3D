@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assetStorage } from '@/core/storage';
+import { getSessionIdFromRequest } from '@/core/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,18 +43,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function getSessionIdFromRequest(request: NextRequest): string | null {
-  // Try to get from cookie
-  const cookieHeader = request.headers.get('cookie');
-  if (cookieHeader) {
-    const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
-      const [key, value] = cookie.trim().split('=');
-      acc[key] = value;
-      return acc;
-    }, {} as Record<string, string>);
-
-    return cookies['admin_session'] || null;
-  }
-
-  return null;
-}

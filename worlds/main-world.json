@@ -4,7 +4,7 @@
   "description": "El mundo principal del Hotel Humboldt",
   "version": "1.0.0",
   "createdAt": "2024-12-20T10:00:00.000Z",
-  "updatedAt": "2024-12-20T10:00:00.000Z",
+  "updatedAt": "2025-10-20T23:34:38.403Z",
   "spawnPoint": {
     "x": 0,
     "y": 0,
@@ -13,11 +13,11 @@
   "skybox": "/models/sky/sky_43_2k.png",
   "objects": [
     {
-      "id": "terrain-1",
-      "type": "terrain",
-      "model": "/models/terrain/Terrain_01.glb",
+      "id": "Hotel Humboldt-1761002369360",
+      "type": "decoration",
+      "model": "/models/hotel_humboldt_model.glb",
       "position": {
-        "x": 0,
+        "x": -35.6,
         "y": 0,
         "z": 0
       },
@@ -33,17 +33,17 @@
       },
       "hasCollision": true,
       "metadata": {
-        "description": "Terreno principal del mundo"
+        "description": "Added from Hotel Humboldt"
       }
     },
     {
-      "id": "hotel-1",
-      "type": "building",
+      "id": "Hotel Humboldt-1761002371060",
+      "type": "decoration",
       "model": "/models/hotel_humboldt_model.glb",
       "position": {
-        "x": 0,
+        "x": 34.5,
         "y": 0,
-        "z": -100
+        "z": 0
       },
       "rotation": {
         "x": 0,
@@ -51,23 +51,47 @@
         "z": 0
       },
       "scale": {
-        "x": 6,
-        "y": 6,
-        "z": 6
+        "x": 1,
+        "y": 1,
+        "z": 1
       },
       "hasCollision": true,
       "metadata": {
-        "description": "Hotel Humboldt principal"
+        "description": "Added from Hotel Humboldt"
       }
     },
     {
-      "id": "dome-1",
-      "type": "building",
-      "model": "/models/Green_Dome_Structure.glb",
+      "id": "Hotel Humboldt-1761002372877",
+      "type": "decoration",
+      "model": "/models/hotel_humboldt_model.glb",
       "position": {
-        "x": 30,
+        "x": 0,
         "y": 0,
-        "z": -30
+        "z": -19.400000000000002
+      },
+      "rotation": {
+        "x": 0,
+        "y": 0,
+        "z": 0
+      },
+      "scale": {
+        "x": 1,
+        "y": 1,
+        "z": 1
+      },
+      "hasCollision": true,
+      "metadata": {
+        "description": "Added from Hotel Humboldt"
+      }
+    },
+    {
+      "id": "Terrain 01-1761002440474",
+      "type": "decoration",
+      "model": "/models/terrain/Terrain_01.glb",
+      "position": {
+        "x": 3.3000000000000007,
+        "y": 0,
+        "z": 0
       },
       "rotation": {
         "x": 0,
@@ -76,12 +100,12 @@
       },
       "scale": {
         "x": 3,
-        "y": 3,
-        "z": 3
+        "y": 1,
+        "z": 2
       },
       "hasCollision": true,
       "metadata": {
-        "description": "Estructura de cúpula verde"
+        "description": "Added from Terrain 01"
       }
     }
   ],

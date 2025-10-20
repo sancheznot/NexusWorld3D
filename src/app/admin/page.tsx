@@ -4,9 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getActiveSessions } from '@/core/auth';
 import { worldManagerClient, type WorldData } from '@/core/worlds-client';
-import WorldEditor from '@/components/admin/WorldEditor';
+import AdvancedWorldEditor from '@/components/admin/AdvancedWorldEditor';
 import AssetPanel from '@/components/admin/AssetPanel';
-import PropertiesPanel from '@/components/admin/PropertiesPanel';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -235,9 +234,12 @@ export default function AdminPage() {
         )}
 
         {activeTab === 'editor' && selectedWorld && (
-          <WorldEditor
+          <AdvancedWorldEditor
             worldId={selectedWorld}
-            onSave={loadWorlds}
+            onSave={(world) => {
+              console.log('World saved:', world);
+              loadWorlds(); // Reload the worlds list
+            }}
             onClose={() => setActiveTab('worlds')}
           />
         )}
@@ -245,12 +247,11 @@ export default function AdminPage() {
         {activeTab === 'assets' && (
           <div className="h-full flex">
             <div className="flex-1">
-              <AssetPanel onAssetSelect={() => {}} />
-            </div>
-            <div className="w-80 border-l border-gray-700">
-              <PropertiesPanel
-                selectedObject={null}
-                onObjectUpdate={() => {}}
+              <AssetPanel 
+                onAssetSelect={(asset) => {
+                  // TODO: Add asset to selected world
+                  console.log('Asset selected:', asset);
+                }} 
               />
             </div>
           </div>
@@ -259,6 +260,7 @@ export default function AdminPage() {
     </div>
   );
 }
+
 
 // Helper function to get session ID from cookie (for future use)
 // function getSessionIdFromCookie(): string | null {

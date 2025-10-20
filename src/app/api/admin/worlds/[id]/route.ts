@@ -33,7 +33,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params: { id } }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Check authentication via cookie
@@ -47,6 +47,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Invalid session format' }, { status: 401 });
     }
 
+    await params; // ensure params are awaited per Next.js dynamic API requirement
     const worldData = await request.json();
     
     const result = await worldManager.saveWorld(worldData);

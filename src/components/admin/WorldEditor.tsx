@@ -1,23 +1,27 @@
 'use client';
 
 import { Suspense, useState, useRef, useCallback, useEffect } from 'react';
-import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Grid, Environment, Stats } from '@react-three/drei';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, Grid, Environment, Stats, TransformControls } from '@react-three/drei';
 import { Group } from 'three';
+import * as THREE from 'three';
 import { worldManagerClient, type WorldData, type WorldObject } from '@/core/worlds-client';
 
 interface WorldEditorProps {
   worldId?: string;
   onSave?: (world: WorldData) => void;
   onClose?: () => void;
+  onObjectSelect?: (object: WorldObject | null) => void;
+  onUpdateObjectRef?: (updateFn: (objectId: string, updates: Partial<WorldObject>) => void) => void;
 }
 
-export default function WorldEditor({ worldId, onSave, onClose }: WorldEditorProps) {
+export default function WorldEditor({ worldId, onSave, onClose, onObjectSelect, onUpdateObjectRef }: WorldEditorProps) {
   const [world, setWorld] = useState<WorldData | null>(null);
   const [selectedObject, setSelectedObject] = useState<WorldObject | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
+  const [transformMode, setTransformMode] = useState<'translate' | 'rotate' | 'scale'>('translate');
 
   // Load world on mount
   const loadWorld = useCallback(async () => {
@@ -103,6 +107,18 @@ export default function WorldEditor({ worldId, onSave, onClose }: WorldEditorPro
     setIsDirty(true);
   }, [world]);
 
+  // Expose updateObject function to parent using useRef to avoid infinite loops
+  const updateObjectRef = useRef(updateObject);
+  updateObjectRef.current = updateObject;
+
+  useEffect(() => {
+    if (onUpdateObjectRef) {
+      onUpdateObjectRef((objectId: string, updates: Partial<WorldObject>) => {
+        updateObjectRef.current(objectId, updates);
+      });
+    }
+  }, [onUpdateObjectRef]);
+
   return (
     <div className="flex h-screen bg-gray-900">
       {/* Sidebar */}
@@ -133,6 +149,43 @@ export default function WorldEditor({ worldId, onSave, onClose }: WorldEditorPro
             {isLoading ? 'Saving...' : 'Save World'}
           </button>
           
+          {/* Transform Mode Controls */}
+          <div className="space-y-2">
+            <label className="block text-sm text-gray-300">Transform Mode</label>
+            <div className="flex space-x-1">
+              <button
+                onClick={() => setTransformMode('translate')}
+                className={`flex-1 px-2 py-1 text-xs rounded ${
+                  transformMode === 'translate' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                }`}
+              >
+                Move
+              </button>
+              <button
+                onClick={() => setTransformMode('rotate')}
+                className={`flex-1 px-2 py-1 text-xs rounded ${
+                  transformMode === 'rotate' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                }`}
+              >
+                Rotate
+              </button>
+              <button
+                onClick={() => setTransformMode('scale')}
+                className={`flex-1 px-2 py-1 text-xs rounded ${
+                  transformMode === 'scale' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                }`}
+              >
+                Scale
+              </button>
+            </div>
+          </div>
+          
           {onClose && (
             <button
               onClick={onClose}
@@ -154,7 +207,10 @@ export default function WorldEditor({ worldId, onSave, onClose }: WorldEditorPro
                   className={`p-3 bg-gray-700 rounded cursor-pointer hover:bg-gray-600 ${
                     selectedObject?.id === obj.id ? 'ring-2 ring-blue-500' : ''
                   }`}
-                  onClick={() => setSelectedObject(obj)}
+                  onClick={() => {
+                    setSelectedObject(obj);
+                    onObjectSelect?.(obj);
+                  }}
                 >
                   <div className="text-white font-medium">{obj.id}</div>
                   <div className="text-sm text-gray-400">{obj.type}</div>
@@ -198,8 +254,8 @@ export default function WorldEditor({ worldId, onSave, onClose }: WorldEditorPro
               shadow-mapSize={[2048, 2048]}
             />
             
-            {/* Environment */}
-            <Environment preset="sunset" />
+            {/* Environment - disabled to avoid HDR loading issues */}
+            {/* <Environment preset="apartment" /> */}
             
             {/* Grid */}
             <Grid
@@ -220,8 +276,12 @@ export default function WorldEditor({ worldId, onSave, onClose }: WorldEditorPro
               <WorldObjects
                 objects={world.objects}
                 selectedObject={selectedObject}
-                onObjectSelect={setSelectedObject}
+                onObjectSelect={(obj) => {
+                  setSelectedObject(obj);
+                  onObjectSelect?.(obj);
+                }}
                 onObjectUpdate={updateObject}
+                transformMode={transformMode}
               />
             )}
             
@@ -230,8 +290,12 @@ export default function WorldEditor({ worldId, onSave, onClose }: WorldEditorPro
               enablePan={true}
               enableZoom={true}
               enableRotate={true}
-              minDistance={5}
-              maxDistance={100}
+              minDistance={1}
+              maxDistance={500}
+              panSpeed={1.2}
+              zoomSpeed={1.2}
+              rotateSpeed={1.0}
+              makeDefault
             />
             
             {/* Stats */}
@@ -256,11 +320,13 @@ function WorldObjects({
   selectedObject,
   onObjectSelect,
   onObjectUpdate,
+  transformMode,
 }: {
   objects: WorldObject[];
   selectedObject: WorldObject | null;
   onObjectSelect: (obj: WorldObject) => void;
   onObjectUpdate: (objectId: string, updates: Partial<WorldObject>) => void;
+  transformMode: 'translate' | 'rotate' | 'scale';
 }) {
   return (
     <>
@@ -271,6 +337,8 @@ function WorldObjects({
           isSelected={selectedObject?.id === obj.id}
           onSelect={() => onObjectSelect(obj)}
           onUpdate={(updates) => onObjectUpdate(obj.id, updates)}
+          transformMode={transformMode}
+          onObjectSelect={onObjectSelect}
         />
       ))}
     </>
@@ -282,16 +350,24 @@ function WorldObjectMesh({
   object,
   isSelected,
   onSelect,
+  onUpdate,
+  transformMode,
+  onObjectSelect,
 }: {
   object: WorldObject;
   isSelected: boolean;
   onSelect: () => void;
   onUpdate: (updates: Partial<WorldObject>) => void;
+  transformMode: 'translate' | 'rotate' | 'scale';
+  onObjectSelect?: (object: WorldObject) => void;
 }) {
   const meshRef = useRef<Group>(null);
   const [model, setModel] = useState<Group | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [localPosition, setLocalPosition] = useState(object.position);
+  const [localRotation, setLocalRotation] = useState(object.rotation);
+  const [localScale, setLocalScale] = useState(object.scale);
 
   // Load the actual GLB model
   useEffect(() => {
@@ -322,13 +398,25 @@ function WorldObjectMesh({
     loadModel();
   }, [object.model]);
 
+  // Sync local state with object changes
+  useEffect(() => {
+    setLocalPosition(object.position);
+    setLocalRotation(object.rotation);
+    setLocalScale(object.scale);
+  }, [object.position, object.rotation, object.scale]);
+
+
+
   return (
     <group
       ref={meshRef}
-      position={[object.position.x, object.position.y, object.position.z]}
-      rotation={[object.rotation.x, object.rotation.y, object.rotation.z]}
-      scale={[object.scale.x, object.scale.y, object.scale.z]}
-      onClick={onSelect}
+      position={[localPosition.x, localPosition.y, localPosition.z]}
+      rotation={[localRotation.x, localRotation.y, localRotation.z]}
+      scale={[localScale.x, localScale.y, localScale.z]}
+      onClick={() => {
+        onSelect();
+        onObjectSelect?.(object);
+      }}
     >
       {loading && (
         <mesh>
@@ -349,6 +437,19 @@ function WorldObjectMesh({
       )}
       
       {/* Selection indicator */}
+      {isSelected && (
+        <mesh>
+          <boxGeometry args={[1.1, 1.1, 1.1]} />
+          <meshBasicMaterial
+            color="#4ade80"
+            wireframe
+            transparent
+            opacity={0.5}
+          />
+        </mesh>
+      )}
+      
+      {/* Simple selection indicator */}
       {isSelected && (
         <mesh>
           <boxGeometry args={[1.1, 1.1, 1.1]} />

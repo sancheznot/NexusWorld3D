@@ -6,8 +6,16 @@
  */
 
 import { S3Client, PutObjectCommand, DeleteObjectCommand, CopyObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { getAssetsConfig } from './config';
+
+export interface AssetItem {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  size: number;
+  isTemporary: boolean;
+}
 
 export interface UploadResult {
   success: boolean;
@@ -139,20 +147,25 @@ export class AssetStorage {
    * Get asset URL with CDN support
    */
   getAssetUrl(key: string): string {
+    let url: string;
+    
     if (this.cdnUrl) {
-      // Use CDN URL with the key as path
-      return `${this.cdnUrl}/${key}`;
+      // For CDN, we need to remove the projectName prefix from the key
+      // because the CDN URL already includes it
+      const keyWithoutProject = key.startsWith(`${this.projectName}/`) 
+        ? key.substring(`${this.projectName}/`.length)
+        : key;
+      url = `${this.cdnUrl}/${keyWithoutProject}`;
+    } else if (this.provider === 's3' && this.s3BucketName) {
+      url = `https://${this.s3BucketName}.s3.${this.s3Client?.config.region || 'us-east-2'}.amazonaws.com/${key}`;
+    } else if (this.provider === 'cloudflare-r2') {
+      url = `https://${this.projectName}.r2.cloudflarestorage.com/${key}`;
+    } else {
+      url = `/${key}`; // Local path
     }
-
-    if (this.provider === 's3' && this.s3BucketName) {
-      return `https://${this.s3BucketName}.s3.${this.s3Client?.config.region || 'us-east-2'}.amazonaws.com/${key}`;
-    }
-
-    if (this.provider === 'cloudflare-r2') {
-      return `https://${this.projectName}.r2.cloudflarestorage.com/${key}`;
-    }
-
-    return `/${key}`; // Local path
+    
+    console.log('Generated asset URL:', url, 'for key:', key);
+    return url;
   }
 
   /**
@@ -332,6 +345,50 @@ export class AssetStorage {
         error: error instanceof Error ? error.message : 'S3 move failed',
       };
     }
+  }
+
+  /**
+   * List all assets from storage
+   */
+  async listAssets(): Promise<AssetItem[]> {
+    if (this.provider === 'local') {
+      // For local storage, return empty array for now
+      return [];
+    }
+
+    if (this.provider === 's3' && this.s3Client && this.s3BucketName) {
+      try {
+        const { ListObjectsV2Command } = await import('@aws-sdk/client-s3');
+        const command = new ListObjectsV2Command({
+          Bucket: this.s3BucketName,
+          Prefix: `${this.projectName}/temp/`,
+        });
+
+        const response = await this.s3Client.send(command);
+        
+        const assets: AssetItem[] = (response.Contents || []).map((obj) => {
+          const key = obj.Key || '';
+          const name = key.split('/').pop() || 'Unknown';
+          const url = this.getAssetUrl(key);
+          
+          return {
+            id: key,
+            name,
+            url,
+            type: 'glb',
+            size: obj.Size || 0,
+            isTemporary: key.includes('/temp/'),
+          };
+        });
+
+        return assets;
+      } catch (error) {
+        console.error('Error listing S3 assets:', error);
+        return [];
+      }
+    }
+
+    return [];
   }
 
   /**
