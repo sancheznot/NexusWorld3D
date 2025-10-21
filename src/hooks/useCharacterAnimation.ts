@@ -10,7 +10,7 @@ export function useCharacterAnimation(jumpType?: 'normal' | 'running' | 'backfli
   const [currentAnimation, setCurrentAnimation] = useState<AnimationState>('idle');
 
   useEffect(() => {
-    console.log(`🎬 Animation state: isMoving=${isMoving}, isRunning=${isRunning}, jumpType=${jumpType}`);
+    // console.log(`🎬 Animation state: isMoving=${isMoving}, isRunning=${isRunning}, jumpType=${jumpType}`);
     let newAnimation: AnimationState = 'idle';
     
     // Prioridad: Saltos > Corriendo > Caminando > Idle
@@ -30,7 +30,7 @@ export function useCharacterAnimation(jumpType?: 'normal' | 'running' | 'backfli
     
     // Solo cambiar si es diferente para evitar loops
     if (newAnimation !== currentAnimation) {
-      console.log(`🎬 Cambiando animación de '${currentAnimation}' a '${newAnimation}'`);
+      // console.log(`🎬 Cambiando animación de '${currentAnimation}' a '${newAnimation}'`);
       setCurrentAnimation(newAnimation);
     }
   }, [isMoving, isRunning, jumpType, currentAnimation]); // Added currentAnimation to dependencies

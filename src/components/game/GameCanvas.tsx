@@ -15,6 +15,7 @@ import UniformTerrain from '@/components/world/UniformTerrain';
 import NatureDecorations from '@/components/world/NatureDecorations';
 import HotelHumboldt from '@/components/world/HotelHumboldt';
 import GreenDomeStructure from '@/components/world/GreenDomeStructure';
+import CarWashModel from '@/components/world/CarWashModel';
 import Lighting from '@/components/world/Lighting';
 import Skybox from '@/components/world/Skybox';
 import ThirdPersonCamera from '@/components/world/ThirdPersonCamera';
@@ -27,6 +28,11 @@ import ModelInfo from '@/components/ui/ModelInfo';
 import FPSCounter from '@/components/ui/FPSCounter';
 import ChatWindow from '@/components/chat/ChatWindow';
 import { THREE_CONFIG } from '@/config/three.config';
+import { ShapeType } from 'three-to-cannon';
+import { Vector3 } from 'three';
+import PortalTrigger from '@/components/world/PortalTrigger';
+import PortalUI from '@/components/ui/PortalUI';
+import { usePortalSystem } from '@/hooks/usePortalSystem';
 
 export default function GameCanvas() {
   const { isConnected, connectionError, connect, joinGame } = useSocket();
@@ -39,6 +45,7 @@ export default function GameCanvas() {
   const [showLogin, setShowLogin] = useState(true);
   const [showCharacterCreator, setShowCharacterCreator] = useState(false);
   const [isGameStarted, setIsGameStarted] = useState(false);
+  const [currentMap, setCurrentMap] = useState('exterior');
   
   useKeyboard(isGameStarted);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -46,6 +53,25 @@ export default function GameCanvas() {
   
   // Enable keyboard for movement when game is started (menus can be open)
   const keyboardEnabled = isGameStarted;
+  const updatePositionStore = usePlayerStore((s) => s.updatePosition);
+  const updateRotationStore = usePlayerStore((s) => s.updateRotation);
+  const playerVec3 = new Vector3(position.x, position.y, position.z);
+
+  const handleMapChange = (mapId: string, pos: Vector3, rot: Vector3) => {
+    setCurrentMap(mapId);
+    updatePositionStore({ x: pos.x, y: pos.y, z: pos.z });
+    updateRotationStore({ x: rot.x, y: rot.y, z: rot.z });
+  };
+
+  const {
+    activePortal,
+    showPortalUI,
+    currentMapData,
+    handlePlayerEnterPortal,
+    handlePlayerExitPortal,
+    handleTeleport,
+    closePortalUI,
+  } = usePortalSystem({ currentMap, playerPosition: playerVec3, onMapChange: handleMapChange });
   
   // Debug: Log current state (only when there are issues)
   if (isGameStarted && !keyboardEnabled) {
@@ -171,7 +197,7 @@ export default function GameCanvas() {
               position={[0, 0, -100]} 
               scale={[6, 6, 6]} 
               rotation={[0, 0, 0]} 
-            />
+              />
             
             {/* Green Dome Structure - Decoración al lado del hotel */}
             <GreenDomeStructure 
@@ -185,6 +211,26 @@ export default function GameCanvas() {
               worldSize={THREE_CONFIG.world.size} 
               density={0.1} 
             />
+            
+            {/* Car Wash Model - Tu modelo sólido de Blender */}
+            <CarWashModel 
+              modelPath="/models/car-wash.glb"
+              name="car-wash"
+              position={[20, 0, 20]} 
+              scale={[10, 10, 10]} 
+              rotation={[0, 0, 0]} 
+            />
+
+            {/* Portales del mapa actual */}
+            {currentMapData?.portals.map((portal) => (
+              <PortalTrigger
+                key={portal.id}
+                portal={portal}
+                playerPosition={playerVec3}
+                onPlayerEnter={handlePlayerEnterPortal}
+                onPlayerExit={handlePlayerExitPortal}
+              />
+            ))}
           
           {/* Current Player */}
           <PlayerV2 
@@ -208,9 +254,6 @@ export default function GameCanvas() {
             };
             otherPlayers.sort((a, b) => dist(a) - dist(b));
             const limited = otherPlayers.slice(0, 12);
-            console.log('🎮 Total jugadores en store:', players.length, players.map(p => p.username));
-            console.log('🎮 Jugador local Username:', player?.username, 'sessionId:', sessionId);
-            console.log('🎮 Jugadores remotos a renderizar (filtrados):', limited.length, limited.map(p => p.username));
             return null;
           })()}
           {(() => {
@@ -246,6 +289,14 @@ export default function GameCanvas() {
         </Suspense>
         </Canvas>
       )}
+
+      {/* Portal UI */}
+      <PortalUI
+        portal={activePortal}
+        isVisible={showPortalUI}
+        onTeleport={handleTeleport}
+        onClose={closePortalUI}
+      />
 
       {/* FPS Counter */}
       <FPSCounter />

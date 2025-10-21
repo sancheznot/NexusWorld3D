@@ -5,6 +5,7 @@ export class CannonPhysics {
   private world: CANNON.World;
   private bodies: Map<string, CANNON.Body> = new Map();
   private playerBody: CANNON.Body | null = null;
+  private playerBaseY: number = 1.05; // Altura base del centro del jugador sobre el suelo
   private currentVelocity = { x: 0, z: 0 };
   private targetVelocity = { x: 0, z: 0 };
   private acceleration = 20; // Velocidad de aceleración (más rápida)
@@ -126,8 +127,8 @@ export class CannonPhysics {
     playerBody.addShape(playerShape);
     
     // Levantar ligeramente el cilindro para evitar colisión constante con el suelo
-    const adjustedY = cylinderHeight / 2 + 0.05; // Centro en Y=1.05 (base en Y=0.05)
-    playerBody.position.set(position.x, adjustedY, position.z);
+    this.playerBaseY = cylinderHeight / 2 + 0.05; // Centro en Y=1.05 (base en Y=0.05)
+    playerBody.position.set(position.x, this.playerBaseY, position.z);
     playerBody.material = this.playerMaterial; // Usar material compartido
     
     // Configurar propiedades físicas para evitar rebote
@@ -141,7 +142,7 @@ export class CannonPhysics {
     this.playerBody = playerBody;
     this.bodies.set('player', playerBody);
     
-    console.log(`👤 Player body created at Y=${adjustedY} (aligned with visual model)`);
+    console.log(`👤 Player body created at Y=${this.playerBaseY} (aligned with visual model)`);
     return playerBody;
   }
 
@@ -186,9 +187,14 @@ export class CannonPhysics {
     //   console.log(`🔧 Cannon updateMovement: input=(${input.x.toFixed(2)}, ${input.z.toFixed(2)}), target=(${this.targetVelocity.x.toFixed(2)}, ${this.targetVelocity.z.toFixed(2)}), current=(${this.currentVelocity.x.toFixed(2)}, ${this.currentVelocity.z.toFixed(2)}), bodyVel=(${this.playerBody.velocity.x.toFixed(2)}, ${this.playerBody.velocity.z.toFixed(2)}), pos=(${this.playerBody.position.x.toFixed(2)}, ${this.playerBody.position.z.toFixed(2)})`);
     // }
 
-    // Cuando esté grounded, aplana pequeñas vibras verticales
-    if (this.isGrounded() && Math.abs(this.playerBody.velocity.y) < 0.1) {
-      this.playerBody.velocity.y = 0;
+    // Clamp vertical movement: si toca suelo, corrige penetración y anula velocidad vertical negativa
+    if (this.playerBody.position.y <= this.playerBaseY + 0.01) {
+      if (this.playerBody.position.y < this.playerBaseY) {
+        this.playerBody.position.y = this.playerBaseY;
+      }
+      if (this.playerBody.velocity.y < 0) {
+        this.playerBody.velocity.y = 0;
+      }
     }
   }
 
@@ -229,7 +235,7 @@ export class CannonPhysics {
     if (!this.playerBody) return;
     
     // Solo saltar si está en el suelo (centro del cilindro en Y=1.05)
-    if (this.playerBody.position.y <= 1.15) {
+    if (this.isGrounded()) {
       this.playerBody.velocity.y = force;
       console.log(`🦘 Jump applied: ${force}`);
     }
@@ -237,8 +243,8 @@ export class CannonPhysics {
 
   isGrounded(): boolean {
     if (!this.playerBody) return false;
-    // El jugador está en el suelo cuando su centro está en Y=1.05 (±0.1 de tolerancia)
-    return this.playerBody.position.y <= 1.15;
+    // El jugador está en el suelo cuando su centro está en la base prevista (±0.05)
+    return this.playerBody.position.y <= this.playerBaseY + 0.05;
   }
 
   setPlayerPosition(position: { x: number; y: number; z: number }) {
@@ -315,6 +321,63 @@ export class CannonPhysics {
     this.world.addBody(body);
     this.bodies.set(id, body);
     console.log(`🏢 Building collider created: ${id} at (${position[0].toFixed(1)}, ${position[1].toFixed(1)}, ${position[2].toFixed(1)}) size=(${size[0]}, ${size[1]}, ${size[2]})`);
+  }
+
+  // 🚀 NUEVO: Crear body desde forma de three-to-cannon
+  createBodyFromShape(
+    cannonShape: any, 
+    position: { x: number; y: number; z: number }, 
+    rotation: { x: number; y: number; z: number },
+    scale: { x: number; y: number; z: number },
+    id: string
+  ) {
+    if (this.bodies.has(id)) {
+      return;
+    }
+
+    const body = new CANNON.Body({ mass: 0 }); // mass 0 = estático
+    body.addShape(cannonShape);
+    body.position.set(position.x, position.y, position.z);
+    body.quaternion.setFromEuler(rotation.x, rotation.y, rotation.z);
+    body.material = this.staticMaterial;
+    
+    // IMPORTANTE: Asegurar que el body no se duerma y responda a colisiones
+    body.allowSleep = false;
+    body.collisionResponse = true;
+    
+    this.world.addBody(body);
+    this.bodies.set(id, body);
+    console.log(`🚀 Automatic collider created: ${id} at (${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)}) shape=${cannonShape.type}`);
+    
+    return body;
+  }
+
+  // Crear box colliders a partir de meshes cuyo nombre cumpla un predicado (e.g., UCX_*)
+  createUCXBoxCollidersFromScene(
+    scene: THREE.Object3D,
+    filter: (name: string) => boolean,
+    idPrefix: string
+  ) {
+    let count = 0;
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh && filter(child.name)) {
+        const mesh = child as THREE.Mesh;
+        mesh.updateMatrixWorld();
+        const worldBox = new THREE.Box3().setFromObject(mesh);
+        const size = worldBox.getSize(new THREE.Vector3());
+        const center = worldBox.getCenter(new THREE.Vector3());
+
+        const pos: [number, number, number] = [center.x, worldBox.min.y, center.z];
+        const sz: [number, number, number] = [size.x, size.y, size.z];
+
+        const id = `${idPrefix}-${child.name}-${count}`;
+        if (!this.bodies.has(id)) {
+          this.createBoxCollider(pos, sz, id);
+          count += 1;
+        }
+      }
+    });
+    return count;
   }
 
   // Crear collider desde el mesh real de un modelo GLB
