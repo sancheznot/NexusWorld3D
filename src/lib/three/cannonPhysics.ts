@@ -1,5 +1,6 @@
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
+import { threeToCannon, ShapeType } from 'three-to-cannon';
 
 export class CannonPhysics {
   private world: CANNON.World;
@@ -57,6 +58,46 @@ export class CannonPhysics {
     });
     
     console.log('🌍 Cannon.js physics world initialized with SAPBroadphase');
+  }
+
+  // Crear colliders Trimesh a partir de meshes cuyo nombre cumpla un predicado (para colinas, terreno, rocas)
+  createNamedTrimeshCollidersFromScene(
+    scene: THREE.Object3D,
+    filter: (name: string) => boolean,
+    idPrefix: string
+  ) {
+    let count = 0;
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh && filter(child.name)) {
+        const mesh = child as THREE.Mesh;
+        mesh.updateMatrixWorld(true);
+
+        const id = `${idPrefix}-${child.name}-${count}`;
+        if (this.bodies.has(id)) return;
+
+        // Prioriza Convex para Hill_03.001; si no, usa Trimesh robusto desde world-geometry
+        if (/^(Hill_03\.001)$/i.test(child.name)) {
+          const res = threeToCannon(mesh, { type: ShapeType.HULL });
+          if (res?.shape) {
+            const body = new CANNON.Body({ mass: 0 });
+            body.addShape(res.shape, res.offset, res.orientation);
+            const wp = new THREE.Vector3(); mesh.getWorldPosition(wp);
+            const wq = new THREE.Quaternion(); mesh.getWorldQuaternion(wq);
+            body.position.set(wp.x, wp.y, wp.z);
+            body.quaternion.set(wq.x, wq.y, wq.z, wq.w);
+            body.material = this.staticMaterial; body.allowSleep = false; body.collisionResponse = true;
+            this.world.addBody(body); this.bodies.set(id, body); count += 1; mesh.visible = false; return;
+          }
+        }
+
+        const created = this.createTrimeshColliderFromWorldMesh(mesh, id);
+        if (created) { count += 1; mesh.visible = false; }
+      }
+    });
+    if (count > 0) {
+      console.log(`⛰️  ${count} Trimesh colliders generados (${idPrefix})`);
+    }
+    return count;
   }
 
   private setupMaterials() {
@@ -125,6 +166,10 @@ export class CannonPhysics {
     const playerShape = new CANNON.Cylinder(0.5, 0.5, cylinderHeight, 8);
     const playerBody = new CANNON.Body({ mass: 1 });
     playerBody.addShape(playerShape);
+    // 👣 Pie esférico para colisionar correctamente con Trimesh
+    const footRadius = 0.45;
+    const footOffset = new CANNON.Vec3(0, -cylinderHeight / 2 + footRadius, 0);
+    playerBody.addShape(new CANNON.Sphere(footRadius), footOffset);
     
     // Levantar ligeramente el cilindro para evitar colisión constante con el suelo
     this.playerBaseY = cylinderHeight / 2 + 0.05; // Centro en Y=1.05 (base en Y=0.05)
@@ -302,26 +347,63 @@ export class CannonPhysics {
   }
 
   // Crear collider de caja para edificios
-  createBoxCollider(position: [number, number, number], size: [number, number, number], id: string) {
-    if (this.bodies.has(id)) {
-      console.log(`⚠️ Box collider ${id} already exists`);
-      return;
+ // Crear collider de caja para edificios, muros o terreno
+createBoxCollider(position: [number, number, number], size: [number, number, number], id: string) {
+  // Límite máximo por eje (mientras más grande, más impreciso)
+  const MAX_SIZE = 50;
+
+  const [sx, sy, sz] = size;
+
+  // 🔹 Si es demasiado grande, dividirlo en sub-colliders más pequeños
+  if (sx > MAX_SIZE || sz > MAX_SIZE) {
+    console.warn(`⚠️ Collider demasiado grande (${id}) → subdividiendo (${sx.toFixed(1)} × ${sz.toFixed(1)})`);
+
+    // Calcular cuántas divisiones por eje
+    const nx = Math.ceil(sx / MAX_SIZE);
+    const nz = Math.ceil(sz / MAX_SIZE);
+
+    // Tamaño de cada subdivisión
+    const dx = sx / nx;
+    const dz = sz / nz;
+
+    // Crear múltiples colliders más pequeños
+    for (let ix = 0; ix < nx; ix++) {
+      for (let iz = 0; iz < nz; iz++) {
+        const offsetX = (ix - (nx - 1) / 2) * dx;
+        const offsetZ = (iz - (nz - 1) / 2) * dz;
+
+        const newPos: [number, number, number] = [
+          position[0] + offsetX,
+          position[1],
+          position[2] + offsetZ,
+        ];
+
+        const newSize: [number, number, number] = [dx, sy, dz];
+        const subId = `${id}_sub_${ix}_${iz}`;
+
+        // Crear sub-collider
+        this.createBoxCollider(newPos, newSize, subId);
+      }
     }
 
-    const shape = new CANNON.Box(new CANNON.Vec3(size[0] / 2, size[1] / 2, size[2] / 2));
-    const body = new CANNON.Body({ mass: 0 }); // mass 0 = estático
-    body.addShape(shape);
-    body.position.set(position[0], position[1] + size[1] / 2, position[2]);
-    body.material = this.staticMaterial; // Usar material compartido
-    
-    // IMPORTANTE: Asegurar que el body no se duerma y responda a colisiones
-    body.allowSleep = false;
-    body.collisionResponse = true; // CRÍTICO para bloquear al jugador
-    
-    this.world.addBody(body);
-    this.bodies.set(id, body);
-    console.log(`🏢 Building collider created: ${id} at (${position[0].toFixed(1)}, ${position[1].toFixed(1)}, ${position[2].toFixed(1)}) size=(${size[0]}, ${size[1]}, ${size[2]})`);
+    // No crees el collider grande original
+    return;
   }
+
+  // 🔹 Si no es grande, crear collider normal
+  const shape = new CANNON.Box(new CANNON.Vec3(sx / 2, sy / 2, sz / 2));
+  const body = new CANNON.Body({ mass: 0 });
+  body.addShape(shape);
+  body.position.set(position[0], position[1] + sy / 2, position[2]);
+  body.material = this.staticMaterial;
+  body.allowSleep = false;
+  body.collisionResponse = true;
+
+  this.world.addBody(body);
+  this.bodies.set(id, body);
+  console.log(`🏢 Box collider creado: ${id} → size=(${sx.toFixed(1)}, ${sy.toFixed(1)}, ${sz.toFixed(1)})`);
+}
+
 
   // 🚀 NUEVO: Crear body desde forma de three-to-cannon
   createBodyFromShape(
@@ -396,39 +478,12 @@ export class CannonPhysics {
     let meshesProcessed = 0;
 
     mesh.traverse((child) => {
-      if (child instanceof THREE.Mesh && child.geometry) {
-        const geometry = child.geometry;
-        
-        // Obtener vértices y caras del mesh
-        const vertices: number[] = [];
-        const indices: number[] = [];
-        
-        // Posición de los vértices
-        const positionAttribute = geometry.attributes.position;
-        if (positionAttribute) {
-          for (let i = 0; i < positionAttribute.count; i++) {
-            vertices.push(
-              positionAttribute.getX(i) * scale[0],
-              positionAttribute.getY(i) * scale[1],
-              positionAttribute.getZ(i) * scale[2]
-            );
-          }
-          
-          // Índices (caras)
-          if (geometry.index) {
-            for (let i = 0; i < geometry.index.count; i++) {
-              indices.push(geometry.index.getX(i));
-            }
-          } else {
-            // Si no hay índices, crear secuencia
-            for (let i = 0; i < positionAttribute.count; i++) {
-              indices.push(i);
-            }
-          }
-          
-          // Crear Trimesh con la geometría real
-          const trimesh = new CANNON.Trimesh(vertices, indices);
-          body.addShape(trimesh);
+      if (child instanceof THREE.Mesh) {
+        // Preferir three-to-cannon para respetar transformaciones y normales (backface/clockwise)
+        const result = threeToCannon(child, { type: ShapeType.MESH });
+        if (result && result.shape) {
+          // Respetar offset y orientación calculados por three-to-cannon
+          body.addShape(result.shape, result.offset, result.orientation);
           meshesProcessed++;
         }
       }
@@ -448,7 +503,46 @@ export class CannonPhysics {
     
     this.world.addBody(body);
     this.bodies.set(id, body);
-    console.log(`🎨 Mesh collider created: ${id} with ${meshesProcessed} meshes at (${position[0].toFixed(1)}, ${position[1].toFixed(1)}, ${position[2].toFixed(1)})`);
+    console.log(`🎨 Mesh collider created (three-to-cannon): ${id} with ${meshesProcessed} meshes at (${position[0].toFixed(1)}, ${position[1].toFixed(1)}, ${position[2].toFixed(1)})`);
+  }
+
+  // Construir Trimesh robusto aplicando matrixWorld y limpiando triángulos degenerados
+  private createTrimeshColliderFromWorldMesh(mesh: THREE.Mesh, id: string) {
+    const geom = mesh.geometry;
+    const posAttr = geom?.attributes?.position;
+    if (!geom || !posAttr || posAttr.count < 3) return false;
+
+    const cloned = geom.clone();
+    cloned.applyMatrix4(mesh.matrixWorld);
+
+    const p = cloned.attributes.position as THREE.BufferAttribute;
+    const idx = cloned.index;
+
+    const vertices: number[] = [];
+    for (let i = 0; i < p.count; i++) {
+      vertices.push(p.getX(i), p.getY(i), p.getZ(i));
+    }
+
+    const indices: number[] = [];
+    if (idx) {
+      for (let i = 0; i < idx.count; i++) indices.push(idx.getX(i));
+    } else {
+      for (let i = 0; i < p.count; i++) indices.push(i);
+    }
+
+    // Filtrar triángulos degenerados
+    const filtered: number[] = [];
+    for (let i = 0; i < indices.length; i += 3) {
+      const a = indices[i], b = indices[i + 1], c = indices[i + 2];
+      if (a !== b && b !== c && a !== c) filtered.push(a, b, c);
+    }
+
+    const trimesh = new CANNON.Trimesh(vertices, filtered);
+    const body = new CANNON.Body({ mass: 0 });
+    body.addShape(trimesh);
+    body.material = this.staticMaterial; body.allowSleep = false; body.collisionResponse = true;
+    this.world.addBody(body); this.bodies.set(id, body);
+    return true;
   }
 
   // Marcar que los colliders estáticos ya fueron creados

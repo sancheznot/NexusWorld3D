@@ -50,6 +50,13 @@ export function useCannonPhysics(createPhysicsBody: boolean = true) {
     globalDebugRenderer = cannonDebugger(scene, physicsRef.current.getWorld(), {
       color: 0x00ff00, // Verde brillante para ver los mesh
       scale: 1.0,
+      // Filtrar shapes con geometría inválida para el debugger
+      onInit(body, mesh) {
+        if (!mesh?.geometry?.attributes?.position) return false as any;
+        const p = mesh.geometry.attributes.position;
+        const ok = Number.isFinite(p.getX(0));
+        return ok as any;
+      }
     });
     debugRendererRef.current = globalDebugRenderer;
     
@@ -72,7 +79,11 @@ export function useCannonPhysics(createPhysicsBody: boolean = true) {
   // Actualizar debugger en cada frame
   useFrame(() => {
     if (debugRendererRef.current && physicsRef.current) {
-      debugRendererRef.current.update();
+      try {
+        debugRendererRef.current.update();
+      } catch (e) {
+        // Evitar crasheos de debug cuando hay geometrías inválidas (e.g., NaN)
+      }
     }
   });
 

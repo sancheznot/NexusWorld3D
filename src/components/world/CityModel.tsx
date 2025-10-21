@@ -25,18 +25,21 @@ export default function CityModel({
   useEffect(() => {
     if (!scene || !physicsRef.current) return;
 
-    // Reutilizable: crear colliders para todos los meshes UCX_* del modelo
-    const created = physicsRef.current.createUCXBoxCollidersFromScene(
+    // 1) Box colliders para UCX_* / collision*
+    const boxes = physicsRef.current.createUCXBoxCollidersFromScene(
       scene,
       (n) => n.startsWith('UCX_') || n.includes('collision') || n.includes('Collision'),
       name
     );
+
+    // 2) Trimesh colliders para colinas/terreno/rocas (nombres: Hill_, HIL_, Terrain_, Rock_)
+    const hills = physicsRef.current.createNamedTrimeshCollidersFromScene(
+      scene,
+      (n) => /^(HIL|Hill|Rock|Cliff|Slope|Hill_)/i.test(n),
+      `${name}-hills`
+    );
     
-    if (created === 0) {
-      console.log('❌ No se encontraron meshes UCX_* en el modelo de ciudad');
-    } else {
-      console.log(`✅ Ciudad cargada: ${created} colliders UCX creados`);
-    }
+    console.log(`✅ Ciudad: ${boxes} box colliders, ${hills} trimesh colliders`);
   }, [scene, physicsRef, name]);
 
   return (

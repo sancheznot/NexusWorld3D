@@ -29,10 +29,9 @@ export default function CarWashModel({
   useEffect(() => {
     if (!scene || !physicsRef.current) return;
 
-    // Reutilizable: crear colliders para todos los meshes UCX_* del modelo
-    const created = physicsRef.current.createUCXBoxCollidersFromScene(
+    // Reutilizable: crear colliders automáticos UCX (Box/Trimesh según complejidad)
+    const created = physicsRef.current.createUCXAutoCollidersFromScene(
       scene,
-      (n) => n.startsWith('UCX_') || n.includes('collision') || n.includes('Collision'),
       name
     );
     if (created === 0) {
