@@ -60,6 +60,19 @@ export class CannonPhysics {
     console.log('🌍 Cannon.js physics world initialized with SAPBroadphase');
   }
 
+  // Crear colliders UCX automáticamente (Box) a partir de la escena
+  createUCXAutoCollidersFromScene(
+    scene: THREE.Object3D,
+    idPrefix: string
+  ) {
+    // Aprovecha el creador de cajas existente y oculta los UCX
+    return this.createUCXBoxCollidersFromScene(
+      scene,
+      (n) => n.startsWith('UCX_') || /ucx|collision/i.test(n),
+      `${idPrefix}-ucx`
+    );
+  }
+
   // Crear colliders Trimesh a partir de meshes cuyo nombre cumpla un predicado (para colinas, terreno, rocas)
   createNamedTrimeshCollidersFromScene(
     scene: THREE.Object3D,
@@ -86,12 +99,15 @@ export class CannonPhysics {
             body.position.set(wp.x, wp.y, wp.z);
             body.quaternion.set(wq.x, wq.y, wq.z, wq.w);
             body.material = this.staticMaterial; body.allowSleep = false; body.collisionResponse = true;
-            this.world.addBody(body); this.bodies.set(id, body); count += 1; mesh.visible = false; return;
+            this.world.addBody(body); this.bodies.set(id, body); count += 1; 
+            // Mantener visible el mesh visual (no transparente)
+            return;
           }
         }
 
+        // Fallback: Trimesh robusto desde world-geometry
         const created = this.createTrimeshColliderFromWorldMesh(mesh, id);
-        if (created) { count += 1; mesh.visible = false; }
+        if (created) { count += 1; /* mantener visible */ }
       }
     });
     if (count > 0) {

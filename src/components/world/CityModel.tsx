@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { useCannonPhysics } from '@/hooks/useCannonPhysics';
+import { NATURAL_MESH_PATTERNS } from '@/constants/physics';
 
 interface CityModelProps {
   modelPath: string;
@@ -32,10 +33,10 @@ export default function CityModel({
       name
     );
 
-    // 2) Trimesh colliders para colinas/terreno/rocas (nombres: Hill_, HIL_, Terrain_, Rock_)
+    // 2) Trimesh colliders para colinas/terreno/rocas (usando constantes centralizadas)
     const hills = physicsRef.current.createNamedTrimeshCollidersFromScene(
       scene,
-      (n) => /^(HIL|Hill|Rock|Cliff|Slope|Hill_)/i.test(n),
+      (n) => NATURAL_MESH_PATTERNS.some(pattern => new RegExp(`^${pattern}`, 'i').test(n)),
       `${name}-hills`
     );
     

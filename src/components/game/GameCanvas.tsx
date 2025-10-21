@@ -222,7 +222,7 @@ export default function GameCanvas() {
               rotation={[0, 0, 0]} 
             /> */}
             
-            {/* Terrain Model - Terreno con colliders automáticos */}
+            {/* City Model - Ciudad con colliders automáticos */}
             <CityModel 
               modelPath="/models/terrain/Terrain_01.glb"
               name="terrain"
