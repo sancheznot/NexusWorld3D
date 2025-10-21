@@ -75,6 +75,8 @@ export default function MapManager({
             
             {/* Car Wash Model - Tu modelo sólido de Blender */}
             <CarWashModel 
+              modelPath="/models/car-wash.glb"
+              name="car-wash"
               position={[20, 0, 20]} 
               scale={[2, 2, 2]} 
               rotation={[0, Math.PI / 4, 0]} 
