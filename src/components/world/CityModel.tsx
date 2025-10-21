@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { useCannonPhysics } from '@/hooks/useCannonPhysics';
 import { NATURAL_MESH_PATTERNS } from '@/constants/physics';
-import UniformTerrain from './UniformTerrain';
 
 interface CityModelProps {
   modelPath: string;
@@ -21,18 +20,11 @@ export default function CityModel({
   scale = [1, 1, 1],
   rotation = [0, 0, 0],
 }: CityModelProps) {
-  const [modelError, setModelError] = useState(false);
   const { scene } = useGLTF(modelPath);
   const physicsRef = useCannonPhysics(false);
 
   useEffect(() => {
-    if (!scene || !physicsRef.current) {
-      // If no scene after loading, trigger fallback
-      if (!scene) {
-        setModelError(true);
-      }
-      return;
-    }
+    if (!scene || !physicsRef.current) return;
 
     // 1) Box colliders para UCX_* / collision*
     const boxes = physicsRef.current.createUCXBoxCollidersFromScene(
@@ -50,19 +42,6 @@ export default function CityModel({
     
     console.log(`✅ Ciudad: ${boxes} box colliders, ${hills} trimesh colliders`);
   }, [scene, physicsRef, name]);
-
-  // 🎯 Fallback: Si el modelo no existe, usar terreno público
-  if (modelError || !scene) {
-    console.log(`🔄 Usando fallback: UniformTerrain para ${name}`);
-    return (
-      <group position={position}>
-        <UniformTerrain 
-          worldSize={100} 
-          tileSize={25}
-        />
-      </group>
-    );
-  }
 
   return (
     <primitive
