@@ -16,6 +16,7 @@ import NatureDecorations from '@/components/world/NatureDecorations';
 import HotelHumboldt from '@/components/world/HotelHumboldt';
 import GreenDomeStructure from '@/components/world/GreenDomeStructure';
 import CarWashModel from '@/components/world/CarWashModel';
+import CityModel from '@/components/world/CityModel';
 import Lighting from '@/components/world/Lighting';
 import Skybox from '@/components/world/Skybox';
 import ThirdPersonCamera from '@/components/world/ThirdPersonCamera';
@@ -187,37 +188,46 @@ export default function GameCanvas() {
             <Skybox />
             
             {/* Uniform Terrain - Solo Terrain_01 */}
-            <UniformTerrain 
+            {/* <UniformTerrain 
               worldSize={THREE_CONFIG.world.size} 
               tileSize={25}
-            />
+            /> */}
             
             {/* Hotel Humboldt - 80% del tamaño original */}
-            <HotelHumboldt 
+            {/* <HotelHumboldt 
               position={[0, 0, -100]} 
               scale={[6, 6, 6]} 
               rotation={[0, 0, 0]} 
-              />
+              /> */}
             
             {/* Green Dome Structure - Decoración al lado del hotel */}
-            <GreenDomeStructure 
+            {/* <GreenDomeStructure 
               position={[30, 0, -30]} 
               scale={[3, 3, 3]} 
               rotation={[0, 0, 0]} 
-            />
+            /> */}
             
             {/* Nature Decorations - Optimizado para rendimiento */}
-            <NatureDecorations 
+            {/* <NatureDecorations 
               worldSize={THREE_CONFIG.world.size} 
               density={0.1} 
-            />
+            /> */}
             
             {/* Car Wash Model - Tu modelo sólido de Blender */}
-            <CarWashModel 
+            {/* <CarWashModel 
               modelPath="/models/car-wash.glb"
               name="car-wash"
               position={[20, 0, 20]} 
               scale={[10, 10, 10]} 
+              rotation={[0, 0, 0]} 
+            /> */}
+            
+            {/* City Model - Ciudad completa con colliders automáticos */}
+            <CityModel 
+              modelPath="/models/city.glb"
+              name="city"
+              position={[0, 0, 0]} 
+              scale={[1, 1, 1]} 
               rotation={[0, 0, 0]} 
             />
 

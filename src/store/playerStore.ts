@@ -62,7 +62,7 @@ export const usePlayerStore = create<PlayerState>()(
       // Initial state
       player: null,
       isOnline: false,
-      position: { x: 0, y: 1.05, z: 0 }, // Y=1.05 (ligeramente elevado para evitar rebotes)
+      position: { x: 10, y: 1.05, z: 10 }, // Y=1.05 (ligeramente elevado para evitar rebotes)
       rotation: { x: 0, y: Math.PI, z: 0 }, // Inicia mirando hacia adelante (180° en radianes)
       velocity: { x: 0, y: 0, z: 0 },
       isMoving: false,
@@ -217,7 +217,7 @@ export const usePlayerStore = create<PlayerState>()(
         set({
           player: null,
           isOnline: false,
-          position: { x: 0, y: 1.05, z: 0 }, // Y=1.05 (ligeramente elevado para evitar rebotes)
+          position: { x: 10, y: 1.05, z: 10 }, // Y=1.05 (ligeramente elevado para evitar rebotes)
           rotation: { x: 0, y: Math.PI, z: 0 }, // Inicia mirando hacia adelante (180° en radianes)
           velocity: { x: 0, y: 0, z: 0 },
           isMoving: false,

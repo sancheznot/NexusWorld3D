@@ -44,7 +44,7 @@ export function useCannonPhysics(createPhysicsBody: boolean = true) {
     physicsRef.current.createGround();
     
     // Crear jugador (Y=1.05 para evitar rebotes en el suelo)
-    physicsRef.current.createPlayer({ x: 0, y: 1.05, z: 0 });
+    physicsRef.current.createPlayer({ x: 10, y: 1.05, z: 10 });
 
     // 🔍 ACTIVAR DEBUGGER VISUAL
     globalDebugRenderer = cannonDebugger(scene, physicsRef.current.getWorld(), {

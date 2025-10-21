@@ -362,6 +362,11 @@ export class CannonPhysics {
     scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh && filter(child.name)) {
         const mesh = child as THREE.Mesh;
+        
+        // 🔹 Hacer invisible el mesh UCX (solo para collider)
+        mesh.visible = false;
+        console.log(`👻 Mesh UCX oculto: ${child.name}`);
+        
         mesh.updateMatrixWorld();
         const worldBox = new THREE.Box3().setFromObject(mesh);
         const size = worldBox.getSize(new THREE.Vector3());
