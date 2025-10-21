@@ -24,7 +24,14 @@ export default function CityModel({
   const physicsRef = useCannonPhysics(false);
 
   useEffect(() => {
-    if (!scene || !physicsRef.current) return;
+    console.log(`🔍 CityModel useEffect - scene:`, !!scene, `physicsRef:`, !!physicsRef.current, `name:`, name);
+    
+    if (!scene || !physicsRef.current) {
+      console.log(`❌ CityModel: Missing scene or physicsRef - scene:`, !!scene, `physicsRef:`, !!physicsRef.current);
+      return;
+    }
+
+    console.log(`🎯 CityModel: Creating colliders for ${name}...`);
 
     // 1) Box colliders para UCX_* / collision*
     const boxes = physicsRef.current.createUCXBoxCollidersFromScene(

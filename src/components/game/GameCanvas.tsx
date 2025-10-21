@@ -223,13 +223,18 @@ export default function GameCanvas() {
             /> */}
             
             {/* City Model - Ciudad con colliders automáticos + fallback */}
-            <CityModel 
-              modelPath="/models/city.glb"
-              name="city"
-              position={[0, 0, 0]} 
-              scale={[1, 1, 1]} 
-              rotation={[0, 0, 0]} 
-            />
+            {(() => {
+              console.log('🏙️ GameCanvas: Rendering CityModel with /models/city.glb');
+              return (
+                <CityModel 
+                  modelPath="/models/city.glb"
+                  name="city"
+                  position={[0, 0, 0]} 
+                  scale={[1, 1, 1]} 
+                  rotation={[0, 0, 0]} 
+                />
+              );
+            })()}
 
             {/* Portales del mapa actual */}
             {currentMapData?.portals.map((portal) => (
