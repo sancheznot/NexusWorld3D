@@ -1,5 +1,5 @@
 # 📚 NexusWorld3D Framework Documentation
-
+ 
 Welcome to the complete documentation of the NexusWorld3D Framework. Here you'll find everything needed to understand, configure, and extend the framework.
 
 Bienvenido a la documentación completa del framework NexusWorld3D. Aquí encontrarás todo lo necesario para entender, configurar y extender el framework.
