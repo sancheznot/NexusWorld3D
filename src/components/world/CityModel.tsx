@@ -55,4 +55,4 @@ export default function CityModel({
 }
 
 // Precarga
-useGLTF.preload('/models/city.glb');
+useGLTF.preload('/models/terrain/Terrain_01.glb');
