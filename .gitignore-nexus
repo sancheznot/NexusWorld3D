@@ -1,0 +1,23 @@
+# NexusWorld3D specific ignores
+node_modules/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.next/
+out/
+build/
+dist/
+
+# Large model files (keep for template)
+# public/models/city.glb
+# public/models/car-wash.glb
+
+# Private models (exclude from NexusWorld3D template)
+public/models/city.glb
+public/models/car-wash.glb
+
+# Development files
+*.log
+.DS_Store
+Thumbs.db
