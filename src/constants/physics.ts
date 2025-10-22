@@ -6,7 +6,8 @@
 export const NATURAL_MESH_PATTERNS = [
   'HIL', 'Hill', 'Rock', 'Cliff', 'Slope', 'Road_', 'Hill_',
   'MobileRoad_', 'Street_', 'Bridge_', 'Building_', 'Wall_',
-  'Tree_', 'Grass_', 'Plant_', 'Car_', 'Truck_', 'Vehicle_'
+  'Tree_', 'Grass_', 'Plant_', 'Car_', 'Truck_', 'Vehicle_','Pond_','Pool_', 'Police_', 'Hospital_',
+  'CityHall_', 'FireStation_', 'Cafe_'
 ] as const;
 
 // 🎯 Patrones para meshes UCX (colliders de caja, invisibles)
