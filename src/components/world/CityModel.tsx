@@ -21,7 +21,7 @@ export default function CityModel({
   rotation = [0, 0, 0],
 }: CityModelProps) {
   const { scene } = useGLTF(modelPath);
-  const physicsRef = useCannonPhysics(false);
+  const physicsRef = useCannonPhysics(true); // Cambiar a true para acceder al physics global
 
   useEffect(() => {
     console.log(`🔍 CityModel useEffect - scene:`, !!scene, `physicsRef:`, !!physicsRef.current, `name:`, name);
