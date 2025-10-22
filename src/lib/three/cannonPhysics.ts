@@ -196,7 +196,8 @@ export class CannonPhysics {
     // Configurar propiedades físicas para evitar rebote
     playerBody.allowSleep = false; // DESACTIVAR sleep para que siempre se actualice
     playerBody.collisionResponse = true; // CRÍTICO: Responder a colisiones
-    playerBody.linearDamping = 0.1; // Muy bajo para permitir movimiento fluido
+    // Un poco de damping para que el aire frene suavemente, pero deje sentir aceleración
+    playerBody.linearDamping = 0.05;
     playerBody.angularDamping = 1.0;
     playerBody.fixedRotation = true; // Evitar rotación no deseada
     
@@ -225,14 +226,17 @@ export class CannonPhysics {
   
   private lastDebugTime = 0;
 
-  updateMovement(input: { x: number; z: number; isRunning: boolean }, deltaTime: number) {
+  updateMovement(input: { x: number; z: number; isRunning: boolean; stamina: number }, deltaTime: number) {
     if (!this.playerBody) {
       console.log('⚠️ updateMovement: playerBody is null');
       return;
     }
 
+    // Solo permitir correr si hay stamina suficiente (mínimo 10 puntos)
+    const canRun = input.isRunning && input.stamina > 10;
+    
     // Calcular velocidad objetivo (ajustada para 60 FPS)
-    const maxSpeed = input.isRunning ? 12 : 7; // Ajustado para 60 FPS
+    const maxSpeed = canRun ? 12 : 7; // Solo correr si hay stamina
     this.targetVelocity.x = input.x * maxSpeed;
     this.targetVelocity.z = input.z * maxSpeed;
 
@@ -243,21 +247,28 @@ export class CannonPhysics {
     this.currentVelocity.x = this.lerp(this.currentVelocity.x, this.targetVelocity.x, lerpFactor);
     this.currentVelocity.z = this.lerp(this.currentVelocity.z, this.targetVelocity.z, lerpFactor);
 
-    // Aplicar velocidad al cuerpo (restaurar movimiento normal)
+    // Aplicar velocidad al cuerpo
     this.playerBody.velocity.x = this.currentVelocity.x;
     this.playerBody.velocity.z = this.currentVelocity.z;
+
+    // Si no hay stamina, fuerza a detener el sprint (seguridad extra)
+    if (!canRun && (Math.abs(this.playerBody.velocity.x) > 12 || Math.abs(this.playerBody.velocity.z) > 12)) {
+      this.playerBody.velocity.x = Math.sign(this.playerBody.velocity.x) * 7;
+      this.playerBody.velocity.z = Math.sign(this.playerBody.velocity.z) * 7;
+    }
 
     // Debug (comentado para no llenar la consola)
     // if (input.x !== 0 || input.z !== 0) {
     //   console.log(`🔧 Cannon updateMovement: input=(${input.x.toFixed(2)}, ${input.z.toFixed(2)}), target=(${this.targetVelocity.x.toFixed(2)}, ${this.targetVelocity.z.toFixed(2)}), current=(${this.currentVelocity.x.toFixed(2)}, ${this.currentVelocity.z.toFixed(2)}), bodyVel=(${this.playerBody.velocity.x.toFixed(2)}, ${this.playerBody.velocity.z.toFixed(2)}), pos=(${this.playerBody.position.x.toFixed(2)}, ${this.playerBody.position.z.toFixed(2)})`);
     // }
 
-    // Clamp vertical movement: si toca suelo, corrige penetración y anula velocidad vertical negativa
+    // Clamp vertical movement: si toca suelo, corrige penetración y opcionalmente amortigua caída
     if (this.playerBody.position.y <= this.playerBaseY + 0.01) {
       if (this.playerBody.position.y < this.playerBaseY) {
         this.playerBody.position.y = this.playerBaseY;
       }
       if (this.playerBody.velocity.y < 0) {
+        // amortiguar el impacto sin eliminar aceleración en el aire
         this.playerBody.velocity.y = 0;
       }
     }
@@ -308,8 +319,12 @@ export class CannonPhysics {
 
   isGrounded(): boolean {
     if (!this.playerBody) return false;
-    // El jugador está en el suelo cuando su centro está en la base prevista (±0.05)
-    return this.playerBody.position.y <= this.playerBaseY + 0.05;
+    // Permitir salto aunque el centro esté levemente por encima del base Y, porque
+    // algunos meshes elevan el pivote. Aceptamos un margen más amplio.
+    if (this.playerBody.position.y <= this.playerBaseY + 0.12) return true;
+    // Fallback: si la velocidad vertical es casi cero y hay soporte, también considerar grounded
+    if (Math.abs(this.playerBody.velocity.y) < 0.01) return true;
+    return false;
   }
 
   setPlayerPosition(position: { x: number; y: number; z: number }) {

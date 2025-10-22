@@ -4,10 +4,19 @@
 
 // 🎯 Patrones de nombres para meshes que usan colliders especializados (Convex Hull)
 export const NATURAL_MESH_PATTERNS = [
-  'HIL', 'Hill', 'Rock', 'Cliff', 'Slope', 'Road_', 'Hill_',
-  'MobileRoad_', 'Street_', 'Bridge_', 'Building_', 'Wall_',
-  'Tree_', 'Grass_', 'Plant_', 'Car_', 'Truck_', 'Vehicle_','Pond_','Pool_', 'Police_', 'Hospital_',
-  'CityHall_', 'FireStation_', 'Cafe_'
+  'HIL', 'Hill', 'Rock', 'Cliff', 'Slope', 'Hill_',
+  // Terrenos y suelos
+  'Terrain', 'Ground', 'Sidewalk', 'Asphalt',
+  // Vías y estructuras urbanas
+  'Road', 'Road_', 'MobileRoad_', 'Street', 'Street_', 'Bridge', 'Bridge_', 'Ramp', 'Stairs',
+  // Edificios y muros
+  'Building', 'Building_', 'Wall', 'Wall_',
+  // Naturaleza y props grandes
+  'Tree_', 'Grass_', 'Plant_', 'Rock_', 'Cliff_', 'Pond_', 'Pool_',
+  // Vehículos grandes u obstáculos
+  'Car_', 'Truck_', 'Vehicle_',
+  // Institucionales
+  'Police_', 'Hospital_', 'CityHall_', 'FireStation_', 'Cafe_'
 ] as const;
 
 // 🎯 Patrones para meshes UCX (colliders de caja, invisibles)
@@ -19,9 +28,9 @@ export const UCX_MESH_PATTERNS = [
 export const PHYSICS_CONFIG = {
   MAX_COLLIDER_SIZE: 50, // Tamaño máximo antes de subdividir
   PLAYER_BASE_HEIGHT: 1.05,
-  ACCELERATION: 30, // Aumentado para compensar 120 FPS
-  DECELERATION: 25, // Aumentado para compensar 120 FPS
-  GRAVITY: -12,
+  ACCELERATION: 30, // Aceleración lateral
+  DECELERATION: 25, // Frenado lateral
+  GRAVITY: -18, // Caída más rápida y con mayor sensación de aceleración
   TARGET_FPS: 120, // FPS objetivo por defecto
   MAX_DELTA_TIME: 1/120, // Delta time máximo por defecto
 } as const;

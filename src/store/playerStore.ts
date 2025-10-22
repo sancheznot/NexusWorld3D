@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { Player, Vector3, PlayerStats, PlayerMovement, PlayerAnimation } from '@/types/player.types';
+import { GAME_CONFIG } from '@/constants/game';
 
 interface PlayerState {
   // Player data
@@ -20,6 +21,8 @@ interface PlayerState {
   maxHealth: number;
   stamina: number;
   maxStamina: number;
+  hunger: number;
+  maxHunger: number;
   level: number;
   experience: number;
   stats: PlayerStats;
@@ -40,6 +43,7 @@ interface PlayerState {
   setJumping: (isJumping: boolean) => void;
   updateHealth: (health: number) => void;
   updateStamina: (stamina: number) => void;
+  updateHunger: (hunger: number) => void;
   updateLevel: (level: number) => void;
   updateExperience: (experience: number) => void;
   updateStats: (stats: Partial<PlayerStats>) => void;
@@ -62,7 +66,7 @@ export const usePlayerStore = create<PlayerState>()(
       // Initial state
       player: null,
       isOnline: false,
-      position: { x: 10, y: 1.05, z: 10 }, // Y=1.05 (ligeramente elevado para evitar rebotes)
+      position: GAME_CONFIG.player.spawnPosition, // Posición inicial del jugador
       rotation: { x: 0, y: Math.PI, z: 0 }, // Inicia mirando hacia adelante (180° en radianes)
       velocity: { x: 0, y: 0, z: 0 },
       isMoving: false,
@@ -72,6 +76,8 @@ export const usePlayerStore = create<PlayerState>()(
       maxHealth: 100,
       stamina: 100,
       maxStamina: 100,
+      hunger: 100,
+      maxHunger: 100,
       level: 1,
       experience: 0,
       stats: initialStats,
@@ -90,6 +96,8 @@ export const usePlayerStore = create<PlayerState>()(
           maxHealth: player.maxHealth,
           stamina: player.stamina,
           maxStamina: player.maxStamina,
+          hunger: player.hunger ?? 100,
+          maxHunger: player.maxHunger ?? 100,
           level: player.level,
           experience: player.experience,
         });
@@ -175,6 +183,14 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
+      updateHunger: (hunger) => {
+        set({ hunger });
+        const { player } = get();
+        if (player) {
+          set({ player: { ...player, hunger } });
+        }
+      },
+
       updateLevel: (level) => {
         set({ level });
         const { player } = get();
@@ -217,7 +233,7 @@ export const usePlayerStore = create<PlayerState>()(
         set({
           player: null,
           isOnline: false,
-          position: { x: 10, y: 1.05, z: 10 }, // Y=1.05 (ligeramente elevado para evitar rebotes)
+          position: GAME_CONFIG.player.spawnPosition, // Posición inicial del jugador
           rotation: { x: 0, y: Math.PI, z: 0 }, // Inicia mirando hacia adelante (180° en radianes)
           velocity: { x: 0, y: 0, z: 0 },
           isMoving: false,
@@ -227,6 +243,8 @@ export const usePlayerStore = create<PlayerState>()(
           maxHealth: 100,
           stamina: 100,
           maxStamina: 100,
+          hunger: 100,
+          maxHunger: 100,
           level: 1,
           experience: 0,
           stats: initialStats,

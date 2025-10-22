@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import GameCanvas from '@/components/game/GameCanvas';
 import { useSocket } from '@/hooks/useSocket';
 import { usePlayerStore } from '@/store/playerStore';
+import { GAME_CONFIG } from '@/constants/game';
 
 export default function GamePage() {
   const { isConnected, connect } = useSocket();
@@ -14,7 +15,7 @@ export default function GamePage() {
     const playerData = {
       id: `player-${Date.now()}`,
       username: 'Jugador Test',
-      position: { x: 0, y: 0, z: 0 },
+      position: GAME_CONFIG.player.spawnPosition,
       rotation: { x: 0, y: 0, z: 0 },
       health: 100,
       maxHealth: 100,

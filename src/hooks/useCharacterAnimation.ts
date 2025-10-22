@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { usePlayerStore } from '@/store/playerStore';
 
-export type AnimationState = 'idle' | 'walking' | 'running' | 'jump' | 'jump_run' | 'backflip';
+export type AnimationState = 'idle' | 'walking' | 'running' | 'jump' | 'jump_run' | 'backflip' | 'walk_backward';
 
 export function useCharacterAnimation(jumpType?: 'normal' | 'running' | 'backflip' | null) {
   const { isMoving, isRunning } = usePlayerStore();

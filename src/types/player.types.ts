@@ -18,6 +18,8 @@ export interface Player {
   maxHealth: number;
   stamina: number;
   maxStamina: number;
+  hunger?: number;
+  maxHunger?: number;
   level: number;
   experience: number;
   worldId: string;

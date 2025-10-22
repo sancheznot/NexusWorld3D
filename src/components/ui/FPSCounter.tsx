@@ -29,8 +29,13 @@ export default function FPSCounter({ className = '' }: FPSCounterProps) {
           requestAnimationFrame(checkFrame);
         } else {
           const end = performance.now();
-          const rate = Math.round(1000 / ((end - start) / frames));
-          setRefreshRate(rate);
+          let rate = Math.round(1000 / ((end - start) / frames));
+          // Heurística: algunos navegadores reportan ~6 cuando es 60
+          if (rate < 20 && fps >= 30) rate = rate * 10;
+          // Redondear a tasas comunes
+          const common = [30, 45, 50, 60, 75, 90, 120, 144, 165, 240];
+          const nearest = common.reduce((a, b) => Math.abs(b - rate) < Math.abs(a - rate) ? b : a, common[0]);
+          setRefreshRate(nearest);
         }
       };
       
@@ -84,7 +89,7 @@ export default function FPSCounter({ className = '' }: FPSCounterProps) {
   return (
     <div 
       ref={fpsRef}
-      className={`fixed top-4 right-4 z-50 bg-black bg-opacity-75 text-white px-3 py-2 rounded-lg font-mono text-sm ${className}`}
+      className={`bg-black bg-opacity-75 text-white px-2 py-1 rounded font-mono text-xs ${className}`}
     >
       <div className="space-y-1">
         <div className="flex items-center gap-2">

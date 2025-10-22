@@ -4,6 +4,7 @@ import { useRef, useEffect } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { CannonPhysics } from '@/lib/three/cannonPhysics';
 import cannonDebugger from 'cannon-es-debugger';
+import { GAME_CONFIG } from '@/constants/game';
 
 // Singleton global para evitar múltiples instancias
 let globalPhysics: CannonPhysics | null = null;
@@ -43,8 +44,8 @@ export function useCannonPhysics(createPhysicsBody: boolean = true) {
     // Crear suelo
     physicsRef.current.createGround();
     
-    // Crear jugador (Y=1.05 para evitar rebotes en el suelo)
-    physicsRef.current.createPlayer({ x: 10, y: 1.05, z: 10 });
+    // Crear jugador en la posición inicial
+    physicsRef.current.createPlayer(GAME_CONFIG.player.spawnPosition);
 
     // 🔍 ACTIVAR DEBUGGER VISUAL solo en desarrollo
     const isDevelopment = process.env.NODE_ENV === 'development';

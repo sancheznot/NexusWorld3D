@@ -16,8 +16,12 @@ import { AnimationAction } from 'three';
     // Mapeo directo para el modelo men-all.glb y women-all.glb
     const animationMap: { [key: string]: string[] } = {
       'idle': ['Idle_11', 'idle', 'Idle', 'IDLE'],
+      'walk': ['Walking', 'walking', 'WALKING', 'Walk'],
       'walking': ['Walking', 'walking', 'WALKING', 'Walk'],
+      'run': ['Running', 'running', 'RUNNING', 'Run'],
       'running': ['Running', 'running', 'RUNNING', 'Run'],
+      // Animación de caminar hacia atrás no se usara por ahora.
+      'walk_backward': ['Walk Backward', 'Walk_Backward', 'walk_backward', 'Walking_Backward', 'WalkBackward'], 
       'jump': ['Regular Jump', 'jump', 'Jump', 'JUMP', 'Regular_Jump'],
       'jump_run': ['Jump Run', 'jump_run', 'JumpRun', 'JUMP_RUN', 'jumpRun'],
       'backflip': ['Backflip Jump', 'backflip', 'Backflip', 'BACKFLIP', 'Backflip_Jump']
@@ -68,12 +72,22 @@ export default function AnimatedCharacter({
   // Cargar modelo y configurar
   useEffect(() => {
     if (clonedScene) {
+      // Marcar todo el grupo como jugador para raycast
+      if (groupRef.current) {
+        groupRef.current.name = isCurrentPlayer ? 'player' : 'remotePlayer';
+        groupRef.current.userData.isPlayer = true;
+        groupRef.current.userData.isRemotePlayer = !isCurrentPlayer;
+      }
       clonedScene.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           child.castShadow = true;
           child.receiveShadow = true;
           child.userData.isCollider = true;
           child.userData.collisionType = 'player';
+          child.userData.isPlayer = true;
+          child.userData.isRemotePlayer = !isCurrentPlayer;
+          // Marcar con nombre específico para raycast
+          child.name = isCurrentPlayer ? 'player-mesh' : 'remotePlayer-mesh';
         }
       });
       setModelLoaded(true);

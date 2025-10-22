@@ -16,6 +16,8 @@ export const useKeyboard = (enabled: boolean = true) => {
   const movementThrottle = 100; // ms
   const lastWasMovingRef = useRef<boolean>(false);
   const lastHeartbeatRef = useRef<number>(0);
+  const jumpStartTimeRef = useRef<number>(0);
+  const isJumpingRef = useRef<boolean>(false);
 
   const {
     position,
@@ -207,7 +209,52 @@ export const useKeyboard = (enabled: boolean = true) => {
     updateVelocity(velocity);
 
     // Send movement to server (throttled)
-    if (isMoving) {
+    if (isJumping && !isJumpingRef.current) {
+      // Inicio del salto: enviar animación de salto
+      isJumpingRef.current = true;
+      jumpStartTimeRef.current = now;
+      colyseusClient.movePlayer({
+        position,
+        rotation,
+        velocity,
+        isMoving: true,
+        isRunning: false,
+        isJumping: true,
+        animation: 'jump',
+        timestamp: now,
+      });
+      
+      // Después de 1.5s (duración del salto), enviar transición automática a idle/walking
+      setTimeout(() => {
+        const currentKeys = keysRef.current;
+        const stillMoving = currentKeys.has('w') || currentKeys.has('s') || currentKeys.has('a') || currentKeys.has('d');
+        const stillRunning = currentKeys.has('shift');
+        colyseusClient.movePlayer({
+          position,
+          rotation,
+          velocity: { x: stillMoving ? velocity.x : 0, y: 0, z: stillMoving ? velocity.z : 0 },
+          isMoving: stillMoving,
+          isRunning: stillRunning && stillMoving,
+          isJumping: false,
+          animation: stillMoving ? (stillRunning ? 'running' : 'walking') : 'idle',
+          timestamp: Date.now(),
+        });
+      }, 1500); // Duración de la animación de salto
+    } else if (!isJumping && isJumpingRef.current) {
+      // Fin del salto: volver a animación de movimiento o idle
+      isJumpingRef.current = false;
+      const currentlyMoving = velocity.x !== 0 || velocity.z !== 0;
+      colyseusClient.movePlayer({
+        position,
+        rotation,
+        velocity,
+        isMoving: currentlyMoving,
+        isRunning: isRunningKeyPressed && currentlyMoving,
+        isJumping: false,
+        animation: currentlyMoving ? (isRunningKeyPressed ? 'running' : 'walking') : 'idle',
+        timestamp: now,
+      });
+    } else if (isMoving && !isJumpingRef.current) {
       colyseusClient.movePlayer({
         position,
         rotation,

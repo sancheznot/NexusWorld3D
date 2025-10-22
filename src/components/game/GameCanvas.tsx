@@ -21,6 +21,7 @@ import CharacterCreatorV2 from '@/components/game/CharacterCreatorV2';
 import GameSettings from '@/components/game/GameSettings';
 import ModelInfo from '@/components/ui/ModelInfo';
 import FPSCounter from '@/components/ui/FPSCounter';
+import PlayerStatsHUD from '@/components/ui/PlayerStatsHUD';
 import ChatWindow from '@/components/chat/ChatWindow';
 import { THREE_CONFIG } from '@/config/three.config';
 import { ShapeType } from 'three-to-cannon';
@@ -232,7 +233,7 @@ export default function GameCanvas() {
             
             {/* City Model - Ciudad con colliders automáticos + fallback */}
             {(() => {
-              console.log('🏙️ GameCanvas: Rendering CityModel with /models/city.glb');
+              // console.log('🏙️ GameCanvas: Rendering CityModel with /models/city.glb');
               return (
                 <CityModel 
                   modelPath="/models/city.glb"
@@ -321,8 +322,15 @@ export default function GameCanvas() {
         onClose={closePortalUI}
       />
 
-      {/* FPS Counter - Solo si está habilitado en configuraciones */}
-      {isLoaded && settings.showFPS && <FPSCounter />}
+      {/* FPS Counter - Esquina izquierda superior */}
+      {isLoaded && settings.showFPS && (
+        <div className="absolute top-4 left-4 z-10">
+          <FPSCounter className="text-xs" />
+        </div>
+      )}
+      
+      {/* Player Stats HUD - Reorganizado */}
+      <PlayerStatsHUD className="absolute top-4 right-4 z-10" />
       
       {/* Testing Camera Info Panel */}
       {isTestingCameraActive && (
@@ -345,91 +353,45 @@ export default function GameCanvas() {
         </div>
       )}
       
-      {/* Debug Info */}
-      <div className="absolute top-4 left-4 z-10 space-y-2">
-        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-          isConnected 
-            ? 'bg-green-500 text-white' 
-            : 'bg-red-500 text-white'
-        }`}>
-          {isConnected ? '🟢 Conectado' : '🔴 Desconectado'}
-        </div>
-        <div className="bg-black bg-opacity-50 text-white text-xs p-2 rounded">
-          <div>Login: {showLogin ? 'Sí' : 'No'}</div>
-          <div>Creator: {showCharacterCreator ? 'Sí' : 'No'}</div>
-          <div>Game: {isGameStarted ? 'Sí' : 'No'}</div>
-          <div>Keyboard: {keyboardEnabled ? 'Sí' : 'No'}</div>
-          <div>Player: {player?.username || 'N/A'}</div>
-        </div>
-        {connectionError && (
-          <div className="mt-2 px-3 py-1 bg-red-600 text-white text-sm rounded">
-            Error: {connectionError}
+      {/* Debug Info - Solo en desarrollo */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="absolute top-16 left-4 z-10 space-y-2">
+          <div className="bg-black bg-opacity-50 text-white text-xs p-2 rounded">
+            <div>Login: {showLogin ? 'Sí' : 'No'}</div>
+            <div>Creator: {showCharacterCreator ? 'Sí' : 'No'}</div>
+            <div>Game: {isGameStarted ? 'Sí' : 'No'}</div>
+            <div>Keyboard: {keyboardEnabled ? 'Sí' : 'No'}</div>
+            <div>Player: {player?.username || 'N/A'}</div>
           </div>
-        )}
-      </div>
+          {connectionError && (
+            <div className="mt-2 px-3 py-1 bg-red-600 text-white text-sm rounded">
+              Error: {connectionError}
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* HUD */}
-      <div className="absolute top-4 right-4 z-10 space-y-2">
-        {/* Health Bar */}
-        <div className="bg-black bg-opacity-50 rounded-lg p-3 min-w-[200px]">
-          <div className="flex items-center justify-between text-white text-sm mb-1">
-            <span>Salud</span>
-            <span>{health}/{maxHealth}</span>
-          </div>
-          <div className="w-full bg-gray-700 rounded-full h-2">
-            <div 
-              className="bg-red-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(health / maxHealth) * 100}%` }}
-            />
-          </div>
-        </div>
 
-        {/* Stamina Bar */}
-        <div className="bg-black bg-opacity-50 rounded-lg p-3 min-w-[200px]">
-          <div className="flex items-center justify-between text-white text-sm mb-1">
-            <span>Energía</span>
-            <span>{stamina}/{maxStamina}</span>
-          </div>
-          <div className="w-full bg-gray-700 rounded-full h-2">
-            <div 
-              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(stamina / maxStamina) * 100}%` }}
-            />
-          </div>
-        </div>
 
-        {/* Level */}
-        <div className="bg-black bg-opacity-50 rounded-lg p-3 min-w-[200px]">
-          <div className="text-white text-sm">
-            <span>Nivel: </span>
-            <span className="font-bold text-yellow-400">{level}</span>
+        <div className="absolute bottom-4 right-4 z-10 bg-black bg-opacity-50 rounded-lg p-3 text-white text-sm">
+          <div className="space-y-1">
+            <div><kbd className="bg-gray-700 px-2 py-1 rounded">WASD</kbd> Mover</div>
+            <div><kbd className="bg-gray-700 px-2 py-1 rounded">Shift</kbd> Correr</div>
+            <div><kbd className="bg-gray-700 px-2 py-1 rounded">I</kbd> Inventario</div>
+            <div><kbd className="bg-gray-700 px-2 py-1 rounded">M</kbd> Mapa</div>
+            <div><kbd className="bg-gray-700 px-2 py-1 rounded">Enter</kbd> Chat</div>
+            <div><kbd className="bg-gray-700 px-2 py-1 rounded">ESC</kbd> Cerrar</div>
           </div>
+      {/* Controls Info - Solo en desarrollo */}
+      {process.env.NODE_ENV === 'development' && (
+          <button
+            onClick={() => setShowModelInfo(true)}
+            className="mt-3 w-full px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors"
+          >
+            🎨 Ver Modelos
+          </button>
+      )}
         </div>
-      </div>
-
-      {/* Player Position Debug */}
-      <div className="absolute bottom-4 left-4 z-10 bg-black bg-opacity-50 rounded-lg p-3 text-white text-sm">
-        <div>Posición: ({position.x.toFixed(2)}, {position.y.toFixed(2)}, {position.z.toFixed(2)})</div>
-        <div>Estado: {isMoving ? (isRunning ? 'Corriendo' : 'Caminando') : 'Inmóvil'}</div>
-      </div>
-
-      {/* Controls Info */}
-      <div className="absolute bottom-4 right-4 z-10 bg-black bg-opacity-50 rounded-lg p-3 text-white text-sm">
-        <div className="space-y-1">
-          <div><kbd className="bg-gray-700 px-2 py-1 rounded">WASD</kbd> Mover</div>
-          <div><kbd className="bg-gray-700 px-2 py-1 rounded">Shift</kbd> Correr</div>
-          <div><kbd className="bg-gray-700 px-2 py-1 rounded">I</kbd> Inventario</div>
-          <div><kbd className="bg-gray-700 px-2 py-1 rounded">M</kbd> Mapa</div>
-          <div><kbd className="bg-gray-700 px-2 py-1 rounded">Enter</kbd> Chat</div>
-          <div><kbd className="bg-gray-700 px-2 py-1 rounded">ESC</kbd> Cerrar</div>
-        </div>
-        <button
-          onClick={() => setShowModelInfo(true)}
-          className="mt-3 w-full px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors"
-        >
-          🎨 Ver Modelos
-        </button>
-      </div>
 
       {/* UI Modals */}
       {isInventoryOpen && (
