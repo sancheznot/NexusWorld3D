@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Vector3 } from 'three';
 import { Portal, MapData, PortalEvent } from '@/types/portal.types';
+import { getMap, getAllMaps } from '@/lib/game/mapRegistry';
 
 interface UsePortalSystemProps {
   currentMap: string;
@@ -17,65 +18,10 @@ export function usePortalSystem({ currentMap, playerPosition, onMapChange }: Use
 
   // Cargar mapas disponibles
   useEffect(() => {
-    const loadMaps = async () => {
-      try {
-        // Por ahora, definimos mapas estáticos
-        const mapsData: MapData[] = [
-          {
-            id: 'exterior',
-            name: 'Exterior del Hotel',
-            description: 'El área exterior del icónico Hotel Humboldt',
-            spawnPosition: { x: 0, y: 0, z: 0 },
-            spawnRotation: { x: 0, y: 0, z: 0 },
-            portals: [
-              {
-                id: 'hotel-entrance',
-                name: 'Entrada del Hotel',
-                description: 'Entrar al interior del Hotel Humboldt',
-                position: { x: 52, y: 1, z: -39.55 },
-                radius: 3,
-                targetMap: 'hotel-interior',
-                targetPosition: { x: 0, y: 0, z: 0 },
-                targetRotation: { x: 0, y: 0, z: 0 },
-                isActive: true,
-                icon: '🏨'
-              }
-            ],
-            objects: []
-          },
-          {
-            id: 'hotel-interior',
-            name: 'Interior del Hotel',
-            description: 'El lujoso interior del Hotel Humboldt',
-            spawnPosition: { x: 0, y: 0, z: 0 },
-            spawnRotation: { x: 0, y: 0, z: 0 },
-            portals: [
-              {
-                id: 'hotel-exit',
-                name: 'Salida del Hotel',
-                description: 'Volver al exterior',
-                position: { x: 0, y: 0, z: 0 },
-                radius: 3,
-                targetMap: 'exterior',
-                targetPosition: { x: 0, y: 0, z: -100 },
-                targetRotation: { x: 0, y: 0, z: 0 },
-                isActive: true,
-                icon: '🚪'
-              }
-            ],
-            objects: []
-          }
-        ];
-
-        const mapsMap = new Map();
-        mapsData.forEach(map => mapsMap.set(map.id, map));
-        setMaps(mapsMap);
-      } catch (error) {
-        console.error('Error loading maps:', error);
-      }
-    };
-
-    loadMaps();
+    const mapsList = getAllMaps();
+    const mapsMap = new Map<string, MapData>();
+    mapsList.forEach((m) => mapsMap.set(m.id, m));
+    setMaps(mapsMap);
   }, []);
 
   // Manejar entrada a portal
