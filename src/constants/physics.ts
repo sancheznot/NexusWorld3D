@@ -21,9 +21,9 @@ export const PHYSICS_CONFIG = {
   PLAYER_BASE_HEIGHT: 1.05,
   ACCELERATION: 30, // Aumentado para compensar 120 FPS
   DECELERATION: 25, // Aumentado para compensar 120 FPS
-  GRAVITY: -9.82,
-  TARGET_FPS: 60, // FPS objetivo por defecto
-  MAX_DELTA_TIME: 1/60, // Delta time máximo por defecto
+  GRAVITY: -12,
+  TARGET_FPS: 120, // FPS objetivo por defecto
+  MAX_DELTA_TIME: 1/120, // Delta time máximo por defecto
 } as const;
 
 // Función para obtener FPS dinámico desde configuraciones

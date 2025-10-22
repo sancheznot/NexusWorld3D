@@ -49,6 +49,11 @@ export function useMouseCamera(enabled: boolean = true) {
   }, []);
 
   const handleWheel = useCallback((event: WheelEvent) => {
+    // No bloquear scroll si el evento ocurre dentro de un modal con scroll
+    const target = event.target as HTMLElement | null;
+    if (target && target.closest('.settings-modal')) {
+      return; // permitir scroll del modal
+    }
     event.preventDefault();
   }, []);
 

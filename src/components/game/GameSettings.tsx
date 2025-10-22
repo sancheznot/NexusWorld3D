@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useGameSettings } from '@/hooks/useGameSettings';
 import type { GameSettings } from '@/hooks/useGameSettings';
@@ -13,8 +13,9 @@ interface GameSettingsProps {
 export default function GameSettings({ isOpen, onClose }: GameSettingsProps) {
   const { isInventoryOpen, isMapOpen, isChatOpen, closeAllModals } = useUIStore();
   const { settings, isLoaded, updateSettings, resetToDefaults } = useGameSettings();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Manejar teclas
+  // Manejar teclas y foco del modal
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && isOpen) {
@@ -24,7 +25,13 @@ export default function GameSettings({ isOpen, onClose }: GameSettingsProps) {
 
     if (isOpen) {
       document.addEventListener('keydown', handleKeyPress);
-      return () => document.removeEventListener('keydown', handleKeyPress);
+      // Enfocar el contenedor scrollable para capturar rueda/gestos
+      requestAnimationFrame(() => {
+        scrollRef.current?.focus();
+      });
+      return () => {
+        document.removeEventListener('keydown', handleKeyPress);
+      };
     }
   }, [isOpen, onClose]);
 
@@ -35,13 +42,26 @@ export default function GameSettings({ isOpen, onClose }: GameSettingsProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center p-4">
+    <div 
+      className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center p-4"
+      style={{ overscrollBehavior: 'contain' }}
+      onWheelCapture={(e) => e.stopPropagation()}
+      onTouchMoveCapture={(e) => e.stopPropagation()}
+    >
       <div 
         className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto settings-modal"
         style={{
           scrollbarWidth: 'thin',
-          scrollbarColor: '#4B5563 #1F2937'
+          scrollbarColor: '#4B5563 #1F2937',
+          overscrollBehavior: 'contain',
+          touchAction: 'pan-y'
         }}
+        ref={scrollRef}
+        tabIndex={-1}
+        onWheelCapture={(e) => e.stopPropagation()}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchMoveCapture={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex justify-between items-center mb-6">

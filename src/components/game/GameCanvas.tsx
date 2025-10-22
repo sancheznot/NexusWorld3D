@@ -46,7 +46,7 @@ export default function GameCanvas() {
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentMap, setCurrentMap] = useState('exterior');
   
-  useKeyboard(isGameStarted);
+  useKeyboard(isGameStarted && !showSettings);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showModelInfo, setShowModelInfo] = useState(false);
   
@@ -92,6 +92,15 @@ export default function GameCanvas() {
     const handleKeyPress = (event: KeyboardEvent) => {
       if (!isGameStarted) return;
       
+      // Si el modal de configuraciones está abierto, solo permitir Escape
+      if (showSettings) {
+        if (event.key.toLowerCase() === 'escape') {
+          event.preventDefault();
+          setShowSettings(false);
+        }
+        return; // No procesar otras teclas cuando el modal está abierto
+      }
+      
       // Si el chat está abierto, solo permitir teclas específicas del chat
       if (isChatOpen) {
         if (['escape'].includes(event.key.toLowerCase())) {
@@ -118,12 +127,8 @@ export default function GameCanvas() {
           break;
         case 'escape':
           event.preventDefault();
-          if (showSettings) {
-            setShowSettings(false);
-          } else {
-            closeAllModals();
-            setShowSettings(true);
-          }
+          closeAllModals();
+          setShowSettings(true);
           break;
       }
     };
@@ -181,7 +186,7 @@ export default function GameCanvas() {
             ],
           }}
           shadows
-          className="w-full h-full cursor-crosshair"
+          className={`w-full h-full cursor-crosshair ${showSettings ? 'pointer-events-none' : 'pointer-events-auto'}`}
         >
         <Suspense fallback={null}>
             {/* Lighting */}

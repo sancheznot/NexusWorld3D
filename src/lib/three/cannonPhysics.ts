@@ -23,8 +23,8 @@ export class CannonPhysics {
     // Crear mundo de física
     this.world = new CANNON.World();
     
-    // Configurar gravedad
-    this.world.gravity.set(0, -9.82, 0);
+    // Configurar gravedad desde constantes
+    this.world.gravity.set(0, PHYSICS_CONFIG.GRAVITY, 0);
     
     // Configurar solver MEJORADO para mejores colisiones
     this.world.broadphase = new CANNON.SAPBroadphase(this.world);
@@ -209,9 +209,9 @@ export class CannonPhysics {
   }
 
   update(deltaTime: number) {
-    // Timestep fijo para estabilidad
-    const targetFPS = getTargetFPS();
-    this.world.step(1/targetFPS, deltaTime, 8); // FPS dinámico + substeps
+    // Timestep fijo para estabilidad (desacoplado de UI/settings)
+    const fixedTimeStep = PHYSICS_CONFIG.MAX_DELTA_TIME; // p.ej. 1/60
+    this.world.step(fixedTimeStep, deltaTime, 8);
     
     // Debug: Mostrar cuántos bodies hay en el mundo (cada 3 segundos)
     if (!this.lastDebugTime || Date.now() - this.lastDebugTime > 3000) {
@@ -231,8 +231,8 @@ export class CannonPhysics {
       return;
     }
 
-    // Calcular velocidad objetivo (ajustada para 120 FPS)
-    const maxSpeed = input.isRunning ? 15 : 9; // Aumentado para compensar 120 FPS
+    // Calcular velocidad objetivo (ajustada para 60 FPS)
+    const maxSpeed = input.isRunning ? 12 : 7; // Ajustado para 60 FPS
     this.targetVelocity.x = input.x * maxSpeed;
     this.targetVelocity.z = input.z * maxSpeed;
 
