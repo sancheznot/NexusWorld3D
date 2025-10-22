@@ -19,12 +19,28 @@ export const UCX_MESH_PATTERNS = [
 export const PHYSICS_CONFIG = {
   MAX_COLLIDER_SIZE: 50, // Tamaño máximo antes de subdividir
   PLAYER_BASE_HEIGHT: 1.05,
-  ACCELERATION: 20,
-  DECELERATION: 15,
+  ACCELERATION: 30, // Aumentado para compensar 120 FPS
+  DECELERATION: 25, // Aumentado para compensar 120 FPS
   GRAVITY: -9.82,
-  TARGET_FPS: 120, // FPS objetivo para física y animaciones
-  MAX_DELTA_TIME: 1/120, // Delta time máximo (mínimo 120 FPS)
+  TARGET_FPS: 60, // FPS objetivo por defecto
+  MAX_DELTA_TIME: 1/60, // Delta time máximo por defecto
 } as const;
+
+// Función para obtener FPS dinámico desde configuraciones
+export const getTargetFPS = () => {
+  if (typeof window !== 'undefined') {
+    const savedSettings = localStorage.getItem('gameSettings');
+    if (savedSettings) {
+      try {
+        const settings = JSON.parse(savedSettings);
+        return settings.targetFPS || PHYSICS_CONFIG.TARGET_FPS;
+      } catch (error) {
+        console.error('Error loading FPS settings:', error);
+      }
+    }
+  }
+  return PHYSICS_CONFIG.TARGET_FPS;
+};
 
 // 🎯 Tipos de colliders
 export const COLLIDER_TYPES = {

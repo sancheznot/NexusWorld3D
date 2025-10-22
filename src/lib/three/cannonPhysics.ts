@@ -1,7 +1,7 @@
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { threeToCannon, ShapeType } from 'three-to-cannon';
-import { PHYSICS_CONFIG } from '@/constants/physics';
+import { PHYSICS_CONFIG, getTargetFPS } from '@/constants/physics';
 
 export class CannonPhysics {
   private world: CANNON.World;
@@ -10,8 +10,8 @@ export class CannonPhysics {
   private playerBaseY: number = 1.05; // Altura base del centro del jugador sobre el suelo
   private currentVelocity = { x: 0, z: 0 };
   private targetVelocity = { x: 0, z: 0 };
-  private acceleration = 20; // Velocidad de aceleración (más rápida)
-  private deceleration = 15; // Velocidad de desaceleración (más rápida)
+  private acceleration = PHYSICS_CONFIG.ACCELERATION; // Velocidad de aceleración
+  private deceleration = PHYSICS_CONFIG.DECELERATION; // Velocidad de desaceleración
   private staticBodiesCreated = false; // Flag para evitar recrear colliders estáticos
   
   // Materiales compartidos (CRÍTICO para que funcionen las colisiones)
@@ -210,7 +210,8 @@ export class CannonPhysics {
 
   update(deltaTime: number) {
     // Timestep fijo para estabilidad
-    this.world.step(1/PHYSICS_CONFIG.TARGET_FPS, deltaTime, 8); // FPS objetivo + substeps
+    const targetFPS = getTargetFPS();
+    this.world.step(1/targetFPS, deltaTime, 8); // FPS dinámico + substeps
     
     // Debug: Mostrar cuántos bodies hay en el mundo (cada 3 segundos)
     if (!this.lastDebugTime || Date.now() - this.lastDebugTime > 3000) {
@@ -230,8 +231,8 @@ export class CannonPhysics {
       return;
     }
 
-    // Calcular velocidad objetivo (aumentada para movimiento más rápido)
-    const maxSpeed = input.isRunning ? 12 : 7;
+    // Calcular velocidad objetivo (ajustada para 120 FPS)
+    const maxSpeed = input.isRunning ? 15 : 9; // Aumentado para compensar 120 FPS
     this.targetVelocity.x = input.x * maxSpeed;
     this.targetVelocity.z = input.z * maxSpeed;
 

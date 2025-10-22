@@ -6,16 +6,9 @@ import { useSocket } from '@/hooks/useSocket';
 import { usePlayerStore } from '@/store/playerStore';
 import { useUIStore } from '@/store/uiStore';
 import { useWorldStore } from '@/store/worldStore';
+import { useGameSettings } from '@/hooks/useGameSettings';
 import PlayerV2 from '@/components/world/PlayerV2';
 import { colyseusClient } from '@/lib/colyseus/client';
-// import Terrain from '@/components/world/Terrain';
-// import EnhancedTerrain from '@/components/world/EnhancedTerrain';
-// import GLBTerrain from '@/components/world/GLBTerrain';
-import UniformTerrain from '@/components/world/UniformTerrain';
-import NatureDecorations from '@/components/world/NatureDecorations';
-import HotelHumboldt from '@/components/world/HotelHumboldt';
-import GreenDomeStructure from '@/components/world/GreenDomeStructure';
-import CarWashModel from '@/components/world/CarWashModel';
 import CityModel from '@/components/world/CityModel';
 import Lighting from '@/components/world/Lighting';
 import Skybox from '@/components/world/Skybox';
@@ -25,6 +18,7 @@ import { useTestingCamera } from '@/hooks/useTestingCamera';
 import { useKeyboard } from '@/hooks/useKeyboard';
 import LoginModal from '@/components/game/LoginModal';
 import CharacterCreatorV2 from '@/components/game/CharacterCreatorV2';
+import GameSettings from '@/components/game/GameSettings';
 import ModelInfo from '@/components/ui/ModelInfo';
 import FPSCounter from '@/components/ui/FPSCounter';
 import ChatWindow from '@/components/chat/ChatWindow';
@@ -40,6 +34,10 @@ export default function GameCanvas() {
   const { position, health, maxHealth, stamina, maxStamina, level, isMoving, isRunning, player } = usePlayerStore();
   const { players } = useWorldStore();
   const { isInventoryOpen, isMapOpen, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals } = useUIStore();
+  const { settings, isLoaded } = useGameSettings();
+  
+  // Game settings state
+  const [showSettings, setShowSettings] = useState(false);
   const { isActive: isTestingCameraActive, height: testingHeight, distance: testingDistance } = useTestingCamera(isChatOpen);
   
   // Game flow state
@@ -120,14 +118,19 @@ export default function GameCanvas() {
           break;
         case 'escape':
           event.preventDefault();
-          closeAllModals();
+          if (showSettings) {
+            setShowSettings(false);
+          } else {
+            closeAllModals();
+            setShowSettings(true);
+          }
           break;
       }
     };
 
     document.addEventListener('keydown', handleKeyPress);
     return () => document.removeEventListener('keydown', handleKeyPress);
-  }, [isGameStarted, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals]);
+  }, [isGameStarted, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals, showSettings]);
 
   // Handlers
   const handleLogin = async (username: string) => {
@@ -313,8 +316,8 @@ export default function GameCanvas() {
         onClose={closePortalUI}
       />
 
-      {/* FPS Counter */}
-      <FPSCounter />
+      {/* FPS Counter - Solo si está habilitado en configuraciones */}
+      {isLoaded && settings.showFPS && <FPSCounter />}
       
       {/* Testing Camera Info Panel */}
       {isTestingCameraActive && (
@@ -485,6 +488,12 @@ export default function GameCanvas() {
       <ModelInfo
         isOpen={showModelInfo}
         onClose={() => setShowModelInfo(false)}
+      />
+
+      {/* Game Settings Modal */}
+      <GameSettings
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
       />
     </div>
   );

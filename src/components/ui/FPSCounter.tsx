@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useGameSettings } from '@/hooks/useGameSettings';
 
 interface FPSCounterProps {
   className?: string;
 }
 
 export default function FPSCounter({ className = '' }: FPSCounterProps) {
+  const { settings, isLoaded } = useGameSettings();
   const [fps, setFps] = useState(0);
   const [refreshRate, setRefreshRate] = useState(0);
   const frameCount = useRef(0);
@@ -57,6 +59,11 @@ export default function FPSCounter({ className = '' }: FPSCounterProps) {
       }
     };
   }, []);
+
+  // No mostrar si está deshabilitado en configuraciones
+  if (!isLoaded || !settings.showFPS) {
+    return null;
+  }
 
   const getFPSColor = () => {
     if (fps >= 120) return 'text-green-400';

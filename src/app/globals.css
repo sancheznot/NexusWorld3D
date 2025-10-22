@@ -24,3 +24,22 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Game Settings Modal Scrollbar */
+.settings-modal::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-modal::-webkit-scrollbar-track {
+  background: #1F2937;
+  border-radius: 4px;
+}
+
+.settings-modal::-webkit-scrollbar-thumb {
+  background: #4B5563;
+  border-radius: 4px;
+}
+
+.settings-modal::-webkit-scrollbar-thumb:hover {
+  background: #6B7280;
+}
