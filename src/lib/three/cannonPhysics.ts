@@ -1,6 +1,7 @@
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { threeToCannon, ShapeType } from 'three-to-cannon';
+import { PHYSICS_CONFIG } from '@/constants/physics';
 
 export class CannonPhysics {
   private world: CANNON.World;
@@ -209,7 +210,7 @@ export class CannonPhysics {
 
   update(deltaTime: number) {
     // Timestep fijo para estabilidad
-    this.world.step(1/60, deltaTime, 8); // fijo + substeps
+    this.world.step(1/PHYSICS_CONFIG.TARGET_FPS, deltaTime, 8); // FPS objetivo + substeps
     
     // Debug: Mostrar cuántos bodies hay en el mundo (cada 3 segundos)
     if (!this.lastDebugTime || Date.now() - this.lastDebugTime > 3000) {

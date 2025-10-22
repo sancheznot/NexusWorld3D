@@ -37,14 +37,16 @@ export default function FPSCounter({ className = '' }: FPSCounterProps) {
   }, []);
 
   const getFPSColor = () => {
-    if (fps >= 60) return 'text-green-400';
-    if (fps >= 30) return 'text-yellow-400';
+    if (fps >= 120) return 'text-green-400';
+    if (fps >= 60) return 'text-yellow-400';
+    if (fps >= 30) return 'text-orange-400';
     return 'text-red-400';
   };
 
   const getFPSStatus = () => {
-    if (fps >= 60) return 'Excelente';
-    if (fps >= 30) return 'Bueno';
+    if (fps >= 120) return 'Excelente';
+    if (fps >= 60) return 'Bueno';
+    if (fps >= 30) return 'Aceptable';
     return 'Bajo';
   };
 

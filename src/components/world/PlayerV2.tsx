@@ -8,6 +8,7 @@ import { useCannonPhysics } from '@/hooks/useCannonPhysics';
 import { collisionSystem } from '@/lib/three/collisionSystem';
 import AnimatedCharacter from '@/components/world/AnimatedCharacter';
 import { useCharacterAnimation } from '@/hooks/useCharacterAnimation';
+import { PHYSICS_CONFIG } from '@/constants/physics';
 import * as THREE from 'three';
 import { PlayerCustomization } from '@/types/player.types';
 
@@ -100,7 +101,7 @@ export default function PlayerV2({
     setInput(currentInput);
     
     // Limitar delta para evitar aceleración cuando cambias de pestaña
-    const clampedDelta = Math.min(delta, 1/30); // Máximo 30 FPS
+    const clampedDelta = Math.min(delta, PHYSICS_CONFIG.MAX_DELTA_TIME); // Máximo FPS objetivo
     
     // Aplicar movimiento ANTES de actualizar la física
     if (physicsRef.current) {

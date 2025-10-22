@@ -21,7 +21,9 @@ export const PHYSICS_CONFIG = {
   PLAYER_BASE_HEIGHT: 1.05,
   ACCELERATION: 20,
   DECELERATION: 15,
-  GRAVITY: -9.82
+  GRAVITY: -9.82,
+  TARGET_FPS: 120, // FPS objetivo para física y animaciones
+  MAX_DELTA_TIME: 1/120, // Delta time máximo (mínimo 120 FPS)
 } as const;
 
 // 🎯 Tipos de colliders
