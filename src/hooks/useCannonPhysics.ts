@@ -46,21 +46,27 @@ export function useCannonPhysics(createPhysicsBody: boolean = true) {
     // Crear jugador (Y=1.05 para evitar rebotes en el suelo)
     physicsRef.current.createPlayer({ x: 10, y: 1.05, z: 10 });
 
-    // 🔍 ACTIVAR DEBUGGER VISUAL
-    globalDebugRenderer = cannonDebugger(scene, physicsRef.current.getWorld(), {
-      color: 0x00ff00, // Verde brillante para ver los mesh
-      scale: 1.0,
-      // Filtrar shapes con geometría inválida para el debugger
-      onInit(body, mesh) {
-        if (!mesh?.geometry?.attributes?.position) return false as any;
-        const p = mesh.geometry.attributes.position;
-        const ok = Number.isFinite(p.getX(0));
-        return ok as any;
-      }
-    });
-    debugRendererRef.current = globalDebugRenderer;
+    // 🔍 ACTIVAR DEBUGGER VISUAL solo en desarrollo
+    const isDevelopment = process.env.NODE_ENV === 'development';
     
-    console.log('🔍 Cannon.js debugger visual ACTIVADO - Verás los mesh de física en VERDE');
+    if (isDevelopment) {
+      globalDebugRenderer = cannonDebugger(scene, physicsRef.current.getWorld(), {
+        color: 0x00ff00, // Verde brillante para ver los mesh
+        scale: 1.0,
+        // Filtrar shapes con geometría inválida para el debugger
+        onInit(body, mesh) {
+          if (!mesh?.geometry?.attributes?.position) return false as any;
+          const p = mesh.geometry.attributes.position;
+          const ok = Number.isFinite(p.getX(0));
+          return ok as any;
+        }
+      });
+      debugRendererRef.current = globalDebugRenderer;
+      
+      console.log('🔍 Cannon.js debugger visual ACTIVADO - Verás los mesh de física en VERDE');
+    } else {
+      console.log('🚀 Producción: Debugger visual DESACTIVADO');
+    }
 
     return () => {
       initializationCount--;
