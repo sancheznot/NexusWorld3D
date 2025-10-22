@@ -215,6 +215,8 @@ export class CannonPhysics {
     if (!this.lastDebugTime || Date.now() - this.lastDebugTime > 3000) {
       console.log(`🌍 Bodies en el mundo: ${this.world.bodies.length} (player + ground + ${this.bodies.size - 1} colliders)`);
       console.log(`📋 Colliders creados:`, Array.from(this.bodies.keys()));
+      console.log(`🔍 Player body exists:`, !!this.playerBody);
+      console.log(`🎯 World bodies:`, this.world.bodies.map(b => b.id || 'unnamed'));
       this.lastDebugTime = Date.now();
     }
   }
@@ -457,8 +459,11 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
     idPrefix: string
   ) {
     let count = 0;
+    console.log(`🔧 createUCXBoxCollidersFromScene: Starting with prefix ${idPrefix}`);
+    
     scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh && filter(child.name)) {
+        console.log(`🎯 Found UCX mesh: ${child.name}`);
         const mesh = child as THREE.Mesh;
         
         // 🔹 Hacer invisible el mesh UCX (solo para collider)
@@ -480,6 +485,8 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
         }
       }
     });
+    
+    console.log(`📊 UCX Box Colliders created: ${count} for prefix ${idPrefix}`);
     return count;
   }
 
