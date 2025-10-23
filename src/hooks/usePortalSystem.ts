@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Vector3 } from 'three';
 import { Portal, MapData, PortalEvent } from '@/types/portal.types';
 import { getAllMaps } from '@/lib/game/mapRegistry';
+import worldClient from '@/lib/colyseus/WorldClient';
 
 interface UsePortalSystemProps {
   currentMap: string;
@@ -69,7 +70,16 @@ export function usePortalSystem({ currentMap, onMapChange }: UsePortalSystemProp
     console.log(`🎯 Target position:`, nextPos);
     console.log(`🎯 Target rotation:`, nextRot);
 
-    // Llamar onMapChange con las posiciones calculadas
+    // Notificar al servidor el cambio de mapa
+    worldClient.changeMap({
+      fromMapId: currentMap,
+      toMapId: portal.targetMap,
+      position: nextPos,
+      rotation: nextRot,
+      reason: 'portal'
+    });
+
+    // Aplicar localmente de inmediato
     onMapChange(
       portal.targetMap,
       new Vector3(nextPos.x, nextPos.y, nextPos.z),
@@ -85,6 +95,9 @@ export function usePortalSystem({ currentMap, onMapChange }: UsePortalSystemProp
 
   // Manejar teclas
   useEffect(() => {
+    // Cuando cambiamos de mapa, solicitar snapshot de jugadores en este mapa
+    worldClient.requestMapData({ mapId: currentMap });
+
     const handleKeyPress = (event: KeyboardEvent) => {
       if (event.key === 'e' || event.key === 'E') {
         if (activePortal && showPortalUI) {
@@ -99,7 +112,7 @@ export function usePortalSystem({ currentMap, onMapChange }: UsePortalSystemProp
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [activePortal, showPortalUI, handleTeleport]);
+  }, [activePortal, showPortalUI, handleTeleport, currentMap]);
 
   // Obtener mapas actuales (memoizado)
   const currentMapData = useMemo(() => {

@@ -7,6 +7,7 @@ interface PlayerData {
   username: string;
   position: { x: number; y: number; z: number };
   rotation: { x: number; y: number; z: number };
+  mapId: string; // mapa actual (exterior, hotel-interior, etc.)
   health: number;
   maxHealth: number;
   stamina: number;
@@ -93,6 +94,7 @@ export class HotelHumboldtRoom extends Room {
       username: options.username || `Jugador_${client.id.substring(0, 6)}`,
       position: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
+      mapId: 'exterior',
       health: 100,
       maxHealth: 100,
       stamina: 100,
@@ -121,6 +123,7 @@ export class HotelHumboldtRoom extends Room {
           rotationX: player.rotation.x,
           rotationY: player.rotation.y,
           rotationZ: player.rotation.z,
+      mapId: player.mapId,
           health: player.health,
           maxHealth: player.maxHealth,
           stamina: player.stamina,
@@ -255,11 +258,17 @@ export class HotelHumboldtRoom extends Room {
           statePlayer.lastUpdate = player.lastUpdate;
         }
         
-        // Broadcast a otros jugadores
-        this.broadcast('player:moved', {
-          playerId: client.sessionId,
-          movement: data,
-        }, { except: client });
+        // Enviar solo a jugadores en el mismo mapa
+        this.clients.forEach((c) => {
+          if (c.sessionId === client.sessionId) return;
+          const target = this.players.get(c.sessionId);
+          if (target && target.mapId === player.mapId) {
+            c.send('player:moved', {
+              playerId: client.sessionId,
+              movement: data,
+            });
+          }
+        });
         
         // Actualizar en Redis (menos frecuente para optimizar)
         // Guardar de forma ocasional
@@ -267,6 +276,58 @@ export class HotelHumboldtRoom extends Room {
         //   this.savePlayerToRedis(player);
         // }
       }
+    });
+
+    // Cambio de mapa del jugador
+    this.onMessage('map:change', (client: Client, data: { fromMapId: string; toMapId: string; position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number }; reason?: string }) => {
+      const player = this.players.get(client.sessionId);
+      if (!player) return;
+      player.mapId = data.toMapId;
+      player.position = data.position;
+      player.rotation = data.rotation;
+      player.lastUpdate = Date.now();
+
+      // Reflejar en estado sincronizado
+      const statePlayer = this.state.players.get(client.sessionId);
+      if (statePlayer) {
+        statePlayer.x = player.position.x;
+        statePlayer.y = player.position.y;
+        statePlayer.z = player.position.z;
+        statePlayer.rotationX = player.rotation.x;
+        statePlayer.rotationY = player.rotation.y;
+        statePlayer.rotationZ = player.rotation.z;
+        statePlayer.mapId = player.mapId as any;
+        statePlayer.lastUpdate = player.lastUpdate;
+      }
+
+      // Notificar a todos los clientes el cambio de mapa del jugador
+      const payload = {
+        playerId: client.sessionId,
+        mapId: player.mapId,
+        position: player.position,
+        rotation: player.rotation,
+        timestamp: Date.now(),
+      };
+
+      this.clients.forEach((c) => {
+        c.send('map:changed', payload);
+      });
+    });
+
+    // Petición de datos del mapa actual (jugadores presentes, etc.)
+    this.onMessage('map:request', (client: Client, data: { mapId: string }) => {
+      const mapId = data?.mapId;
+      const playersInMap = Array.from(this.players.values()).filter(p => p.mapId === mapId).map(p => ({
+        id: p.id,
+        mapId: p.mapId,
+        position: p.position,
+        rotation: p.rotation,
+      }));
+      client.send('map:update', {
+        players: playersInMap,
+        mapId,
+        timestamp: Date.now(),
+      });
     });
 
     // Heartbeat del jugador para refrescar lastUpdate sin necesidad de movimiento

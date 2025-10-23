@@ -41,8 +41,8 @@ export class WorldClient {
     const room = colyseusClient.getSocket();
     if (!room) return;
 
-    // Evitar duplicados tras reconexiones
-    this.removeAllListeners();
+    // Nota: mantenemos los listeners de usuario (this.eventListeners)
+    // para que sobrevivan reconexiones. Sólo registramos handlers del room.
 
     // Eventos de mundo/ mapa desde el servidor
     room.onMessage('map:changed', (data: MapChangedResponse) => this.emit('map:changed', data));

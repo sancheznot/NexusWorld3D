@@ -291,25 +291,19 @@ export default function GameCanvas() {
             customization={player?.customization}
           />
           
-          {/* Other Players */}
+            {/* Other Players - filtrados por mapa actual */}
+            {(() => {
+              const sessionId = colyseusClient.getSessionId();
+              const sameMap = players.filter(p => p.mapId === currentMap);
+              const otherPlayers = sameMap.filter(p => (sessionId ? p.id !== sessionId : p.id !== player?.id));
+              void otherPlayers; // placeholder until actual rendering of remote players
+              // (Render real de otros jugadores ocurrirá donde corresponda)
+              return null;
+            })()}
           {(() => {
             const sessionId = colyseusClient.getSessionId();
-            // Excluir al local únicamente (sin ocultar por lastUpdate, lo maneja el server)
-            const otherPlayers = players.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
-            // 3) Limitar a los 12 más cercanos al local
-            const origin = { x: position.x, y: position.y, z: position.z };
-            const dist = (p: { position: { x: number; z: number } }) => {
-              const dx = p.position.x - origin.x;
-              const dz = p.position.z - origin.z;
-              return dx*dx + dz*dz;
-            };
-            otherPlayers.sort((a, b) => dist(a) - dist(b));
-            otherPlayers.slice(0, 12);
-            return null;
-          })()}
-          {(() => {
-            const sessionId = colyseusClient.getSessionId();
-            const others = players.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
+            const sameMap = players.filter(p => p.mapId === currentMap);
+            const others = sameMap.filter(p => (sessionId ? p.id !== sessionId : p.id !== player?.id));
             const origin = { x: position.x, y: position.y, z: position.z };
             const dist = (p: { position: { x: number; z: number } }) => {
               const dx = p.position.x - origin.x;

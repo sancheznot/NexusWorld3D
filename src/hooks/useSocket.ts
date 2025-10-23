@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { colyseusClient } from '@/lib/colyseus/client';
+import worldClient from '@/lib/colyseus/WorldClient';
 import { usePlayerStore } from '@/store/playerStore';
 import { useWorldStore } from '@/store/worldStore';
 import { useUIStore } from '@/store/uiStore';
@@ -208,6 +209,32 @@ export const useSocket = () => {
       });
     });
 
+    // WorldClient events (map sync)
+    const handleMapChanged = (data: any) => {
+      console.log('🗺️ map:changed recibido', data);
+      // Actualizar mapId y posición del jugador que cambió
+      updatePlayer(data.playerId, {
+        position: data.position,
+        rotation: data.rotation,
+        mapId: data.mapId as any,
+      } as any);
+    };
+    worldClient.onMapChanged(handleMapChanged);
+
+    const handleMapUpdate = (data: any) => {
+      console.log('🗺️ map:update recibido', data);
+      // Refrescar jugadores presentes en este mapa (sin perder campos extra)
+      // Mezcla conservadora: solo aseguramos mapId/position/rotation de los reportados
+      data.players.forEach((p) => {
+        updatePlayer(p.id, {
+          position: p.position,
+          rotation: p.rotation,
+          mapId: p.mapId as any,
+        } as any);
+      });
+    };
+    worldClient.onMapUpdate(handleMapUpdate);
+
     // Monster events
     colyseusClient.onMonsterSpawned((data) => {
       console.log('👹 Monstruo apareció:', data);
@@ -265,6 +292,8 @@ export const useSocket = () => {
     // Cleanup function
     return () => {
       colyseusClient.removeAllListeners();
+      worldClient.off('map:changed', handleMapChanged);
+      worldClient.off('map:update', handleMapUpdate);
     };
   }, [isConnected]);
 
