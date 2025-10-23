@@ -216,10 +216,10 @@ export class CannonPhysics {
     
     // Debug: Mostrar cuántos bodies hay en el mundo (cada 3 segundos)
     if (!this.lastDebugTime || Date.now() - this.lastDebugTime > 3000) {
-      console.log(`🌍 Bodies en el mundo: ${this.world.bodies.length} (player + ground + ${this.bodies.size - 1} colliders)`);
-      console.log(`📋 Colliders creados:`, Array.from(this.bodies.keys()));
-      console.log(`🔍 Player body exists:`, !!this.playerBody);
-      console.log(`🎯 World bodies:`, this.world.bodies.map(b => b.id || 'unnamed'));
+      // console.log(`🌍 Bodies en el mundo: ${this.world.bodies.length} (player + ground + ${this.bodies.size - 1} colliders)`);
+      // console.log(`📋 Colliders creados:`, Array.from(this.bodies.keys()));
+      // console.log(`🔍 Player body exists:`, !!this.playerBody);
+      // console.log(`🎯 World bodies:`, this.world.bodies.map(b => b.id || 'unnamed'));
       this.lastDebugTime = Date.now();
     }
   }

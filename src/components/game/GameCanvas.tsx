@@ -25,6 +25,8 @@ import FPSCounter from '@/components/ui/FPSCounter';
 import PlayerStatsHUD from '@/components/ui/PlayerStatsHUD';
 import AdminTeleportUI from '@/components/ui/AdminTeleportUI';
 import ChatWindow from '@/components/chat/ChatWindow';
+import InventoryUI from '@/components/inventory/InventoryUI';
+import { ItemSpawner, SPAWN_ITEMS } from '@/components/world/ItemCollector';
 import { THREE_CONFIG } from '@/config/three.config';
 import { Vector3 } from 'three';
 import PortalTrigger from '@/components/world/PortalTrigger';
@@ -105,7 +107,7 @@ export default function GameCanvas() {
   useEffect(() => {
     console.log(`🗺️ Current Map: ${currentMap}`);
     console.log(`📊 Current Map Data:`, currentMapData);
-    console.log(`🔍 Portals disponibles:`, currentMapData?.portals?.length || 0);
+    // Debug: Portals disponibles
     console.log(`🎯 Renderizando mapa: ${currentMap === 'exterior' ? 'CityModel' : currentMap === 'hotel-interior' ? 'HotelInterior' : 'Ninguno'}`);
   }, [currentMap, currentMapData]);
   
@@ -147,27 +149,8 @@ export default function GameCanvas() {
         return; // No procesar otras teclas cuando el chat está abierto
       }
       
-      console.log(`🎮 Tecla presionada: ${event.key}`);
-      
-      switch (event.key.toLowerCase()) {
-        case 'i':
-          event.preventDefault();
-          toggleInventory();
-          break;
-        case 'm':
-          event.preventDefault();
-          toggleMap();
-          break;
-        case 'enter':
-          event.preventDefault();
-          toggleChat();
-          break;
-        case 'escape':
-          event.preventDefault();
-          closeAllModals();
-          setShowSettings(true);
-          break;
-      }
+      // Los manejadores de teclado están en useKeyboard hook
+      // No duplicar la funcionalidad aquí
     };
 
     document.addEventListener('keydown', handleKeyPress);
@@ -193,7 +176,7 @@ export default function GameCanvas() {
     
     // Join the game with player data after a short delay to ensure event listeners are registered
     if (player && isConnected) {
-      console.log('🎮 Llamando joinGame:', { playerId: player.id, username: player.username, worldId: player.worldId });
+      // Debug: Llamando joinGame
       setTimeout(() => {
         joinGame(player.id, player.username, player.worldId);
       }, 1000);
@@ -293,6 +276,12 @@ export default function GameCanvas() {
                 onPlayerExit={handlePlayerExitPortal}
               />
             ))}
+
+            {/* Items recolectables en el mundo */}
+            <ItemSpawner 
+              items={SPAWN_ITEMS}
+              playerPosition={[position.x, position.y, position.z]}
+            />
           
           {/* Current Player */}
           <PlayerV2 
@@ -432,25 +421,8 @@ export default function GameCanvas() {
         </div>
 
       {/* UI Modals */}
-      {isInventoryOpen && (
-        <div className="absolute inset-0 z-20 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-white text-xl font-bold">Inventario</h2>
-              <button
-                onClick={toggleInventory}
-                className="text-gray-400 hover:text-white text-2xl"
-              >
-                ×
-              </button>
-            </div>
-            <div className="text-white">
-              <p>Tu inventario estará aquí...</p>
-              <p className="text-sm text-gray-400 mt-2">Presiona I para cerrar</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Inventory UI */}
+      <InventoryUI />
 
       {isMapOpen && (
         <div className="absolute inset-0 z-20 bg-black bg-opacity-50 flex items-center justify-center">
