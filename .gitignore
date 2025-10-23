@@ -1,4 +1,4 @@
-# NexusWorld3D specific ignores
+# Hotel Humboldt specific ignores
 node_modules/
 .env.local
 .env.development.local
@@ -9,13 +9,8 @@ out/
 build/
 dist/
 
-# Large model files (keep for template)
-# public/models/city.glb
-# public/models/car-wash.glb
-
-# Private models (exclude from NexusWorld3D template)
-public/models/city.glb
-public/models/*
+# Keep all model files for hotel project (including private models)
+# No model exclusions - keep city.glb, car-wash.glb, etc.
 
 # Development files
 *.log
