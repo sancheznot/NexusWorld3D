@@ -135,6 +135,7 @@ export const SPAWN_ITEMS = [
       rarity: 'common' as ItemRarity,
       quantity: 1,
       maxStack: 999,
+      weight: 0.01, // Peso de la moneda
       level: 1,
       icon: '🪙'
     }
@@ -149,6 +150,7 @@ export const SPAWN_ITEMS = [
       rarity: 'common' as ItemRarity,
       quantity: 1,
       maxStack: 10,
+      weight: 0.5, // Peso de la poción
       stats: { health: 50 },
       level: 1,
       icon: '🧪'
@@ -164,6 +166,7 @@ export const SPAWN_ITEMS = [
       rarity: 'uncommon' as ItemRarity,
       quantity: 1,
       maxStack: 1,
+      weight: 4.0, // Peso de la espada
       stats: { damage: 15, strength: 3 },
       level: 2,
       icon: '⚔️'
