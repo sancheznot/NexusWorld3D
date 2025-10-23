@@ -152,23 +152,23 @@ export function useAdminTeleport() {
   }, [isAdminMode, teleportTo]);
 
   const showTeleportHelp = () => {
-    console.log(`
-🚀 SISTEMA DE TELETRANSPORTACIÓN ADMIN
-=====================================
-Ctrl + 1: Hotel Exterior
-Ctrl + 2: Hotel Interior  
-Ctrl + 3: Policía
-Ctrl + 4: Hospital
-Ctrl + 5: Banco
-Ctrl + 6: Tienda
-Ctrl + 0: Centro Ciudad
-Ctrl + ↑: Norte
-Ctrl + ↓: Sur
-Ctrl + →: Este
-Ctrl + ←: Oeste
-Ctrl + H: Mostrar esta ayuda
-=====================================
-    `);
+    // console.log(`
+    // 🚀 SISTEMA DE TELETRANSPORTACIÓN ADMIN
+    // =====================================
+    // Ctrl + 1: Hotel Exterior
+    // Ctrl + 2: Hotel Interior  
+    // Ctrl + 3: Policía
+    // Ctrl + 4: Hospital
+    // Ctrl + 5: Banco
+    // Ctrl + 6: Tienda
+    // Ctrl + 0: Centro Ciudad
+    // Ctrl + ↑: Norte
+    // Ctrl + ↓: Sur
+    // Ctrl + →: Este
+    // Ctrl + ←: Oeste
+    // Ctrl + H: Mostrar esta ayuda
+    // =====================================
+    // `);
   };
 
   return {

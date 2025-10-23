@@ -24,10 +24,10 @@ export function useAdvancedMovement(enabled: boolean = true) {
 
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     const key = event.key.toLowerCase();
-    console.log(`🎮 Tecla presionada: ${key}, enabled: ${enabled}, chatOpen: ${isChatOpen}`);
+    // console.log(`🎮 Tecla presionada: ${key}, enabled: ${enabled}, chatOpen: ${isChatOpen}`);
     if (!enabled || isChatOpen) return;
     keysRef.current.add(key);
-    console.log(`🎮 Tecla agregada al set: ${key}, total keys: ${keysRef.current.size}`);
+    // console.log(`🎮 Tecla agregada al set: ${key}, total keys: ${keysRef.current.size}`);
   }, [enabled, isChatOpen]);
 
   const handleKeyUp = useCallback((event: KeyboardEvent) => {

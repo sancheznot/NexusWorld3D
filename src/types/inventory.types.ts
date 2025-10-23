@@ -7,6 +7,7 @@ export interface InventoryItem {
   rarity: ItemRarity;
   quantity: number;
   maxStack: number;
+  weight: number; // Peso del item
   stats?: ItemStats;
   durability?: number;
   maxDurability?: number;
@@ -52,6 +53,8 @@ export interface Inventory {
   maxSlots: number;
   usedSlots: number;
   gold: number;
+  maxWeight: number; // Peso máximo del inventario
+  currentWeight: number; // Peso actual del inventario
 }
 
 export interface InventorySlot {

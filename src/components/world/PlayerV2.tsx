@@ -92,12 +92,12 @@ export default function PlayerV2({
   useEffect(() => {
     if (isCurrentPlayer) {
       collisionSystem.registerSceneColliders(scene);
-      console.log('🔧 Sistema de colisiones inicializado');
+      // console.log('🔧 Sistema de colisiones inicializado');
       // NO precargar animaciones - se cargarán bajo demanda
       
       // Mostrar ayuda de teletransportación si está en modo admin
       if (isAdminMode) {
-        console.log('🚀 MODO ADMIN ACTIVADO - Sistema de teletransportación disponible');
+        // console.log('🚀 MODO ADMIN ACTIVADO - Sistema de teletransportación disponible');
         showTeleportHelp();
       }
     }
@@ -122,9 +122,9 @@ export default function PlayerV2({
     const distance = currentStorePos.distanceTo(lastStorePositionRef.current);
     
     // Debug: mostrar siempre la distancia para ver qué está pasando
-    console.log(`🔍 Distance check: ${distance.toFixed(2)} (threshold: 2.0)`);
-    console.log(`🔍 Current pos: ${currentStorePos.x.toFixed(2)}, ${currentStorePos.y.toFixed(2)}, ${currentStorePos.z.toFixed(2)}`);
-    console.log(`🔍 Last pos: ${lastStorePositionRef.current.x.toFixed(2)}, ${lastStorePositionRef.current.y.toFixed(2)}, ${lastStorePositionRef.current.z.toFixed(2)}`);
+    // console.log(`🔍 Distance check: ${distance.toFixed(2)} (threshold: 2.0)`);
+    // console.log(`🔍 Current pos: ${currentStorePos.x.toFixed(2)}, ${currentStorePos.y.toFixed(2)}, ${currentStorePos.z.toFixed(2)}`);
+    // console.log(`🔍 Last pos: ${lastStorePositionRef.current.x.toFixed(2)}, ${lastStorePositionRef.current.y.toFixed(2)}, ${lastStorePositionRef.current.z.toFixed(2)}`);
     
     // Si hay un cambio brusco de posición (> 2 unidades), es una teleportación
     if (distance > 2) {
@@ -142,7 +142,7 @@ export default function PlayerV2({
     } else {
       // Debug: mostrar distancia pequeña para ver si hay cambios
       if (distance > 0.1) {
-        console.log(`📍 Movimiento normal: distance=${distance.toFixed(2)}`);
+        // console.log(`📍 Movimiento normal: distance=${distance.toFixed(2)}`);
       }
     }
   }, [playerPosition.x, playerPosition.y, playerPosition.z, playerRotation.x, playerRotation.y, playerRotation.z, isCurrentPlayer, physicsRef]);

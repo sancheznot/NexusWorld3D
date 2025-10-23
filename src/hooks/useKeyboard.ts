@@ -146,7 +146,7 @@ export const useKeyboard = (enabled: boolean = true) => {
     // Left click for attack
     if (event.button === 0) {
       // TODO: Implement attack logic
-      console.log('⚔️ Ataque con click izquierdo');
+      // console.log('⚔️ Ataque con click izquierdo');
     }
   }, [enabled]);
 
