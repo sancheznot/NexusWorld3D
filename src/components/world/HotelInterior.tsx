@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, memo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { useCannonPhysics } from '@/hooks/useCannonPhysics';
 import { NATURAL_MESH_PATTERNS } from '@/constants/physics';
 
-interface CityModelProps {
+interface HotelInteriorProps {
   modelPath: string;
   name?: string;
   position?: [number, number, number];
@@ -13,28 +13,25 @@ interface CityModelProps {
   rotation?: [number, number, number];
 }
 
-export default function CityModel({
+const HotelInterior = memo(function HotelInterior({
   modelPath,
-  name = 'city',
+  name = 'hotel-interior',
   position = [0, 0, 0],
   scale = [1, 1, 1],
   rotation = [0, 0, 0],
-}: CityModelProps) {
+}: HotelInteriorProps) {
+  console.log(`🏨 HotelInterior RENDER - modelPath: ${modelPath}`);
   const { scene } = useGLTF(modelPath);
-  const physicsRef = useCannonPhysics(true); // Cambiar a true para acceder al physics global
+  const physicsRef = useCannonPhysics(true);
 
   useEffect(() => {
-    console.log(`🔍 CityModel useEffect - scene:`, !!scene, `physicsRef:`, !!physicsRef.current, `name:`, name);
-    
     if (!scene || !physicsRef.current) {
-      console.log(`❌ CityModel: Missing scene or physicsRef - scene:`, !!scene, `physicsRef:`, !!physicsRef.current);
       return;
     }
 
-    console.log(`🎯 CityModel: Creating colliders for ${name}...`);
-
-    // Limpiar colliders que no pertenecen a la ciudad (hotel-interior) al montar
-    physicsRef.current.removeBodiesByPrefix('hotel-interior');
+    // Limpiar colliders del mapa anterior (city) y del propio prefijo por seguridad
+    physicsRef.current.removeBodiesByPrefix('city');
+    physicsRef.current.removeBodiesByPrefix(`${name}-`);
 
     // 1) Box colliders para UCX_* / collision*
     const boxes = physicsRef.current.createUCXBoxCollidersFromScene(
@@ -43,14 +40,12 @@ export default function CityModel({
       name
     );
 
-    // 2) Trimesh colliders para colinas/terreno/rocas (usando constantes centralizadas)
-    const hills = physicsRef.current.createNamedTrimeshCollidersFromScene(
+    // 2) Trimesh colliders para elementos naturales del interior
+    const interiorElements = physicsRef.current.createNamedTrimeshCollidersFromScene(
       scene,
       (n) => NATURAL_MESH_PATTERNS.some(pattern => new RegExp(`^${pattern}`, 'i').test(n)),
-      `${name}-hills`
+      `${name}-interior`
     );
-    
-    console.log(`✅ Ciudad: ${boxes} box colliders, ${hills} trimesh colliders`);
   }, [scene, physicsRef, name]);
 
   return (
@@ -63,7 +58,9 @@ export default function CityModel({
       receiveShadow
     />
   );
-}
+});
 
-// Precarga
-useGLTF.preload('/models/city.glb');
+export default HotelInterior;
+
+// Precarga del modelo
+useGLTF.preload('/models/maps/main_map/main_building/interior-hotel.glb');

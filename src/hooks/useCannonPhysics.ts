@@ -11,20 +11,26 @@ let globalPhysics: CannonPhysics | null = null;
 let globalDebugRenderer: { update: () => void } | null = null;
 let initializationCount = 0;
 
+// Acceso seguro a la instancia global de física SIN usar hooks de R3F
+export function getPhysicsInstance(): CannonPhysics | null {
+  return globalPhysics;
+}
+
 export function useCannonPhysics(createPhysicsBody: boolean = true) {
   const physicsRef = useRef<CannonPhysics | null>(null);
   const debugRendererRef = useRef<{ update: () => void } | null>(null);
-  const { scene } = useThree();
+  // Suscribirse solo a `scene` para evitar re-render por frame
+  const scene = useThree((s) => s.scene);
 
   useEffect(() => {
     initializationCount++;
-    console.log(`🔧 useCannonPhysics: Initialization #${initializationCount}`);
+    // console.log(`🔧 useCannonPhysics: Initialization #${initializationCount}`);
 
     // Si no se debe crear physics body, solo retornar la referencia existente
     if (!createPhysicsBody) {
       physicsRef.current = globalPhysics;
       debugRendererRef.current = globalDebugRenderer;
-      console.log('🚫 No crear physics body para jugador remoto');
+      // console.log('🚫 No crear physics body para jugador remoto');
       return;
     }
 
@@ -32,12 +38,12 @@ export function useCannonPhysics(createPhysicsBody: boolean = true) {
     if (globalPhysics) {
       physicsRef.current = globalPhysics;
       debugRendererRef.current = globalDebugRenderer;
-      console.log('♻️ Reusing existing physics instance');
+      // console.log('♻️ Reusing existing physics instance');
       return;
     }
 
     // Crear nueva instancia solo si no existe
-    console.log('🆕 Creating new physics instance');
+    // console.log('🆕 Creating new physics instance');
     globalPhysics = new CannonPhysics();
     physicsRef.current = globalPhysics;
     
@@ -55,27 +61,28 @@ export function useCannonPhysics(createPhysicsBody: boolean = true) {
         color: 0x00ff00, // Verde brillante para ver los mesh
         scale: 1.0,
         // Filtrar shapes con geometría inválida para el debugger
-        onInit(body, mesh) {
-          if (!mesh?.geometry?.attributes?.position) return false as any;
-          const p = mesh.geometry.attributes.position;
+        onInit(_body: unknown, mesh: unknown) {
+          const m = mesh as { geometry?: { attributes?: { position?: { getX: (i: number) => number } } } };
+          if (!m?.geometry?.attributes?.position) return false;
+          const p = m.geometry.attributes.position;
           const ok = Number.isFinite(p.getX(0));
-          return ok as any;
+          return !!ok;
         }
       });
       debugRendererRef.current = globalDebugRenderer;
       
-      console.log('🔍 Cannon.js debugger visual ACTIVADO - Verás los mesh de física en VERDE');
+      // console.log('🔍 Cannon.js debugger visual ACTIVADO - Verás los mesh de física en VERDE');
     } else {
-      console.log('🚀 Producción: Debugger visual DESACTIVADO');
+      // console.log('🚀 Producción: Debugger visual DESACTIVADO');
     }
 
     return () => {
       initializationCount--;
-      console.log(`🔧 useCannonPhysics: Cleanup, remaining instances: ${initializationCount}`);
+      // console.log(`🔧 useCannonPhysics: Cleanup, remaining instances: ${initializationCount}`);
       
       // Solo limpiar cuando no queden más instancias
       if (initializationCount <= 0 && globalPhysics) {
-        console.log('🧹 Disposing global physics instance');
+        // console.log('🧹 Disposing global physics instance');
         globalPhysics.dispose();
         globalPhysics = null;
         globalDebugRenderer = null;
@@ -88,7 +95,7 @@ export function useCannonPhysics(createPhysicsBody: boolean = true) {
     if (debugRendererRef.current && physicsRef.current) {
       try {
         debugRendererRef.current.update();
-      } catch (e) {
+      } catch {
         // Evitar crasheos de debug cuando hay geometrías inválidas (e.g., NaN)
       }
     }

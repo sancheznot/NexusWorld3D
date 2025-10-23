@@ -1,7 +1,7 @@
 import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { threeToCannon, ShapeType } from 'three-to-cannon';
-import { PHYSICS_CONFIG, getTargetFPS } from '@/constants/physics';
+import { PHYSICS_CONFIG } from '@/constants/physics';
 
 export class CannonPhysics {
   private world: CANNON.World;
@@ -288,6 +288,40 @@ export class CannonPhysics {
     };
   }
 
+  /**
+   * Teleporta al jugador a una posición específica
+   * @param position Nueva posición del jugador
+   * @param rotation Nueva rotación del jugador (opcional)
+   */
+  teleportPlayer(position: { x: number; y: number; z: number }, rotation?: { x: number; y: number; z: number }) {
+    if (!this.playerBody) {
+      console.warn('⚠️ No se puede teleportar: playerBody no existe');
+      return;
+    }
+
+    console.log(`🚀 TELEPORT CALLED - ANTES: pos=${this.playerBody.position.x.toFixed(2)}, ${this.playerBody.position.y.toFixed(2)}, ${this.playerBody.position.z.toFixed(2)}`);
+    console.log(`🚀 TELEPORT CALLED - TARGET: pos=${position.x}, ${position.y}, ${position.z}`);
+    console.log(`🚀 TELEPORT CALLED - ROTATION:`, rotation);
+
+    // Detener cualquier movimiento actual
+    this.playerBody.velocity.set(0, 0, 0);
+    this.playerBody.angularVelocity.set(0, 0, 0);
+    
+    // Establecer nueva posición
+    this.playerBody.position.set(position.x, position.y, position.z);
+    
+    // Establecer nueva rotación si se proporciona
+    if (rotation) {
+      this.playerBody.quaternion.setFromEuler(rotation.x, rotation.y, rotation.z);
+    }
+    
+    // Forzar actualización del cuerpo
+    this.playerBody.wakeUp();
+    
+    console.log(`🚀 TELEPORT COMPLETED - DESPUÉS: pos=${this.playerBody.position.x.toFixed(2)}, ${this.playerBody.position.y.toFixed(2)}, ${this.playerBody.position.z.toFixed(2)}`);
+    console.log(`🚀 TELEPORT SUCCESS: ${this.playerBody.position.x === position.x && this.playerBody.position.y === position.y && this.playerBody.position.z === position.z ? 'YES' : 'NO'}`);
+  }
+
   getPlayerVelocity(): { x: number; y: number; z: number } {
     if (!this.playerBody) return { x: 0, y: 0, z: 0 };
     
@@ -442,7 +476,7 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
 
   // 🚀 NUEVO: Crear body desde forma de three-to-cannon
   createBodyFromShape(
-    cannonShape: any, 
+    cannonShape: CANNON.Shape, 
     position: { x: number; y: number; z: number }, 
     rotation: { x: number; y: number; z: number },
     scale: { x: number; y: number; z: number },
@@ -603,5 +637,25 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
     this.playerBody = null;
     this.staticBodiesCreated = false;
     console.log('🧹 Cannon.js physics disposed');
+  }
+
+  // 🔥 Remover bodies por prefijo de id (útil al cambiar de mapa)
+  removeBodiesByPrefix(prefix: string): number {
+    const ids = Array.from(this.bodies.keys());
+    let removed = 0;
+    for (const id of ids) {
+      if (id.startsWith(prefix)) {
+        const body = this.bodies.get(id);
+        if (body) {
+          this.world.removeBody(body);
+          this.bodies.delete(id);
+          removed += 1;
+        }
+      }
+    }
+    if (removed > 0) {
+      console.log(`🧹 Removed ${removed} bodies by prefix: ${prefix}`);
+    }
+    return removed;
   }
 }

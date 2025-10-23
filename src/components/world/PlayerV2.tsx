@@ -5,6 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAdvancedMovement } from '@/hooks/useAdvancedMovement';
 import { useCannonPhysics } from '@/hooks/useCannonPhysics';
+import { useAdminTeleport } from '@/hooks/useAdminTeleport';
 import { collisionSystem } from '@/lib/three/collisionSystem';
 import AnimatedCharacter from '@/components/world/AnimatedCharacter';
 import { useCharacterAnimation } from '@/hooks/useCharacterAnimation';
@@ -41,15 +42,17 @@ export default function PlayerV2({
     updatePosition,
     updateRotation,
     setMoving,
-    setRunning,
-    updateHealth,
-    updateStamina,
-    updateHunger
+    setRunning
   } = usePlayerStore();
+  
+  // Ref para detectar cambios de teleportación
+  const lastStorePositionRef = useRef(new THREE.Vector3(playerPosition.x, playerPosition.y, playerPosition.z));
 
   const { calculateMovementInput } = useAdvancedMovement(isCurrentPlayer && keyboardEnabled);
   // Solo el jugador local debe tener physics body
   const physicsRef = useCannonPhysics(isCurrentPlayer);
+  // Sistema de teletransportación para admin/desarrollo
+  const { isAdminMode, showTeleportHelp } = useAdminTeleport();
   const [input, setInput] = useState({ x: 0, z: 0, rotation: 0, isRunning: false, isJumping: false, jumpType: null as 'normal' | 'running' | 'backflip' | null });
   const [isTabVisible, setIsTabVisible] = useState(true);
   const lastRunTimeRef = useRef(0);
@@ -91,8 +94,14 @@ export default function PlayerV2({
       collisionSystem.registerSceneColliders(scene);
       console.log('🔧 Sistema de colisiones inicializado');
       // NO precargar animaciones - se cargarán bajo demanda
+      
+      // Mostrar ayuda de teletransportación si está en modo admin
+      if (isAdminMode) {
+        console.log('🚀 MODO ADMIN ACTIVADO - Sistema de teletransportación disponible');
+        showTeleportHelp();
+      }
     }
-  }, [isCurrentPlayer, scene, custom.modelType]);
+  }, [isCurrentPlayer, scene, custom.modelType, isAdminMode, showTeleportHelp]);
 
   // Detectar cambios de visibilidad de la pestaña
   useEffect(() => {
@@ -104,6 +113,39 @@ export default function PlayerV2({
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
+
+  // Efecto para detectar teleportaciones (cambios bruscos de posición en el store)
+  useEffect(() => {
+    if (!isCurrentPlayer || !physicsRef?.current) return;
+    
+    const currentStorePos = new THREE.Vector3(playerPosition.x, playerPosition.y, playerPosition.z);
+    const distance = currentStorePos.distanceTo(lastStorePositionRef.current);
+    
+    // Debug: mostrar siempre la distancia para ver qué está pasando
+    console.log(`🔍 Distance check: ${distance.toFixed(2)} (threshold: 2.0)`);
+    console.log(`🔍 Current pos: ${currentStorePos.x.toFixed(2)}, ${currentStorePos.y.toFixed(2)}, ${currentStorePos.z.toFixed(2)}`);
+    console.log(`🔍 Last pos: ${lastStorePositionRef.current.x.toFixed(2)}, ${lastStorePositionRef.current.y.toFixed(2)}, ${lastStorePositionRef.current.z.toFixed(2)}`);
+    
+    // Si hay un cambio brusco de posición (> 2 unidades), es una teleportación
+    if (distance > 2) {
+      console.log(`🚀 TELEPORTACIÓN DETECTADA! Distance: ${distance.toFixed(2)}`);
+      console.log(`🚀 From: ${lastStorePositionRef.current.x.toFixed(2)}, ${lastStorePositionRef.current.y.toFixed(2)}, ${lastStorePositionRef.current.z.toFixed(2)}`);
+      console.log(`🚀 To: ${currentStorePos.x.toFixed(2)}, ${currentStorePos.y.toFixed(2)}, ${currentStorePos.z.toFixed(2)}`);
+      
+      // Teleportar físicamente al jugador
+      physicsRef.current.teleportPlayer(
+        { x: playerPosition.x, y: playerPosition.y, z: playerPosition.z },
+        { x: playerRotation.x, y: playerRotation.y, z: playerRotation.z }
+      );
+      
+      lastStorePositionRef.current.copy(currentStorePos);
+    } else {
+      // Debug: mostrar distancia pequeña para ver si hay cambios
+      if (distance > 0.1) {
+        console.log(`📍 Movimiento normal: distance=${distance.toFixed(2)}`);
+      }
+    }
+  }, [playerPosition.x, playerPosition.y, playerPosition.z, playerRotation.x, playerRotation.y, playerRotation.z, isCurrentPlayer, physicsRef]);
 
   useFrame((state, delta) => {
     // Solo el jugador local debe ejecutar useFrame
@@ -201,7 +243,6 @@ export default function PlayerV2({
 
     // Stamina: marcar tiempo de última corrida si estás corriendo
     const now = performance.now();
-    const store = usePlayerStore.getState();
     const isActuallyRunning = sprintActiveRef.current;
     
     if (isActuallyRunning) {

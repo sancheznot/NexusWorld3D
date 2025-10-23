@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useCallback, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { useSocket } from '@/hooks/useSocket';
 import { usePlayerStore } from '@/store/playerStore';
@@ -16,23 +16,25 @@ import ThirdPersonCamera from '@/components/world/ThirdPersonCamera';
 import TestingCamera from '@/components/world/TestingCamera';
 import { useTestingCamera } from '@/hooks/useTestingCamera';
 import { useKeyboard } from '@/hooks/useKeyboard';
+import { getPhysicsInstance } from '@/hooks/useCannonPhysics';
 import LoginModal from '@/components/game/LoginModal';
 import CharacterCreatorV2 from '@/components/game/CharacterCreatorV2';
 import GameSettings from '@/components/game/GameSettings';
 import ModelInfo from '@/components/ui/ModelInfo';
 import FPSCounter from '@/components/ui/FPSCounter';
 import PlayerStatsHUD from '@/components/ui/PlayerStatsHUD';
+import AdminTeleportUI from '@/components/ui/AdminTeleportUI';
 import ChatWindow from '@/components/chat/ChatWindow';
 import { THREE_CONFIG } from '@/config/three.config';
-import { ShapeType } from 'three-to-cannon';
 import { Vector3 } from 'three';
 import PortalTrigger from '@/components/world/PortalTrigger';
 import PortalUI from '@/components/ui/PortalUI';
+import HotelInterior from '@/components/world/HotelInterior';
 import { usePortalSystem } from '@/hooks/usePortalSystem';
 
 export default function GameCanvas() {
   const { isConnected, connectionError, connect, joinGame } = useSocket();
-  const { position, health, maxHealth, stamina, maxStamina, level, isMoving, isRunning, player } = usePlayerStore();
+  const { position, player } = usePlayerStore();
   const { players } = useWorldStore();
   const { isInventoryOpen, isMapOpen, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals } = useUIStore();
   const { settings, isLoaded } = useGameSettings();
@@ -55,13 +57,39 @@ export default function GameCanvas() {
   const keyboardEnabled = isGameStarted;
   const updatePositionStore = usePlayerStore((s) => s.updatePosition);
   const updateRotationStore = usePlayerStore((s) => s.updateRotation);
-  const playerVec3 = new Vector3(position.x, position.y, position.z);
+  const playerVec3 = useMemo(() => new Vector3(position.x, position.y, position.z), [position.x, position.y, position.z]);
+  
+  // Constantes para evitar re-renderizados
+  const hotelInteriorProps = useMemo(() => ({
+    modelPath: "/models/maps/main_map/main_building/interior-hotel.glb",
+    name: "hotel-interior"
+  }), []);
 
-  const handleMapChange = (mapId: string, pos: Vector3, rot: Vector3) => {
+  const handleMapChange = useCallback((mapId: string, pos: Vector3, rot: Vector3) => {
+    console.log(`🔄 Cambiando mapa: ${currentMap} -> ${mapId}`);
+    console.log(`📍 Nueva posición:`, pos);
+    console.log(`🔄 Nueva rotación:`, rot);
     setCurrentMap(mapId);
     updatePositionStore({ x: pos.x, y: pos.y, z: pos.z });
     updateRotationStore({ x: rot.x, y: rot.y, z: rot.z });
-  };
+    
+    // FORZAR TELEPORTACIÓN INMEDIATA - No depender de detección
+    console.log(`🚀 FORZANDO TELEPORTACIÓN INMEDIATA a: (${pos.x}, ${pos.y}, ${pos.z})`);
+    
+    // Usar un timeout para asegurar que el physics esté listo
+    setTimeout(() => {
+      const physics = getPhysicsInstance();
+      if (physics) {
+        console.log(`🚀 EJECUTANDO TELEPORT FORZADO`);
+        physics.teleportPlayer(
+          { x: pos.x, y: pos.y, z: pos.z },
+          { x: rot.x, y: rot.y, z: rot.z }
+        );
+      } else {
+        console.warn(`⚠️ Physics no disponible para teleport forzado`);
+      }
+    }, 100);
+  }, [currentMap, updatePositionStore, updateRotationStore]);
 
   const {
     activePortal,
@@ -71,7 +99,15 @@ export default function GameCanvas() {
     handlePlayerExitPortal,
     handleTeleport,
     closePortalUI,
-  } = usePortalSystem({ currentMap, playerPosition: playerVec3, onMapChange: handleMapChange });
+  } = usePortalSystem({ currentMap, onMapChange: handleMapChange });
+  
+  // Debug: Log current map data (solo cuando cambia)
+  useEffect(() => {
+    console.log(`🗺️ Current Map: ${currentMap}`);
+    console.log(`📊 Current Map Data:`, currentMapData);
+    console.log(`🔍 Portals disponibles:`, currentMapData?.portals?.length || 0);
+    console.log(`🎯 Renderizando mapa: ${currentMap === 'exterior' ? 'CityModel' : currentMap === 'hotel-interior' ? 'HotelInterior' : 'Ninguno'}`);
+  }, [currentMap, currentMapData]);
   
   // Debug: Log current state (only when there are issues)
   if (isGameStarted && !keyboardEnabled) {
@@ -139,7 +175,7 @@ export default function GameCanvas() {
   }, [isGameStarted, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals, showSettings]);
 
   // Handlers
-  const handleLogin = async (username: string) => {
+  const handleLogin = async () => {
     setShowLogin(false);
     setShowCharacterCreator(true);
     
@@ -231,19 +267,21 @@ export default function GameCanvas() {
               rotation={[0, 0, 0]} 
             /> */}
             
-            {/* City Model - Ciudad con colliders automáticos + fallback */}
-            {(() => {
-              // console.log('🏙️ GameCanvas: Rendering CityModel with /models/city.glb');
-              return (
-                <CityModel 
-                  modelPath="/models/city.glb"
-                  name="city"
-                  position={[0, 0, 0]} 
-                  scale={[1, 1, 1]} 
-                  rotation={[0, 0, 0]} 
-                />
-              );
-            })()}
+            {/* Renderizar modelo según el mapa actual */}
+            
+            {currentMap === 'exterior' && (
+              <CityModel 
+                modelPath="/models/city.glb"
+                name="city"
+                position={[0, 0, 0]} 
+                scale={[1, 1, 1]} 
+                rotation={[0, 0, 0]} 
+              />
+            )}
+            
+            {currentMap === 'hotel-interior' && (
+              <HotelInterior {...hotelInteriorProps} />
+            )}
 
             {/* Portales del mapa actual */}
             {currentMapData?.portals.map((portal) => (
@@ -271,20 +309,20 @@ export default function GameCanvas() {
             const otherPlayers = players.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
             // 3) Limitar a los 12 más cercanos al local
             const origin = { x: position.x, y: position.y, z: position.z };
-            const dist = (p: any) => {
+            const dist = (p: { position: { x: number; z: number } }) => {
               const dx = p.position.x - origin.x;
               const dz = p.position.z - origin.z;
               return dx*dx + dz*dz;
             };
             otherPlayers.sort((a, b) => dist(a) - dist(b));
-            const limited = otherPlayers.slice(0, 12);
+            otherPlayers.slice(0, 12);
             return null;
           })()}
           {(() => {
             const sessionId = colyseusClient.getSessionId();
             const others = players.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
             const origin = { x: position.x, y: position.y, z: position.z };
-            const dist = (p: any) => {
+            const dist = (p: { position: { x: number; z: number } }) => {
               const dx = p.position.x - origin.x;
               const dz = p.position.z - origin.z;
               return dx*dx + dz*dz;
@@ -435,6 +473,9 @@ export default function GameCanvas() {
       )}
 
       <ChatWindow />
+
+      {/* Admin Teleport UI */}
+      <AdminTeleportUI />
 
       {/* Login Modal */}
       <LoginModal
