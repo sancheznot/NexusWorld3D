@@ -14,8 +14,7 @@ dist/
 # public/models/car-wash.glb
 
 # Private models (exclude from NexusWorld3D template)
-public/models/city.glb
-public/models/*
+public/models/
 
 # Development files
 *.log
