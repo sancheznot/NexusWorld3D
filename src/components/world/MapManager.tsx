@@ -31,7 +31,7 @@ export default function MapManager({
     handlePlayerExitPortal,
     handleTeleport,
     closePortalUI
-  } = usePortalSystem({ currentMap, playerPosition, onMapChange });
+  } = usePortalSystem({ currentMap, onMapChange });
 
   // Renderizar objetos del mapa actual
   const renderMapObjects = () => {
