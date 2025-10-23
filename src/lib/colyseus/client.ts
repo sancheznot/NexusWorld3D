@@ -59,6 +59,8 @@ class ColyseusClient {
           
           // Configurar event listeners una sola vez por room
           this.setupRoomListeners();
+          // Notificar a consumidores externos que hay una room conectada
+          this.emit('room:connected', { sessionId: this.room?.sessionId });
           
           resolve();
         })
@@ -98,6 +100,7 @@ class ColyseusClient {
     this.room.onLeave((code) => {
       console.log('🔌 Desconectado de la sala:', code);
       this.isConnected = false;
+      this.emit('room:left', { code });
     });
 
     this.room.onError((code, message) => {
@@ -164,24 +167,7 @@ class ColyseusClient {
     }
   }
 
-  // Inventory events
-  public updateInventory(data: { items: any[] }): void {
-    if (this.room?.connection.isOpen) {
-      this.room.send('inventory:update', data);
-    }
-  }
-
-  public useItem(data: { itemId: string; slot: number }): void {
-    if (this.room?.connection.isOpen) {
-      this.room.send('inventory:use-item', data);
-    }
-  }
-
-  public dropItem(data: { itemId: string; position: any }): void {
-    if (this.room?.connection.isOpen) {
-      this.room.send('inventory:drop-item', data);
-    }
-  }
+  
 
   // World events
   public changeWorld(data: { worldId: string }): void {
@@ -283,6 +269,8 @@ class ColyseusClient {
       callback(data);
     });
   }
+
+  
 
   // Event system methods
   public emit(event: string, data: any): void {

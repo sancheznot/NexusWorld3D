@@ -1,5 +1,6 @@
 import { Room, Client } from 'colyseus';
 import { gameRedis } from '../../src/lib/services/redis';
+import { InventoryEvents } from '../InventoryEvents';
 
 interface PlayerData {
   id: string;
@@ -35,6 +36,7 @@ export class HotelHumboldtRoom extends Room {
   private players = new Map<string, PlayerData>();
   private chatMessages: ChatMessage[] = [];
   private redis = gameRedis;
+  private inventoryEvents!: InventoryEvents;
 
   onCreate(options: { [key: string]: string }) {
     console.log('🏨 Hotel Humboldt Room creada');
@@ -56,6 +58,9 @@ export class HotelHumboldtRoom extends Room {
     
     // Configurar handlers de mensajes
     this.setupMessageHandlers();
+    
+    // Inicializar eventos de inventario
+    this.inventoryEvents = new InventoryEvents(this);
     
     // Configurar limpieza automática
     this.setupCleanup();
@@ -165,6 +170,9 @@ export class HotelHumboldtRoom extends Room {
       
       // Guardar estado final en Redis
       this.savePlayerToRedis(player);
+      
+      // Limpiar inventario del jugador
+      this.inventoryEvents.cleanupPlayerInventory(client.sessionId);
       
           // Remover de la sala: inmediato si cierre consentido, pequeño delay si no
           const delayMs = consented ? 0 : 2000;
