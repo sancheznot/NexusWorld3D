@@ -120,7 +120,8 @@ export class ItemEvents {
     if (!item || item.isCollected) return { ok: false };
     item.isCollected = true;
     map.set(spawnId, item);
-    // TODO: aquí podríamos integrar con InventoryEvents para añadir al inventario del jugador
+    // La entrega al inventario se realiza en el handler 'items:collect' usando this.grantItemToPlayer
+    // devolvemos el item para que el caller lo otorgue de forma autoritativa.
     return { ok: true, item: item.item };
   }
 

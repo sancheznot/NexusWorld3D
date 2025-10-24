@@ -22,6 +22,7 @@ export default function Lighting() {
         intensity={ambientIntensity}
       />
 
+      {/* Sun */}
       <directionalLight
         color={THREE_CONFIG.lighting.directional.color}
         intensity={sunIntensity}
@@ -31,48 +32,35 @@ export default function Lighting() {
           THREE_CONFIG.lighting.directional.position.z,
         ]}
         castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-camera-far={50}
-        shadow-camera-left={-25}
-        shadow-camera-right={25}
-        shadow-camera-top={25}
-        shadow-camera-bottom={-25}
+        shadow-mapSize-width={2048}
+        shadow-mapSize-height={2048}
+        shadow-camera-far={100}
+        shadow-camera-left={-50}
+        shadow-camera-right={50}
+        shadow-camera-top={50}
+        shadow-camera-bottom={-50}
       />
 
-      {/* Luz de relleno inferior (suave) */}
-      <directionalLight
-        color={0xffffff}
-        intensity={0.4 * Math.max(0.1, ambientFactor)}
-        position={[0, -10, 0]}
-      />
+      {/* Fill lights */}
+      <directionalLight color={0xffffff} intensity={0.4 * Math.max(0.1, ambientFactor)} position={[0, -10, 0]} />
+      <directionalLight color={0xffffff} intensity={0.25 * Math.max(0.1, ambientFactor)} position={[-20, 10, -20]} />
 
-      {/* Luz de relleno lateral suave */}
-      <directionalLight
-        color={0xffffff}
-        intensity={0.25 * Math.max(0.1, ambientFactor)}
-        position={[-20, 10, -20]}
-      />
-
-      {/* Sistema de Luna: luces cercanas y laterales activas de noche/anochecer */}
+      {/* Moonlight (directional) */}
       {isNightLike && (
-        <>
-          {/* Point light que sigue al jugador para iluminar entorno cercano */}
-          <pointLight
-            color={0xaec6ff}
-            intensity={0.7}
-            distance={15}
-            decay={2}
-            position={[position.x, position.y + 2.5, position.z]}
-          />
-          {/* Luz direccional lateral fría (simula luna baja en horizonte) */}
-          <directionalLight
-            color={0xbfd7ff}
-            intensity={0.35}
-            position={[-30, 12, -10]}
-            castShadow
-          />
-        </>
+        <directionalLight
+          color={0xbfd7ff}
+          intensity={0.35}
+          position={[-30, 12, -10]}
+          castShadow
+          shadow-mapSize-width={1024}
+          shadow-mapSize-height={1024}
+          shadow-camera-far={80}
+        />
+      )}
+
+      {/* Player-following moon point light for near illumination */}
+      {isNightLike && (
+        <pointLight color={0xaec6ff} intensity={0.7} distance={15} decay={2} position={[position.x, position.y + 2.5, position.z]} />
       )}
     </>
   );

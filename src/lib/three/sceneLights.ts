@@ -9,6 +9,8 @@ export interface SceneLightsOptions {
   maxLights?: number;
   debugHelpers?: boolean;
   yOffset?: number; // small vertical offset if desired
+  castShadows?: boolean;
+  shadowMapSize?: number;
 }
 
 const DEFAULT_PATTERNS: RegExp[] = [/^LM_/i];
@@ -23,6 +25,8 @@ export function generateSceneLights(root: THREE.Object3D, options: SceneLightsOp
     maxLights = 1024,
     debugHelpers = false,
     yOffset = 0,
+    castShadows = false,
+    shadowMapSize = 512,
   } = options;
 
   // Remove previous auto lights to avoid duplicates on hot reload
@@ -45,8 +49,14 @@ export function generateSceneLights(root: THREE.Object3D, options: SceneLightsOp
 
     const light = new THREE.PointLight(color, intensity, distance, decay);
     light.name = `autoLight__${obj.name}`;
-    light.castShadow = false;
     light.position.set(wp.x, wp.y + yOffset, wp.z);
+
+    if (castShadows) {
+      light.castShadow = true;
+      light.shadow.mapSize.set(shadowMapSize, shadowMapSize);
+      light.shadow.bias = -0.0005;
+      (light.shadow as any).normalBias = 0.02;
+    }
 
     if (debugHelpers) {
       const sphere = new THREE.Mesh(
@@ -55,7 +65,6 @@ export function generateSceneLights(root: THREE.Object3D, options: SceneLightsOp
       );
       sphere.name = `${light.name}__helper`;
       light.add(sphere);
-      // Log marker info for debugging
       // eslint-disable-next-line no-console
       console.log(`💡 LM marker: ${obj.name} @ (${wp.x.toFixed(2)}, ${wp.y.toFixed(2)}, ${wp.z.toFixed(2)})`);
     }
