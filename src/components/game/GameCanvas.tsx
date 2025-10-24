@@ -33,6 +33,8 @@ import PortalTrigger from '@/components/world/PortalTrigger';
 import PortalUI from '@/components/ui/PortalUI';
 import HotelInterior from '@/components/world/HotelInterior';
 import { usePortalSystem } from '@/hooks/usePortalSystem';
+import ServerClock from '@/components/ui/ServerClock';
+import timeClient from '@/lib/colyseus/TimeClient';
 
 export default function GameCanvas() {
   const { isConnected, connectionError, connect, joinGame } = useSocket();
@@ -66,6 +68,15 @@ export default function GameCanvas() {
     modelPath: "/models/maps/main_map/main_building/interior-hotel.glb",
     name: "hotel-interior"
   }), []);
+
+  useEffect(() => {
+    const onConnected = () => timeClient.requestTime();
+    colyseusClient.on('room:connected', onConnected);
+    timeClient.requestTime();
+    return () => {
+      colyseusClient.off('room:connected', onConnected as unknown as (...args: unknown[]) => void);
+    };
+  }, []);
 
   const handleMapChange = useCallback((mapId: string, pos: Vector3, rot: Vector3) => {
     console.log(`🔄 Cambiando mapa: ${currentMap} -> ${mapId}`);
@@ -349,10 +360,16 @@ export default function GameCanvas() {
           <FPSCounter className="text-xs" />
         </div>
       )}
+
+      {/* Server Clock - Esquina izquierda superior debajo de FPS */}
+      <ServerClock className="absolute top-4 left-[48%] z-10" />
       
       {/* Player Stats HUD - Reorganizado */}
       <PlayerStatsHUD className="absolute top-4 right-4 z-10" />
       
+      {/* Server Clock HUD */}
+      {/* <ServerClock /> */}
+
       {/* Testing Camera Info Panel */}
       {isTestingCameraActive && (
         <div style={{

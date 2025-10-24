@@ -154,7 +154,7 @@ export function ItemSpawner({ mapId, playerPosition }: { mapId: string; playerPo
           key={spawn.id}
           spawnId={spawn.id}
           mapId={mapId}
-          position={[spawn.position.x, spawn.position.y, spawn.position.z]}
+          position={(spawn.position ? [spawn.position.x, spawn.position.y, spawn.position.z] : [0, 0, 0]) as [number, number, number]}
           item={spawn.item}
           playerPosition={playerPosition}
         />

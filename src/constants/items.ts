@@ -33,6 +33,7 @@ export const ITEMS_CATALOG: Record<
     rarity: ItemRarity;
     weight: number;
     icon: string;
+    thumb?: string; // ruta a PNG pre-generado para UI
     visual?: {
       path: string;
       type: "glb" | "gltf" | "fbx" | "obj";
@@ -53,6 +54,8 @@ export const ITEMS_CATALOG: Record<
       type: "glb",
       scale: 1,
     },
+    // Thumbnail pre-generado para UI de inventario
+    thumb: "/models/items/consumable/money/icons/moneyBag_withMoney.png",
     effects: { gold: 50 },
   },
   potion_health: {

@@ -6,6 +6,7 @@ import { useUIStore } from '@/store/uiStore';
 import { InventoryItem, ItemRarity } from '@/types/inventory.types';
 import { inventoryService } from '@/lib/services/inventory';
 import { modelLoader } from '@/lib/three/modelLoader';
+import type { Object3D } from 'three';
 
 export default function InventoryUI() {
   const { isInventoryOpen, toggleInventory } = useUIStore();
@@ -421,11 +422,11 @@ export default function InventoryUI() {
 }
 
 function SlotContent({ item, compact }: { item: InventoryItem; compact: boolean }) {
-  const ref = useRef<THREE.Object3D | null>(null);
+  const ref = useRef<Object3D | null>(null);
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const visualPath = (item as any).model || undefined;
+      const visualPath = item.model || undefined;
       const visualType = visualPath?.endsWith('.glb') || visualPath?.endsWith('.gltf') ? 'glb' : undefined;
       if (!visualPath || !visualType) return;
       try {
@@ -443,13 +444,11 @@ function SlotContent({ item, compact }: { item: InventoryItem; compact: boolean 
     return () => { cancelled = true; };
   }, [item]);
 
+  const thumb = (item as InventoryItem).thumb as string | undefined;
   return (
     <div className="flex flex-col items-center justify-center h-full relative overflow-hidden">
-      {ref.current ? (
-        <div className="w-full h-full flex items-center justify-center">
-          {/* Nota: en InventoryUI no usamos R3F aquí; mantenemos fallback visual con icon por simplicidad */}
-          <span className={`leading-none mb-1 ${compact ? 'text-lg' : 'text-xl'}`}>{item.icon}</span>
-        </div>
+      {thumb ? (
+        <img src={thumb} alt={item.name} className="w-full h-auto object-contain mb-1" />
       ) : (
         <div className={`leading-none mb-1 ${compact ? 'text-lg' : 'text-xl'}`}>{item.icon}</div>
       )}

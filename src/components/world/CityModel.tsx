@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { useCannonPhysics } from '@/hooks/useCannonPhysics';
 import { NATURAL_MESH_PATTERNS } from '@/constants/physics';
+import { generateSceneLights } from '@/lib/three/sceneLights';
+import { useTimeStore } from '@/store/timeStore';
 
 interface CityModelProps {
   modelPath: string;
@@ -20,38 +22,48 @@ export default function CityModel({
   scale = [1, 1, 1],
   rotation = [0, 0, 0],
 }: CityModelProps) {
-  const { scene } = useGLTF(modelPath);
-  const physicsRef = useCannonPhysics(true); // Cambiar a true para acceder al physics global
+  const url = useMemo(() => (modelPath.includes('?') ? modelPath : `${modelPath}?lm=1`), [modelPath]);
+  const { scene } = useGLTF(url);
+  const physicsRef = useCannonPhysics(true);
+  const phase = useTimeStore((s) => s.phase);
 
   useEffect(() => {
-    console.log(`🔍 CityModel useEffect - scene:`, !!scene, `physicsRef:`, !!physicsRef.current, `name:`, name);
-    
-    if (!scene || !physicsRef.current) {
-      console.log(`❌ CityModel: Missing scene or physicsRef - scene:`, !!scene, `physicsRef:`, !!physicsRef.current);
-      return;
-    }
+    if (!scene || !physicsRef.current) return;
 
-    console.log(`🎯 CityModel: Creating colliders for ${name}...`);
-
-    // Limpiar colliders que no pertenecen a la ciudad (hotel-interior) al montar
     physicsRef.current.removeBodiesByPrefix('hotel-interior');
 
-    // 1) Box colliders para UCX_* / collision*
     const boxes = physicsRef.current.createUCXBoxCollidersFromScene(
       scene,
       (n) => n.startsWith('UCX_') || n.includes('collision') || n.includes('Collision'),
       name
     );
 
-    // 2) Trimesh colliders para colinas/terreno/rocas (usando constantes centralizadas)
     const hills = physicsRef.current.createNamedTrimeshCollidersFromScene(
       scene,
       (n) => NATURAL_MESH_PATTERNS.some(pattern => new RegExp(`^${pattern}`, 'i').test(n)),
       `${name}-hills`
     );
-    
+
+    const isNightLike = phase === 'night' || phase === 'dusk';
+    const isDawn = phase === 'dawn';
+
+    const intensity = isNightLike ? 2.2 : isDawn ? 1.6 : 1.2;
+    const distance = isNightLike ? 28 : isDawn ? 22 : 18;
+
+    const created = generateSceneLights(scene, {
+      patterns: [/^LM_/i],
+      color: 0xfff2cc,
+      intensity,
+      distance,
+      decay: 1.0,
+      maxLights: 1024,
+      debugHelpers: false,
+      yOffset: 0.2,
+    });
+
+    console.log(`💡 Ciudad (LM_): ${created} luces auto`);
     console.log(`✅ Ciudad: ${boxes} box colliders, ${hills} trimesh colliders`);
-  }, [scene, physicsRef, name]);
+  }, [scene, physicsRef, name, phase]);
 
   return (
     <primitive

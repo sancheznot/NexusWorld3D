@@ -2,6 +2,7 @@ import { Room, Client } from 'colyseus';
 import { gameRedis } from '../../src/lib/services/redis';
 import { InventoryEvents } from '../InventoryEvents';
 import { ItemEvents } from '../ItemEvents';
+import { TimeEvents } from '../TimeEvents';
 
 interface PlayerData {
   id: string;
@@ -40,6 +41,7 @@ export class HotelHumboldtRoom extends Room {
   private redis = gameRedis;
   private inventoryEvents!: InventoryEvents;
   private _itemEvents!: ItemEvents; // keep reference alive
+  private _timeEvents!: TimeEvents; // keep reference alive
 
   onCreate(options: { [key: string]: string }) {
     console.log('🏨 Hotel Humboldt Room creada');
@@ -69,6 +71,8 @@ export class HotelHumboldtRoom extends Room {
       const p = this.players.get(clientId);
       return p?.mapId || null;
     }, (playerId: string, baseItem) => this.inventoryEvents.addItemFromWorld(playerId, baseItem));
+    // Inicializar sistema de tiempo (día/noche)
+    this._timeEvents = new TimeEvents(this);
     
     // Configurar limpieza automática
     this.setupCleanup();
