@@ -1,5 +1,6 @@
 import { Room, Client } from 'colyseus';
 import { InventoryItem, Inventory } from '../src/types/inventory.types';
+import { ITEMS_CATALOG } from '../src/constants/items';
 
 /**
  * Eventos de Inventario para Colyseus
@@ -85,30 +86,37 @@ export class InventoryEvents {
   public addItemFromWorld(playerId: string, baseItem: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) {
     let inventory = this.playerInventories.get(playerId);
     if (!inventory) {
-      // Inicializar inventario básico si no existe aún
-      inventory = {
-        items: [],
-        maxSlots: 20,
-        usedSlots: 0,
-        gold: 0,
-        maxWeight: 100,
-        currentWeight: 0,
-      } as Inventory;
+      inventory = { items: [], maxSlots: 20, usedSlots: 0, gold: 0, maxWeight: 100, currentWeight: 0 } as Inventory;
     }
 
-    const item: InventoryItem = {
-      ...baseItem,
+    // Enriquecer con catálogo maestro
+    const cat = ITEMS_CATALOG[baseItem.itemId];
+    const merged: InventoryItem = {
       id: `${baseItem.itemId}_${Date.now()}`,
+      itemId: baseItem.itemId,
+      name: (baseItem as any).name || cat?.name || baseItem.itemId,
+      description: (baseItem as any).description || '',
+      type: (baseItem as any).type || cat?.type || 'misc',
+      rarity: (baseItem as any).rarity || cat?.rarity || 'common',
+      quantity: (baseItem as any).quantity || 1,
+      maxStack: (baseItem as any).maxStack || 1,
+      weight: (baseItem as any).weight ?? cat?.weight ?? 0.1,
+      stats: (baseItem as any).stats,
+      durability: (baseItem as any).durability,
+      maxDurability: (baseItem as any).maxDurability,
+      level: (baseItem as any).level || 1,
+      icon: (baseItem as any).icon || cat?.icon || '📦',
+      model: cat?.visual?.path,
       isEquipped: false,
       slot: -1,
     } as InventoryItem;
 
     // Stack si mismo itemId y maxStack > 1
-    const existing = inventory.items.find(i => i.itemId === baseItem.itemId && !i.isEquipped && i.quantity < i.maxStack);
+    const existing = inventory.items.find(i => i.itemId === merged.itemId && !i.isEquipped && i.quantity < i.maxStack);
     if (existing) {
-      existing.quantity += baseItem.quantity || 1;
+      existing.quantity += merged.quantity || 1;
     } else {
-      inventory.items.push(item);
+      inventory.items.push(merged);
       inventory.usedSlots += 1;
     }
     inventory.currentWeight = this.calculateTotalWeight(inventory);
@@ -117,7 +125,7 @@ export class InventoryEvents {
     // Notificar
     this.room.broadcast('inventory:item-added', {
       playerId,
-      item,
+      item: merged,
       action: 'add',
       timestamp: Date.now()
     } as ItemUpdateData);
@@ -252,6 +260,27 @@ export class InventoryEvents {
       return;
     }
 
+    // Aplicar efectos según catálogo
+    const catalog = ITEMS_CATALOG[item.itemId];
+    if (catalog?.effects?.gold && typeof catalog.effects.gold === 'number') {
+      // Sumar oro
+      const newGold = (inventory.gold || 0) + catalog.effects.gold;
+      inventory.gold = newGold;
+      this.room.broadcast('inventory:gold-updated', {
+        playerId,
+        amount: newGold,
+        change: catalog.effects.gold,
+        reason: `use:${item.itemId}`,
+        timestamp: Date.now()
+      });
+    }
+    if (catalog?.effects?.health) {
+      // TODO: integrar con sistema de vida de jugador si está disponible
+    }
+    if (catalog?.effects?.food) {
+      // TODO: integrar con sistema de hambre cuando exista (store/redis)
+    }
+
     // Notificar uso del item
     this.room.broadcast('inventory:item-used', {
       playerId,
@@ -261,6 +290,27 @@ export class InventoryEvents {
     } as ItemUpdateData);
 
     console.log(`🍎 Item usado: ${item.name} por jugador ${playerId}`);
+
+    // Consumir 1 unidad del item en el inventario del servidor
+    const idx = inventory.items.findIndex(i => i.id === data.itemId);
+    if (idx > -1) {
+      const it = inventory.items[idx];
+      if (it.quantity <= 1) {
+        inventory.items.splice(idx, 1);
+        inventory.usedSlots = Math.max(0, (inventory.usedSlots || 0) - 1);
+      } else {
+        it.quantity -= 1;
+      }
+      inventory.currentWeight = this.calculateTotalWeight(inventory);
+      this.playerInventories.set(playerId, inventory);
+
+      // Enviar snapshot actualizado al propio jugador
+      client.send('inventory:updated', {
+        playerId,
+        inventory,
+        timestamp: Date.now(),
+      } as InventoryEventData);
+    }
   }
 
   /**

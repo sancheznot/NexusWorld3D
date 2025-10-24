@@ -1,6 +1,6 @@
 import { Room, Client } from 'colyseus';
 import { InventoryItem } from '../src/types/inventory.types';
-import { ITEM_SPAWNS, ItemSpawnConfig } from '../src/constants/items';
+import { ITEM_SPAWNS, ItemSpawnConfig, ITEMS_CATALOG } from '../src/constants/items';
 
 export interface WorldItemState {
   id: string; // spawn id
@@ -8,6 +8,9 @@ export interface WorldItemState {
   position: { x: number; y: number; z: number };
   item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>;
   isCollected: boolean;
+  // extras para respawn/variantes
+  points?: Array<{ x: number; y: number; z: number }>;
+  respawnSec?: number;
 }
 
 export class ItemEvents {
@@ -16,6 +19,7 @@ export class ItemEvents {
   private worldItems = new Map<string, Map<string, WorldItemState>>();
   private getPlayerMapId: (clientId: string) => string | null;
   private grantItemToPlayer: (playerId: string, item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) => void;
+  private static readonly MIN_SPAWN_DISTANCE = 1.5; // metros
 
   constructor(room: Room, getPlayerMapId: (clientId: string) => string | null, grantItemToPlayer: (playerId: string, item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) => void) {
     this.room = room;
@@ -29,12 +33,22 @@ export class ItemEvents {
     Object.entries(ITEM_SPAWNS).forEach(([mapId, spawns]) => {
       const map = new Map<string, WorldItemState>();
       spawns.forEach((s: ItemSpawnConfig) => {
+        const cat = ITEMS_CATALOG[s.item.itemId];
+        const mergedItem = {
+          ...s.item,
+          icon: (s.item as any).icon || cat?.icon || '📦',
+          visual: (s.item as any).visual || cat?.visual,
+        } as Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'> & { visual?: { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] } };
+        // Elegir posición libre
+        const pos = this.chooseFreePosition(s, mapId, map);
         map.set(s.id, {
           id: s.id,
           mapId,
-          position: s.position,
-          item: s.item,
+          position: pos,
+          item: mergedItem,
           isCollected: false,
+          points: s.points,
+          respawnSec: s.respawnSec,
         });
       });
       this.worldItems.set(mapId, map);
@@ -57,6 +71,34 @@ export class ItemEvents {
       // Autoridad: otorgar el ítem al inventario del jugador
       if (result.item) {
         this.grantItemToPlayer(client.sessionId, result.item);
+      }
+      // Programar respawn si aplica
+      const state = this.worldItems.get(data.mapId)?.get(data.spawnId);
+      if (state && state.respawnSec && state.respawnSec > 0) {
+        setTimeout(() => {
+          const map = this.worldItems.get(data.mapId);
+          if (!map) return;
+          const current = map.get(data.spawnId);
+          if (!current) return;
+          // elegir nueva posición libre; si no hay, reintentar en 3s
+          const pos = this.chooseFreePosition({ id: current.id, mapId: current.mapId, points: current.points, position: current.position, item: current.item, respawnSec: current.respawnSec } as any, data.mapId, map);
+          if (!pos) {
+            setTimeout(() => {
+              // reintento simple
+              const retryPos = this.chooseFreePosition({ id: current.id, mapId: current.mapId, points: current.points, position: current.position, item: current.item, respawnSec: current.respawnSec } as any, data.mapId, map);
+              if (!retryPos) return; // si sigue ocupado, dejamos sin respawn hasta próximo ciclo
+              current.isCollected = false;
+              current.position = retryPos;
+              map.set(data.spawnId, current);
+              this.broadcastToMap(data.mapId, 'items:update', { mapId: data.mapId, spawnId: data.spawnId, isCollected: false, position: current.position });
+            }, 3000);
+            return;
+          }
+          current.isCollected = false;
+          current.position = pos;
+          map.set(data.spawnId, current);
+          this.broadcastToMap(data.mapId, 'items:update', { mapId: data.mapId, spawnId: data.spawnId, isCollected: false, position: current.position });
+        }, state.respawnSec * 1000);
       }
       // Confirmación al colector con datos del item
       client.send('items:collected', { mapId: data.mapId, spawnId: data.spawnId, item: result.item });
@@ -89,6 +131,41 @@ export class ItemEvents {
         c.send(type, payload);
       }
     });
+  }
+
+  // Utilidad para elegir punto de spawn: usa position si existe, si no, toma uno de points
+  private chooseSpawnPosition(cfg: ItemSpawnConfig): { x: number; y: number; z: number } {
+    if (cfg.position) return cfg.position;
+    if (cfg.points && cfg.points.length > 0) {
+      const idx = Math.floor(Math.random() * cfg.points.length);
+      return cfg.points[idx];
+    }
+    return { x: 0, y: 1, z: 0 };
+  }
+
+  private chooseFreePosition(cfg: ItemSpawnConfig, mapId: string, map: Map<string, WorldItemState>): { x: number; y: number; z: number } | null {
+    const candidates = [] as Array<{ x: number; y: number; z: number }>;
+    if (cfg.position) candidates.push(cfg.position);
+    if (cfg.points && cfg.points.length) candidates.push(...cfg.points);
+    if (candidates.length === 0) candidates.push({ x: 0, y: 1, z: 0 });
+
+    const occupied = (p: { x: number; y: number; z: number }) => {
+      for (const s of map.values()) {
+        if (!s.isCollected) {
+          const dx = s.position.x - p.x;
+          const dy = s.position.y - p.y;
+          const dz = s.position.z - p.z;
+          const dist2 = dx*dx + dy*dy + dz*dz;
+          if (dist2 < ItemEvents.MIN_SPAWN_DISTANCE * ItemEvents.MIN_SPAWN_DISTANCE) return true;
+        }
+      }
+      return false;
+    };
+
+    for (const candidate of candidates) {
+      if (!occupied(candidate)) return candidate;
+    }
+    return null;
   }
 }
 

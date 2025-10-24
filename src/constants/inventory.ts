@@ -31,7 +31,7 @@ export const INVENTORY_WEIGHT = {
 // ===== CONFIGURACIÓN DE ORO =====
 export const INVENTORY_GOLD = {
   // Oro inicial
-  STARTING_GOLD: 100,
+  STARTING_GOLD: 500,
   
   // Oro máximo por nivel
   MAX_GOLD_PER_LEVEL: 1000,

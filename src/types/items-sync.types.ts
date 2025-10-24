@@ -18,6 +18,7 @@ export interface ItemsUpdateResponse {
   mapId: string;
   spawnId: string;
   isCollected: boolean;
+  position?: { x: number; y: number; z: number };
 }
 
 // Client -> Server

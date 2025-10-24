@@ -1,16 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import * as THREE from 'three';
 import itemsClient from '@/lib/colyseus/ItemsClient';
 import { ItemsStateResponse, ItemsUpdateResponse } from '@/types/items-sync.types';
 import { InventoryItem, ItemType, ItemRarity } from '@/types/inventory.types';
+import { modelLoader } from '@/lib/three/modelLoader';
+
+type ItemVisual = {
+  path: string;
+  type: 'glb' | 'gltf' | 'fbx' | 'obj';
+  scale?: number;
+  rotation?: [number, number, number];
+};
+
+type ItemWithVisual = Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'> & { visual?: ItemVisual };
 
 interface ItemCollectorProps {
   spawnId: string;
   mapId: string;
   position: [number, number, number];
-  item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>;
-  onCollect?: (item: InventoryItem) => void;
+  item: ItemWithVisual;
   collectRadius?: number;
   playerPosition: [number, number, number];
 }
@@ -19,9 +29,8 @@ export default function ItemCollector({
   spawnId,
   mapId,
   position, 
-  item, 
-  onCollect,
-  collectRadius = 2,
+  item,
+  collectRadius = 1,
   playerPosition 
 }: ItemCollectorProps) {
   const [hasRequested, setHasRequested] = useState(false);
@@ -60,40 +69,47 @@ export default function ItemCollector({
     return colors[rarity];
   };
 
+  const loadedRef = useRef<THREE.Object3D | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!item.visual) return;
+      try {
+        const obj = await modelLoader.loadModel({
+          name: item.itemId,
+          path: item.visual.path,
+          type: item.visual.type as 'glb' | 'gltf' | 'fbx' | 'obj',
+          category: 'prop',
+          scale: item.visual.scale,
+          rotation: item.visual.rotation,
+        });
+        if (!cancelled) {
+          loadedRef.current = obj;
+        }
+      } catch {}
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [item.visual, item.itemId]);
+
   return (
-    <mesh position={position}>
-      {/* Item visual */}
-      <boxGeometry args={[0.5, 0.5, 0.5]} />
-      <meshBasicMaterial 
-        color={getRarityColor(item.rarity)}
-        transparent
-        opacity={isNearby ? 1 : 0.7}
-      />
-      
-      {/* Efecto de brillo cuando está cerca */}
-      {isNearby && (
-        <mesh position={[0, 0.5, 0]}>
-          <sphereGeometry args={[0.3, 8, 8]} />
-          <meshBasicMaterial 
-            color={getRarityColor(item.rarity)}
-            transparent
-            opacity={0.3}
-          />
+    <group position={position}>
+      {item.visual && loadedRef.current ? (
+        <primitive object={loadedRef.current} />
+      ) : (
+        <mesh>
+          <boxGeometry args={[0.5, 0.5, 0.5]} />
+          <meshBasicMaterial color={getRarityColor(item.rarity)} transparent opacity={isNearby ? 1 : 0.7} />
         </mesh>
       )}
 
-      {/* Texto flotante */}
       {isNearby && (
-        <mesh position={[0, 1, 0]}>
-          <planeGeometry args={[2, 0.5]} />
-          <meshBasicMaterial 
-            color="#000000"
-            transparent
-            opacity={0.8}
-          />
+        <mesh position={[0, 0.5, 0]}>
+          <sphereGeometry args={[0.3, 8, 8]} />
+          <meshBasicMaterial color={getRarityColor(item.rarity)} transparent opacity={0.3} />
         </mesh>
       )}
-    </mesh>
+    </group>
   );
 }
 
@@ -110,7 +126,7 @@ export function ItemSpawner({ mapId, playerPosition }: { mapId: string; playerPo
       if (!spawns || data.mapId !== mapId) return;
       setSpawns({
         mapId,
-        items: spawns.items.map(i => i.id === data.spawnId ? { ...i, isCollected: data.isCollected } : i)
+        items: spawns.items.map(i => i.id === data.spawnId ? { ...i, isCollected: data.isCollected, position: data.position ?? i.position } : i)
       });
     }) as unknown as (d: unknown) => void;
 

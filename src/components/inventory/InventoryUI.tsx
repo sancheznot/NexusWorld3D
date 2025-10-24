@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useInventory } from '@/hooks/useInventory';
 import { useUIStore } from '@/store/uiStore';
 import { InventoryItem, ItemRarity } from '@/types/inventory.types';
 import { inventoryService } from '@/lib/services/inventory';
+import { modelLoader } from '@/lib/three/modelLoader';
 
 export default function InventoryUI() {
   const { isInventoryOpen, toggleInventory } = useUIStore();
@@ -134,7 +135,7 @@ export default function InventoryUI() {
         <div className="bg-gray-800 rounded p-3 mb-4">
           <div className="flex justify-between items-center">
             <div className="flex gap-4">
-              <span className="text-yellow-400">💰 {inventory.gold} oro</span>
+              <span className="text-yellow-400">₿ {inventory.gold}</span>
               <span className="text-gray-300">
                 📦 {inventory.usedSlots}/{inventory.maxSlots} slots
               </span>
@@ -211,19 +212,7 @@ export default function InventoryUI() {
                         onClick={() => item && handleItemClick(item)}
                       >
                         {item ? (
-                          <div className="flex flex-col items-center justify-center h-full relative overflow-hidden">
-                            <div className={`leading-none mb-1 ${selectedItem ? 'text-lg' : 'text-xl'}`}>{item.icon}</div>
-                            <div className={`text-center text-white leading-tight truncate w-full ${selectedItem ? 'text-[8px]' : 'text-[9px]'}`}>
-                              {item.name}
-                            </div>
-                            {item.quantity > 1 && (
-                              <div className={`absolute top-1 right-1 bg-yellow-600 text-white px-1.5 py-0.5 rounded-full font-bold ${
-                                selectedItem ? 'text-[7px]' : 'text-[8px]'
-                              }`}>
-                                {item.quantity}
-                              </div>
-                            )}
-                          </div>
+                          <SlotContent item={item} compact={!!selectedItem} />
                         ) : (
                           <div className={`flex items-center justify-center h-full text-gray-500 font-medium ${
                             selectedItem ? 'text-xs' : 'text-sm'
@@ -426,6 +415,51 @@ export default function InventoryUI() {
             <div className="text-white">Cargando...</div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function SlotContent({ item, compact }: { item: InventoryItem; compact: boolean }) {
+  const ref = useRef<THREE.Object3D | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const visualPath = (item as any).model || undefined;
+      const visualType = visualPath?.endsWith('.glb') || visualPath?.endsWith('.gltf') ? 'glb' : undefined;
+      if (!visualPath || !visualType) return;
+      try {
+        const obj = await modelLoader.loadModel({
+          name: item.itemId,
+          path: visualPath,
+          type: 'glb',
+          category: 'prop',
+          scale: 0.9
+        });
+        if (!cancelled) ref.current = obj;
+      } catch {}
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [item]);
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full relative overflow-hidden">
+      {ref.current ? (
+        <div className="w-full h-full flex items-center justify-center">
+          {/* Nota: en InventoryUI no usamos R3F aquí; mantenemos fallback visual con icon por simplicidad */}
+          <span className={`leading-none mb-1 ${compact ? 'text-lg' : 'text-xl'}`}>{item.icon}</span>
+        </div>
+      ) : (
+        <div className={`leading-none mb-1 ${compact ? 'text-lg' : 'text-xl'}`}>{item.icon}</div>
+      )}
+      <div className={`text-center text-white leading-tight truncate w-full ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
+        {item.name}
+      </div>
+      <div className={`absolute top-1 right-1 bg-yellow-600 text-white px-2 py-0.5 rounded-full font-bold ${
+        compact ? 'text-[10px]' : 'text-[11px]'
+      }`}>
+        {item.quantity}
       </div>
     </div>
   );
