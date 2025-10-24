@@ -29,8 +29,8 @@ export const GAME_CONFIG = {
     },
   },
   camera: {
-    distance: 3.5,
-    height: 2,
+    distance: 2.5,
+    height: 2.5,
     smoothness: 0.15,
     collisionOffset: 0.2,
     collisionEnableDelayMs: 2000,
@@ -42,7 +42,7 @@ export const GAME_CONFIG = {
   player: {
     spawnPosition: {
       x: -4.9,
-      y: 1.03,
+      y: 1.05,
       z: 33.9,
     },
   },

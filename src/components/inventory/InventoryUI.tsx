@@ -147,7 +147,7 @@ export default function InventoryUI() {
                     ? 'text-red-400' 
                     : 'text-gray-300'
               }`}>
-                ⚖️ {inventory.currentWeight.toFixed(1)}/{inventory.maxWeight} kg
+                ⚖️ {inventory.currentWeight.toFixed(2)}/{inventory.maxWeight} kg
                 {inventory.currentWeight >= inventory.maxWeight && ' 🔒'}
               </span>
             </div>

@@ -19,7 +19,7 @@ export class ItemEvents {
   private worldItems = new Map<string, Map<string, WorldItemState>>();
   private getPlayerMapId: (clientId: string) => string | null;
   private grantItemToPlayer: (playerId: string, item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) => void;
-  private static readonly MIN_SPAWN_DISTANCE = 1.5; // metros
+  private static readonly MIN_SPAWN_DISTANCE = 1.2; // metros (permite spawns cercanos pero no superpuestos)
 
   constructor(room: Room, getPlayerMapId: (clientId: string) => string | null, grantItemToPlayer: (playerId: string, item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) => void) {
     this.room = room;
@@ -40,7 +40,7 @@ export class ItemEvents {
           visual: (s.item as any).visual || cat?.visual,
         } as Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'> & { visual?: { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] } };
         // Elegir posición libre
-        const pos = this.chooseFreePosition(s, mapId, map);
+        const pos = this.chooseFreePosition(s, mapId, map) || s.position || (s.points && s.points[0]) || { x: 0, y: 1, z: 0 };
         map.set(s.id, {
           id: s.id,
           mapId,
@@ -165,7 +165,8 @@ export class ItemEvents {
     for (const candidate of candidates) {
       if (!occupied(candidate)) return candidate;
     }
-    return null;
+    // Si todas están ocupadas, usar la primera como fallback
+    return candidates[0] || null;
   }
 }
 

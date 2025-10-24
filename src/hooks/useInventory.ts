@@ -11,6 +11,15 @@ export function useInventory() {
   const [equipment, setEquipment] = useState<Equipment>(() => inventoryService.getEquipment());
   const [isLoading, setIsLoading] = useState(false);
 
+  // Suscribirse a cambios del servicio (snapshots desde servidor, level up, oro)
+  useEffect(() => {
+    const unsub = inventoryService.subscribe(() => {
+      setInventory(inventoryService.getInventory());
+      setEquipment(inventoryService.getEquipment());
+    });
+    return unsub;
+  }, []);
+
   /**
    * Agregar item al inventario
    */

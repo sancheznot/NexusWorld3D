@@ -7,6 +7,9 @@ import { ItemsStateResponse, ItemsUpdateResponse } from '@/types/items-sync.type
 import { InventoryItem, ItemType, ItemRarity } from '@/types/inventory.types';
 import { modelLoader } from '@/lib/three/modelLoader';
 
+// Evitar colecciones duplicadas por re-montajes (por spawnId)
+const collectingSpawnIds = new Set<string>();
+
 type ItemVisual = {
   path: string;
   type: 'glb' | 'gltf' | 'fbx' | 'obj';
@@ -30,7 +33,7 @@ export default function ItemCollector({
   mapId,
   position, 
   item,
-  collectRadius = 1,
+  collectRadius = 1.2,
   playerPosition 
 }: ItemCollectorProps) {
   const [hasRequested, setHasRequested] = useState(false);
@@ -48,9 +51,17 @@ export default function ItemCollector({
     setIsNearby(distance <= collectRadius);
   }, [distance, collectRadius]);
 
+  // Resetear la solicitud cuando el jugador salga del radio
+  useEffect(() => {
+    if (!isNearby) {
+      setHasRequested(false);
+    }
+  }, [isNearby]);
+
   // Recolectar item cuando esté cerca (100% servidor)
   useEffect(() => {
-    if (isNearby && !hasRequested) {
+    if (isNearby && !hasRequested && !collectingSpawnIds.has(spawnId)) {
+      collectingSpawnIds.add(spawnId);
       itemsClient.collectItem({ mapId, spawnId });
       setHasRequested(true); // evitar spam mientras está cerca
       // El inventario y visibilidad se actualizarán por eventos del servidor

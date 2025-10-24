@@ -5,6 +5,7 @@ import {
   INVENTORY_GOLD, 
   INVENTORY_DEBUG 
 } from '@/constants';
+import { ITEMS_CATALOG } from '@/constants/items';
 
 /**
  * Servicio de Inventario - Gestión de items del jugador
@@ -15,6 +16,7 @@ export class InventoryService {
   private inventory: Inventory;
   private equipment: Equipment;
   private playerLevel: number = 1;
+  private listeners: Set<() => void> = new Set();
   // Removed unused currentWeight - we calculate it dynamically
 
   constructor(initialInventory?: Partial<Inventory>, playerLevel: number = 1) {
@@ -29,6 +31,18 @@ export class InventoryService {
       ...initialInventory
     };
     this.equipment = {};
+  }
+
+  // Suscripción a cambios del inventario para que la UI reaccione a eventos externos (Colyseus)
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private emitChange(): void {
+    for (const l of this.listeners) l();
   }
 
   /**
@@ -58,6 +72,7 @@ export class InventoryService {
     this.playerLevel = newLevel;
     this.inventory.maxSlots = this.calculateMaxSlots();
     this.inventory.maxWeight = this.calculateMaxWeight();
+    this.emitChange();
     
     if (INVENTORY_DEBUG.ENABLE_LOGS) {
       console.log(`📈 Nivel actualizado: ${newLevel}, Slots: ${this.inventory.maxSlots}, Peso: ${this.inventory.maxWeight}`);
@@ -92,6 +107,23 @@ export class InventoryService {
    * Agregar item al inventario
    */
   addItem(item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>): boolean {
+    // Enriquecer con catálogo (icon, weight, thumb, visual->model) si falta data
+    const catalog = ITEMS_CATALOG[item.itemId];
+    const merged: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'> = {
+      ...item,
+      name: item.name ?? catalog?.name ?? item.itemId,
+      type: (item.type ?? catalog?.type) as ItemType,
+      rarity: (item.rarity ?? catalog?.rarity) as ItemRarity,
+      weight: item.weight ?? (catalog?.weight ?? 0),
+      icon: item.icon ?? (catalog?.icon ?? '❓'),
+      thumb: item.thumb ?? catalog?.thumb,
+      model: item.model ?? catalog?.visual?.path,
+      level: item.level ?? 1,
+      quantity: item.quantity ?? 1,
+      maxStack: item.maxStack ?? 1,
+      description: item.description ?? (catalog?.name ?? item.itemId),
+    };
+
     // Verificar si hay espacio en slots
     if (!this.hasSlotSpace()) {
       if (INVENTORY_DEBUG.ENABLE_LOGS) {
@@ -101,7 +133,7 @@ export class InventoryService {
     }
 
     // Verificar si hay espacio en peso
-    if (!this.hasWeightSpace(item.weight, item.quantity)) {
+    if (!this.hasWeightSpace(merged.weight, merged.quantity)) {
       if (INVENTORY_DEBUG.ENABLE_LOGS) {
         console.warn('⚠️ Inventario lleno (peso)');
       }
@@ -110,25 +142,26 @@ export class InventoryService {
 
     // Buscar si el item ya existe (para stacking)
     const existingItem = this.inventory.items.find(
-      invItem => invItem.itemId === item.itemId && invItem.quantity < invItem.maxStack
+      invItem => invItem.itemId === merged.itemId && invItem.quantity < invItem.maxStack
     );
 
     if (existingItem) {
       // Stack con item existente
-      const canStack = existingItem.quantity + item.quantity <= existingItem.maxStack;
+      const canStack = existingItem.quantity + merged.quantity <= existingItem.maxStack;
       if (canStack) {
-        existingItem.quantity += item.quantity;
+        existingItem.quantity += merged.quantity;
         this.inventory.currentWeight = this.calculateTotalWeight();
         if (INVENTORY_DEBUG.ENABLE_LOGS) {
-          console.log(`✅ Item agregado al stack: ${item.name} (${item.quantity})`);
+          console.log(`✅ Item agregado al stack: ${merged.name} (${merged.quantity})`);
         }
+        this.emitChange();
         return true;
       }
     }
 
     // Crear nuevo item
     const newItem: InventoryItem = {
-      ...item,
+      ...merged,
       id: this.generateItemId(),
       isEquipped: false,
       slot: this.findEmptySlot()
@@ -137,9 +170,10 @@ export class InventoryService {
     this.inventory.items.push(newItem);
     this.inventory.usedSlots++;
     this.inventory.currentWeight = this.calculateTotalWeight();
+    this.emitChange();
     
     if (INVENTORY_DEBUG.ENABLE_LOGS) {
-      console.log(`✅ Item agregado: ${item.name} (${item.quantity})`);
+      console.log(`✅ Item agregado: ${newItem.name} (${newItem.quantity})`);
     }
     return true;
   }
@@ -162,6 +196,7 @@ export class InventoryService {
       this.inventory.items.splice(itemIndex, 1);
       this.inventory.usedSlots--;
       this.inventory.currentWeight = this.calculateTotalWeight();
+      this.emitChange();
       if (INVENTORY_DEBUG.ENABLE_LOGS) {
         console.log(`✅ Item removido completamente: ${item.name}`);
       }
@@ -169,6 +204,7 @@ export class InventoryService {
       // Reducir cantidad
       item.quantity -= quantity;
       this.inventory.currentWeight = this.calculateTotalWeight();
+      this.emitChange();
       if (INVENTORY_DEBUG.ENABLE_LOGS) {
         console.log(`✅ Item reducido: ${item.name} (-${quantity})`);
       }
@@ -199,6 +235,7 @@ export class InventoryService {
     // Equipar nuevo item
     this.equipment[this.getEquipmentSlot(item.type)] = item;
     item.isEquipped = true;
+    this.emitChange();
     
     console.log(`✅ Item equipado: ${item.name}`);
     return true;
@@ -217,6 +254,7 @@ export class InventoryService {
 
     equippedItem.isEquipped = false;
     delete this.equipment[slot];
+    this.emitChange();
     
     console.log(`✅ Item desequipado: ${equippedItem.name}`);
     return true;
@@ -259,6 +297,10 @@ export class InventoryService {
    */
   setInventorySnapshot(inventory: Inventory): void {
     this.inventory = { ...inventory };
+    // recalcular por seguridad
+    this.inventory.usedSlots = this.inventory.items.length;
+    this.inventory.currentWeight = this.calculateTotalWeight();
+    this.emitChange();
   }
 
   /**
@@ -340,6 +382,7 @@ export class InventoryService {
   addGold(amount: number): void {
     this.inventory.gold += amount;
     console.log(`💰 Oro agregado: +${amount} (Total: ${this.inventory.gold})`);
+    this.emitChange();
   }
 
   /**
@@ -363,6 +406,7 @@ export class InventoryService {
     
     this.inventory.gold -= amount;
     console.log(`💰 Oro removido: -${amount} (Total: ${this.inventory.gold})`);
+    this.emitChange();
     return true;
   }
 
