@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useInventory } from '@/hooks/useInventory';
+import itemsClient from '@/lib/colyseus/ItemsClient';
+import { ItemsStateResponse, ItemsUpdateResponse } from '@/types/items-sync.types';
 import { InventoryItem, ItemType, ItemRarity } from '@/types/inventory.types';
 
 interface ItemCollectorProps {
+  spawnId: string;
+  mapId: string;
   position: [number, number, number];
   item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>;
   onCollect?: (item: InventoryItem) => void;
@@ -13,14 +16,15 @@ interface ItemCollectorProps {
 }
 
 export default function ItemCollector({ 
+  spawnId,
+  mapId,
   position, 
   item, 
   onCollect,
   collectRadius = 2,
   playerPosition 
 }: ItemCollectorProps) {
-  const { addItem } = useInventory();
-  const [isCollected, setIsCollected] = useState(false);
+  const [hasRequested, setHasRequested] = useState(false);
   const [isNearby, setIsNearby] = useState(false);
 
   // Calcular distancia al jugador
@@ -35,19 +39,14 @@ export default function ItemCollector({
     setIsNearby(distance <= collectRadius);
   }, [distance, collectRadius]);
 
-  // Recolectar item cuando esté cerca
+  // Recolectar item cuando esté cerca (100% servidor)
   useEffect(() => {
-    if (isNearby && !isCollected) {
-      const success = addItem(item);
-      if (success) {
-        setIsCollected(true);
-        onCollect?.(item as InventoryItem);
-        console.log(`🎒 Item recolectado: ${item.name}`);
-      }
+    if (isNearby && !hasRequested) {
+      itemsClient.collectItem({ mapId, spawnId });
+      setHasRequested(true); // evitar spam mientras está cerca
+      // El inventario y visibilidad se actualizarán por eventos del servidor
     }
-  }, [isNearby, isCollected, addItem, item, onCollect]);
-
-  if (isCollected) return null;
+  }, [isNearby, hasRequested, mapId, spawnId]);
 
   const getRarityColor = (rarity: ItemRarity) => {
     const colors = {
@@ -99,22 +98,47 @@ export default function ItemCollector({
 }
 
 // Componente para spawnear items en el mundo
-export function ItemSpawner({ 
-  items, 
-  playerPosition 
-}: { 
-  items: Array<{
-    position: [number, number, number];
-    item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>;
-  }>;
-  playerPosition: [number, number, number];
-}) {
+export function ItemSpawner({ mapId, playerPosition }: { mapId: string; playerPosition: [number, number, number]; }) {
+  const [spawns, setSpawns] = useState<ItemsStateResponse | null>(null);
+
+  useEffect(() => {
+    const stateCb = ((data: ItemsStateResponse) => {
+      if (data.mapId === mapId) setSpawns(data);
+    }) as unknown as (d: unknown) => void;
+
+    const updateCb = ((data: ItemsUpdateResponse) => {
+      if (!spawns || data.mapId !== mapId) return;
+      setSpawns({
+        mapId,
+        items: spawns.items.map(i => i.id === data.spawnId ? { ...i, isCollected: data.isCollected } : i)
+      });
+    }) as unknown as (d: unknown) => void;
+
+    const collectedCb = ((data: { mapId: string; spawnId: string }) => {
+      if (data.mapId !== mapId) return;
+      // Confirmación del servidor; el items:update ya oculta el spawn
+    }) as unknown as (d: unknown) => void;
+
+    itemsClient.on('items:state', stateCb);
+    itemsClient.on('items:update', updateCb);
+    itemsClient.on('items:collected', collectedCb);
+    itemsClient.requestItems({ mapId });
+    return () => {
+      itemsClient.off('items:state', stateCb);
+      itemsClient.off('items:update', updateCb);
+      itemsClient.off('items:collected', collectedCb);
+    };
+  }, [mapId, spawns]);
+
+  if (!spawns) return null;
   return (
     <>
-      {items.map((spawn, index) => (
+      {spawns.items.filter(i => !i.isCollected).map((spawn) => (
         <ItemCollector
-          key={index}
-          position={spawn.position}
+          key={spawn.id}
+          spawnId={spawn.id}
+          mapId={mapId}
+          position={[spawn.position.x, spawn.position.y, spawn.position.z]}
           item={spawn.item}
           playerPosition={playerPosition}
         />

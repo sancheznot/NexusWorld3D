@@ -1,6 +1,7 @@
 import { Room, Client } from 'colyseus';
 import { gameRedis } from '../../src/lib/services/redis';
 import { InventoryEvents } from '../InventoryEvents';
+import { ItemEvents } from '../ItemEvents';
 
 interface PlayerData {
   id: string;
@@ -38,6 +39,7 @@ export class HotelHumboldtRoom extends Room {
   private chatMessages: ChatMessage[] = [];
   private redis = gameRedis;
   private inventoryEvents!: InventoryEvents;
+  private _itemEvents!: ItemEvents; // keep reference alive
 
   onCreate(options: { [key: string]: string }) {
     console.log('🏨 Hotel Humboldt Room creada');
@@ -62,6 +64,11 @@ export class HotelHumboldtRoom extends Room {
     
     // Inicializar eventos de inventario
     this.inventoryEvents = new InventoryEvents(this);
+    // Inicializar sistema de ítems del mundo
+    this._itemEvents = new ItemEvents(this, (clientId: string) => {
+      const p = this.players.get(clientId);
+      return p?.mapId || null;
+    }, (playerId: string, baseItem) => this.inventoryEvents.addItemFromWorld(playerId, baseItem));
     
     // Configurar limpieza automática
     this.setupCleanup();

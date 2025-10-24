@@ -81,6 +81,48 @@ export class InventoryEvents {
     });
   }
 
+  // API pública para otros módulos del servidor
+  public addItemFromWorld(playerId: string, baseItem: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) {
+    let inventory = this.playerInventories.get(playerId);
+    if (!inventory) {
+      // Inicializar inventario básico si no existe aún
+      inventory = {
+        items: [],
+        maxSlots: 20,
+        usedSlots: 0,
+        gold: 0,
+        maxWeight: 100,
+        currentWeight: 0,
+      } as Inventory;
+    }
+
+    const item: InventoryItem = {
+      ...baseItem,
+      id: `${baseItem.itemId}_${Date.now()}`,
+      isEquipped: false,
+      slot: -1,
+    } as InventoryItem;
+
+    // Stack si mismo itemId y maxStack > 1
+    const existing = inventory.items.find(i => i.itemId === baseItem.itemId && !i.isEquipped && i.quantity < i.maxStack);
+    if (existing) {
+      existing.quantity += baseItem.quantity || 1;
+    } else {
+      inventory.items.push(item);
+      inventory.usedSlots += 1;
+    }
+    inventory.currentWeight = this.calculateTotalWeight(inventory);
+    this.playerInventories.set(playerId, inventory);
+
+    // Notificar
+    this.room.broadcast('inventory:item-added', {
+      playerId,
+      item,
+      action: 'add',
+      timestamp: Date.now()
+    } as ItemUpdateData);
+  }
+
   /**
    * Manejar actualización completa del inventario
    */

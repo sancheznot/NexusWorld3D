@@ -255,6 +255,13 @@ export class InventoryService {
   }
 
   /**
+   * Reemplazar inventario completo desde snapshot del servidor
+   */
+  setInventorySnapshot(inventory: Inventory): void {
+    this.inventory = { ...inventory };
+  }
+
+  /**
    * Obtener equipamiento
    */
   getEquipment(): Equipment {

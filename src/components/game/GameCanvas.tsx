@@ -26,7 +26,7 @@ import PlayerStatsHUD from '@/components/ui/PlayerStatsHUD';
 import AdminTeleportUI from '@/components/ui/AdminTeleportUI';
 import ChatWindow from '@/components/chat/ChatWindow';
 import InventoryUI from '@/components/inventory/InventoryUI';
-import { ItemSpawner, SPAWN_ITEMS } from '@/components/world/ItemCollector';
+import { ItemSpawner } from '@/components/world/ItemCollector';
 import { THREE_CONFIG } from '@/config/three.config';
 import { Vector3 } from 'three';
 import PortalTrigger from '@/components/world/PortalTrigger';
@@ -277,9 +277,9 @@ export default function GameCanvas() {
               />
             ))}
 
-            {/* Items recolectables en el mundo */}
+            {/* Items recolectables en el mundo (sincronizados) */}
             <ItemSpawner 
-              items={SPAWN_ITEMS}
+              mapId={currentMap}
               playerPosition={[position.x, position.y, position.z]}
             />
           

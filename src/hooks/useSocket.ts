@@ -4,6 +4,7 @@ import worldClient from '@/lib/colyseus/WorldClient';
 import { usePlayerStore } from '@/store/playerStore';
 import { useWorldStore } from '@/store/worldStore';
 import { useUIStore } from '@/store/uiStore';
+import { inventoryService } from '@/lib/services/inventory';
 
 interface Player {
   id: string;
@@ -207,6 +208,20 @@ export const useSocket = () => {
         duration: 3000,
         timestamp: new Date(),
       });
+    });
+
+    // Inventory server-authoritative sync
+    colyseusClient.getSocket()?.onMessage('inventory:item-added', (data: { playerId: string; item: unknown }) => {
+      const myId = colyseusClient.getSessionId();
+      if (data.playerId && myId === data.playerId) {
+        inventoryService.addItem(data.item as any);
+      }
+    });
+    colyseusClient.getSocket()?.onMessage('inventory:updated', (data: { playerId: string; inventory: unknown }) => {
+      const myId = colyseusClient.getSessionId();
+      if (data.playerId && myId === data.playerId && data.inventory) {
+        inventoryService.setInventorySnapshot(data.inventory as any);
+      }
     });
 
     // WorldClient events (map sync)
