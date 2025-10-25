@@ -455,11 +455,13 @@ function SlotContent({ item, compact }: { item: InventoryItem; compact: boolean 
       <div className={`text-center text-white leading-tight truncate w-full ${compact ? 'text-[8px]' : 'text-[9px]'}`}>
         {item.name}
       </div>
-      <div className={`absolute top-1 right-1 bg-yellow-600 text-white px-2 py-0.5 rounded-full font-bold ${
-        compact ? 'text-[10px]' : 'text-[11px]'
-      }`}>
-        {item.quantity}
-      </div>
+      {Number.isFinite(item.quantity) && item.quantity > 1 && (
+        <div className={`absolute top-1 right-1 bg-yellow-600 text-white px-2 py-0.5 rounded-full font-bold z-10 ${
+          compact ? 'text-[10px]' : 'text-[11px]'
+        }`}>
+          {Math.floor(item.quantity)}
+        </div>
+      )}
     </div>
   );
 }

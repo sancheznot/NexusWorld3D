@@ -110,6 +110,7 @@ export class InventoryEvents {
       maxDurability: (baseItem as any).maxDurability,
       level: (baseItem as any).level || 1,
       icon: (baseItem as any).icon || cat?.icon || '📦',
+      thumb: (baseItem as any).thumb || cat?.thumb,
       model: cat?.visual?.path,
       isEquipped: false,
       slot: -1,

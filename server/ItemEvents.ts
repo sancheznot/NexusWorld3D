@@ -37,6 +37,7 @@ export class ItemEvents {
         const mergedItem = {
           ...s.item,
           icon: (s.item as any).icon || cat?.icon || '📦',
+          thumb: (s.item as any).thumb || cat?.thumb,
           visual: (s.item as any).visual || cat?.visual,
         } as Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'> & { visual?: { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] } };
         // Elegir posición libre
