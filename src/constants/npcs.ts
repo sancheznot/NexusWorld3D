@@ -8,6 +8,7 @@ export interface NPCConfig {
   mapId: string; // 'exterior' | 'hotel-interior' | 'police-station' | ...
   zone: Omit<TriggerZoneData, 'id' | 'kind' | 'name'> & { radius: number };
   opensShopId?: string; // from SHOPS
+  opensJobs?: boolean; // abre Jobs Board UI
   visual?: {
     path: string; // /models/... .glb
     type: 'glb' | 'gltf' | 'fbx' | 'obj';
@@ -23,6 +24,7 @@ export const NPCS: Record<NPCId, NPCConfig> = {
     mapId: 'exterior',
     zone: { position: { x: -12, y: 1, z: 28 }, radius: 2 },
     opensShopId: 'general_store',
+    opensJobs: true,
     visual: { path: '/models/characters/men/men_01.glb', type: 'glb', scale: 1 }
   },
   npc_blacksmith: {

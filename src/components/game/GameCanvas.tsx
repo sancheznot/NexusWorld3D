@@ -38,6 +38,9 @@ import timeClient from '@/lib/colyseus/TimeClient';
 import BankUI from '@/components/ui/BankUI';
 import ShopUI from '@/components/ui/ShopUI';
 import NPCShopTrigger from '@/components/world/NPCShopTrigger';
+import JobsUI from '@/components/ui/JobsUI';
+import NPCJobTrigger from '@/components/world/NPCJobTrigger';
+import JobWaypointsLayer from '@/components/world/JobWaypointsLayer';
 import { NPCS } from '@/constants/npcs';
 
 export default function GameCanvas() {
@@ -298,11 +301,24 @@ export default function GameCanvas() {
               playerPosition={[position.x, position.y, position.z]}
             />
 
+            {/* Capa de Waypoints de trabajos activos */}
+            <JobWaypointsLayer currentMap={currentMap} playerPosition={playerVec3} />
+
             {/* NPC Shops por mapa (del config) */}
             {Object.values(NPCS).filter(n => n.mapId === currentMap && n.opensShopId).map(npc => (
               <NPCShopTrigger
                 key={npc.id}
                 zone={{ id: npc.id, kind: 'shop', name: npc.name, position: npc.zone.position, radius: npc.zone.radius }}
+                visual={npc.visual as { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] }}
+                playerPosition={playerVec3}
+              />
+            ))}
+
+            {/* NPC Jobs por mapa (del config) */}
+            {Object.values(NPCS).filter(n => n.mapId === currentMap && n.opensJobs).map(npc => (
+              <NPCJobTrigger
+                key={`job_${npc.id}`}
+                zone={{ id: `job_${npc.id}`, kind: 'job', name: `${npc.name} (Trabajos)`, position: npc.zone.position, radius: npc.zone.radius }}
                 visual={npc.visual as { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] }}
                 playerPosition={playerVec3}
               />
@@ -450,6 +466,7 @@ export default function GameCanvas() {
       <InventoryUI />
       {currentMap === 'bank' && <BankUI />}
       <ShopUI />
+      <JobsUI />
 
       {isMapOpen && (
         <div className="absolute inset-0 z-20 bg-black bg-opacity-50 flex items-center justify-center">

@@ -10,11 +10,11 @@ export const NATURAL_MESH_PATTERNS = [
   // Vías y estructuras urbanas
   'Road', 'Road_', 'MobileRoad_', 'Street', 'Street_', 'Bridge', 'Bridge_', 'Ramp', 'Stairs',
   // Edificios y muros
-  'Building', 'Building_', 'Wall', 'Wall_',
+  'Building', 'Building_', 'Wall', 'Wall_','Parking_',
   // Naturaleza y props grandes
   'Tree_', 'Grass_', 'Plant_', 'Rock_', 'Cliff_', 'Pond_', 'Pool_',
   // Vehículos grandes u obstáculos
-  'Car_', 'Truck_', 'Vehicle_',
+  'Car_', 'Truck_', 'Vehicle_','CarRig_','CarRig_15',
   // Institucionales
   'Police_', 'Hospital_', 'CityHall_', 'FireStation_', 'Cafe_'
 ] as const;

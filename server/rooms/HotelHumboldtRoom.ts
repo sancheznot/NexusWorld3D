@@ -5,6 +5,7 @@ import { ItemEvents } from '../ItemEvents';
 import { TimeEvents } from '../TimeEvents';
 import { ShopEvents } from '../ShopEvents';
 import { EconomyEvents } from '../EconomyEvents';
+import { JobsEvents } from '../JobsEvents';
 
 interface PlayerData {
   id: string;
@@ -46,8 +47,9 @@ export class HotelHumboldtRoom extends Room {
   private _timeEvents!: TimeEvents; // keep reference alive
   private _economyEvents!: EconomyEvents; // keep reference alive
   private _shopEvents!: ShopEvents; // keep reference alive
+  private _jobsEvents!: JobsEvents; // keep reference alive
 
-  onCreate(options: { [key: string]: string }) {
+  onCreate(_options: { [key: string]: string }) {
     console.log('🏨 Hotel Humboldt Room creada');
     
     // Configurar la sala
@@ -83,12 +85,22 @@ export class HotelHumboldtRoom extends Room {
     // Inicializar sistema de tiendas
     this._shopEvents = new ShopEvents(this, {
       grantItemToPlayer: (playerId, baseItem) => this.inventoryEvents.addItemFromWorld(playerId, baseItem),
-      getPlayerRole: (_playerId) => undefined,
+      getPlayerRole: () => undefined,
       getPlayerMapId: (clientId: string) => {
         const p = this.players.get(clientId);
         return p?.mapId || null;
       },
       economy: { chargeWalletMajor: (userId: string, amount: number, reason?: string) => this._economyEvents.chargeWalletMajor(userId, amount, reason) },
+    });
+
+    // Inicializar sistema de trabajos
+    this._jobsEvents = new JobsEvents(this, {
+      grantItemToPlayer: (playerId, baseItem) => this.inventoryEvents.addItemFromWorld(playerId, baseItem),
+      getPlayerMapId: (clientId: string) => {
+        const p = this.players.get(clientId);
+        return p?.mapId || null;
+      },
+      economy: { creditWalletMajor: (userId: string, amount: number, reason?: string) => this._economyEvents.creditWalletMajor(userId, amount, reason) },
     });
     
     // Configurar limpieza automática
@@ -113,13 +125,13 @@ export class HotelHumboldtRoom extends Room {
     }, 30000);
   }
 
-  onJoin(client: Client, options: any) {
+  onJoin(client: Client, options?: { username?: string; worldId?: string }) {
     console.log(`👤 Cliente ${client.sessionId} se unió al Hotel Humboldt`);
     
     // Crear jugador usando la misma lógica que tenías
     const player: PlayerData = {
       id: client.sessionId,
-      username: options.username || `Jugador_${client.id.substring(0, 6)}`,
+      username: options?.username || `Jugador_${client.id.substring(0, 6)}`,
       position: { x: 0, y: 0, z: 0 },
       rotation: { x: 0, y: 0, z: 0 },
       mapId: 'exterior',
@@ -238,7 +250,7 @@ export class HotelHumboldtRoom extends Room {
 
   private setupMessageHandlers() {
     // Player join handler
-    this.onMessage('player:join', (client: Client, data: any) => {
+    this.onMessage('player:join', (client: Client, data: { username?: string; worldId?: string }) => {
       console.log(`📥 Recibido player:join de ${client.id}:`, data);
       // Actualizar datos del jugador con la información enviada por el cliente
       const player = this.players.get(client.sessionId);
@@ -265,7 +277,7 @@ export class HotelHumboldtRoom extends Room {
     });
 
     // Movimiento del jugador (reutilizando tu lógica)
-    this.onMessage('player:move', (client: Client, data: any) => {
+    this.onMessage('player:move', (client: Client, data: { position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number }; isRunning?: boolean; isMoving?: boolean; animation?: string }) => {
       const player = this.players.get(client.sessionId);
       if (player) {
         player.position = data.position;
@@ -327,7 +339,7 @@ export class HotelHumboldtRoom extends Room {
         statePlayer.rotationX = player.rotation.x;
         statePlayer.rotationY = player.rotation.y;
         statePlayer.rotationZ = player.rotation.z;
-        statePlayer.mapId = player.mapId as any;
+        statePlayer.mapId = player.mapId;
         statePlayer.lastUpdate = player.lastUpdate;
       }
 
@@ -362,7 +374,7 @@ export class HotelHumboldtRoom extends Room {
     });
 
     // Heartbeat del jugador para refrescar lastUpdate sin necesidad de movimiento
-    this.onMessage('player:heartbeat', (client: Client, data: any) => {
+    this.onMessage('player:heartbeat', (client: Client, _data?: unknown) => {
       const player = this.players.get(client.sessionId);
       if (player) {
         player.lastUpdate = Date.now();
@@ -374,7 +386,7 @@ export class HotelHumboldtRoom extends Room {
     });
 
     // Chat (reutilizando tu lógica)
-    this.onMessage('chat:message', (client: Client, data: any) => {
+    this.onMessage('chat:message', (client: Client, data: { message: string; channel?: string }) => {
       const player = this.players.get(client.sessionId);
       if (player && data.message) {
         const chatMessage: ChatMessage = {
@@ -406,7 +418,7 @@ export class HotelHumboldtRoom extends Room {
     });
 
     // Ataque (reutilizando tu lógica)
-    this.onMessage('player:attack', (client: Client, data: any) => {
+    this.onMessage('player:attack', (client: Client, data: { targetId: string; damage: number }) => {
       const player = this.players.get(client.id);
       if (player) {
         console.log(`⚔️ ${player.username} atacó a ${data.targetId}`);
@@ -419,7 +431,7 @@ export class HotelHumboldtRoom extends Room {
     });
 
     // Interacción (reutilizando tu lógica)
-    this.onMessage('player:interact', (client: Client, data: any) => {
+    this.onMessage('player:interact', (client: Client, data: { objectId: string }) => {
       const player = this.players.get(client.id);
       if (player) {
         console.log(`🤝 ${player.username} interactuó con ${data.objectId}`);
@@ -432,7 +444,8 @@ export class HotelHumboldtRoom extends Room {
     try {
       const messages = await this.redis.getChatMessages(50);
       if (messages) {
-        this.chatMessages = messages.map((msg: any) => ({
+        const typed = messages as { id: string; playerId: string; username: string; message: string; channel: string; timestamp: string | number; type: string }[];
+        this.chatMessages = typed.map((msg) => ({
           id: msg.id,
           playerId: msg.playerId,
           username: msg.username,

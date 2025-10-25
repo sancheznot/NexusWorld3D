@@ -7,6 +7,7 @@ interface UIState {
   isMapOpen: boolean;
   isChatOpen: boolean;
   isShopOpen: boolean;
+  isJobsOpen: boolean;
   isBankOpen: boolean;
   isSettingsOpen: boolean;
   showCharacterCreator: boolean;
@@ -32,6 +33,7 @@ interface UIState {
   toggleMap: () => void;
   toggleChat: () => void;
   toggleShop: () => void;
+  toggleJobs: () => void;
   toggleBank: () => void;
   toggleSettings: () => void;
   setInventoryOpen: (isOpen: boolean) => void;
@@ -39,6 +41,7 @@ interface UIState {
   setMapOpen: (isOpen: boolean) => void;
   setChatOpen: (isOpen: boolean) => void;
   setShopOpen: (isOpen: boolean) => void;
+  setJobsOpen: (isOpen: boolean) => void;
   setBankOpen: (isOpen: boolean) => void;
   setSettingsOpen: (isOpen: boolean) => void;
   setHUDVisible: (isVisible: boolean) => void;
@@ -81,6 +84,7 @@ export const useUIStore = create<UIState>()(
       isMapOpen: false,
       isChatOpen: false,
       isShopOpen: false,
+      isJobsOpen: false,
       isBankOpen: false,
       isSettingsOpen: false,
       showCharacterCreator: false,
@@ -130,6 +134,17 @@ export const useUIStore = create<UIState>()(
         }));
       },
 
+      toggleJobs: () => {
+        set((state) => ({
+          isJobsOpen: !state.isJobsOpen,
+          // Close other modals when opening jobs
+          isInventoryOpen: state.isJobsOpen ? state.isInventoryOpen : false,
+          isMapOpen: state.isJobsOpen ? state.isMapOpen : false,
+          isSettingsOpen: state.isJobsOpen ? state.isSettingsOpen : false,
+          isShopOpen: state.isJobsOpen ? state.isShopOpen : false,
+        }));
+      },
+
       toggleBank: () => {
         set((state) => ({
           isBankOpen: !state.isBankOpen,
@@ -168,6 +183,10 @@ export const useUIStore = create<UIState>()(
 
       setShopOpen: (isOpen) => {
         set({ isShopOpen: isOpen });
+      },
+
+      setJobsOpen: (isOpen) => {
+        set({ isJobsOpen: isOpen });
       },
 
       setBankOpen: (isOpen) => {
@@ -237,6 +256,7 @@ export const useUIStore = create<UIState>()(
           isMapOpen: false,
           isChatOpen: false,
           isShopOpen: false,
+          isJobsOpen: false,
           isBankOpen: false,
           isSettingsOpen: false,
           showCharacterCreator: false,
