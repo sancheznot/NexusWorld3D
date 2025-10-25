@@ -26,6 +26,9 @@
     "@aws-sdk/s3-request-presigner": "^3.913.0",
     "@colyseus/schema": "^3.0.64",
     "@colyseus/ws-transport": "^0.16.5",
+    "@dinero.js/calculator-number": "^2.0.0-alpha.1",
+    "@dinero.js/core": "^2.0.0-alpha.1",
+    "@dinero.js/currencies": "^2.0.0-alpha.1",
     "@react-three/cannon": "^6.6.0",
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.4.0",
@@ -34,6 +37,8 @@
     "cannon-es": "^0.20.0",
     "colyseus": "^0.16.5",
     "colyseus.js": "^0.16.21",
+    "currency.js": "^2.0.4",
+    "date-fns": "^3.6.0",
     "dotenv": "^17.2.3",
     "leva": "^0.10.0",
     "next": "15.5.6",
@@ -41,8 +46,7 @@
     "react-dom": "19.1.0",
     "three": "^0.180.0",
     "three-to-cannon": "^5.0.2",
-    "zustand": "^5.0.8",
-    "date-fns": "^3.6.0"
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

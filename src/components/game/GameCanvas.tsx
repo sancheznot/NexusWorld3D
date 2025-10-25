@@ -35,6 +35,7 @@ import HotelInterior from '@/components/world/HotelInterior';
 import { usePortalSystem } from '@/hooks/usePortalSystem';
 import ServerClock from '@/components/ui/ServerClock';
 import timeClient from '@/lib/colyseus/TimeClient';
+import BankUI from '@/components/ui/BankUI';
 
 export default function GameCanvas() {
   const { isConnected, connectionError, connect, joinGame } = useSocket();
@@ -434,6 +435,7 @@ export default function GameCanvas() {
       {/* UI Modals */}
       {/* Inventory UI */}
       <InventoryUI />
+      {currentMap === 'bank' && <BankUI />}
 
       {isMapOpen && (
         <div className="absolute inset-0 z-20 bg-black bg-opacity-50 flex items-center justify-center">

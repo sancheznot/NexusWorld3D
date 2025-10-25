@@ -2,9 +2,23 @@ export const GAME_CONFIG = {
   currency: {
     code: 'HBC', // Humboldt Coin
     symbol: '₿',
-    startingBalance: 500,
+    startingBalance: 1000,
     maxTransfer: 100000,
     minAmount: 1,
+    // Daily limits (major units)
+    maxDailyDeposit: 50000,
+    maxDailyWithdraw: 50000,
+    maxDailyTransfer: 100000,
+    // Fees (rates as decimals)
+    fees: {
+      depositRate: 0.0, // 0% por defecto
+      withdrawRate: 0.01, // 1%
+      transferRate: 0.005, // 0.5%
+      purchaseRate: 0.02, // 2% impuesto de compra
+      jobRate: 0.0, // 0% por defecto para pagos de trabajo
+      minFeeMajor: 0.0, // mínimo absoluto en unidades mayores
+    },
+    treasuryAccountId: 'treasury',
   },
   triggers: {
     defaultRadius: 3,
@@ -29,7 +43,7 @@ export const GAME_CONFIG = {
     },
   },
   camera: {
-    distance: 2.5,
+    distance: 3,
     height: 2.5,
     smoothness: 0.15,
     collisionOffset: 0.2,

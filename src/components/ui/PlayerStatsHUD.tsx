@@ -2,6 +2,8 @@
 
 import { usePlayerStore } from '@/store/playerStore';
 import { economy } from '@/lib/services/economy';
+import economyClient from '@/lib/colyseus/EconomyClient';
+import { GAME_CONFIG } from '@/constants/game';
 import { useState, useEffect } from 'react';
 
 // Sistema de mapas/ubicaciones
@@ -27,21 +29,26 @@ interface PlayerStatsHUDProps {
 export default function PlayerStatsHUD({ className = '' }: PlayerStatsHUDProps) {
   const { health, maxHealth, stamina, maxStamina, hunger, maxHunger, position, isMoving, isRunning } = usePlayerStore();
   const [balance, setBalance] = useState(0);
+  const [limitsUsed, setLimitsUsed] = useState<{ deposit: number; withdraw: number; transfer: number } | null>(null);
   const [isConnected] = useState(true);
   const [currentMap, setCurrentMap] = useState<MapLocation>('exterior');
   // Posición y movimiento vienen del store; no simular aquí
 
-  // Cargar balance del jugador
+  // Cargar balance del jugador (solo monedero)
   useEffect(() => {
-    const loadBalance = async () => {
-      try {
-        const bal = await economy.getBalance('current-player');
-        setBalance(bal);
-      } catch (error) {
-        console.error('Error loading balance:', error);
-      }
+    const onWallet = (data: unknown) => {
+      const v = (data as number) ?? 0;
+      // Normalizar por si llega en minor units por error (fallback seguro)
+      setBalance(v >= 10000 ? v / 100 : v);
     };
-    loadBalance();
+    economyClient.on('economy:wallet', onWallet);
+    const onUsed = (data: unknown) => setLimitsUsed(data as { deposit: number; withdraw: number; transfer: number });
+    economyClient.on('economy:limitsUsed', onUsed);
+    economyClient.requestState();
+    return () => {
+      economyClient.off('economy:wallet', onWallet);
+      economyClient.off('economy:limitsUsed', onUsed);
+    };
   }, []);
 
   // Simular cambio de mapa (por ahora)
@@ -93,9 +100,34 @@ export default function PlayerStatsHUD({ className = '' }: PlayerStatsHUDProps) 
         
         {/* Dinero */}
         <div className="bg-black bg-opacity-75 rounded-lg px-3 py-2 flex items-center space-x-2">
-          <span className="text-yellow-400 text-lg">₿</span>
-          <span className="text-white font-bold text-lg">{balance.toLocaleString()}</span>
+          <span className="text-yellow-400 text-lg">{GAME_CONFIG.currency.symbol}</span>
+          {/* Evitar símbolo duplicado; asegurar que balance está en unidades mayores */}
+          <span className="text-white font-bold text-lg">{economy.format(balance, { withSymbol: false })}</span>
         </div>
+
+        {/* Límites diarios (usado / máximo) */}
+        {(
+          limitsUsed || {
+            deposit: 0,
+            withdraw: 0,
+            transfer: 0,
+          }
+        ) && (
+          <div className="bg-black bg-opacity-75 rounded-lg px-3 py-2 text-xs text-gray-200 space-y-1 border border-gray-700">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-green-300">⬆ Dep</span>
+              <span className="font-mono">{economy.format((limitsUsed?.deposit ?? 0))} / {economy.format(GAME_CONFIG.currency.maxDailyDeposit)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-orange-300">⬇ Ret</span>
+              <span className="font-mono">{economy.format((limitsUsed?.withdraw ?? 0))} / {economy.format(GAME_CONFIG.currency.maxDailyWithdraw)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-blue-300">↔ Trans</span>
+              <span className="font-mono">{economy.format((limitsUsed?.transfer ?? 0))} / {economy.format(GAME_CONFIG.currency.maxDailyTransfer)}</span>
+            </div>
+          </div>
+        )}
 
         {/* Salud */}
         <div className="bg-black bg-opacity-80 rounded-lg p-3 min-w-[200px] border border-gray-600">

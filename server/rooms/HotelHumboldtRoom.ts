@@ -3,6 +3,7 @@ import { gameRedis } from '../../src/lib/services/redis';
 import { InventoryEvents } from '../InventoryEvents';
 import { ItemEvents } from '../ItemEvents';
 import { TimeEvents } from '../TimeEvents';
+import { EconomyEvents } from '../EconomyEvents';
 
 interface PlayerData {
   id: string;
@@ -42,6 +43,7 @@ export class HotelHumboldtRoom extends Room {
   private inventoryEvents!: InventoryEvents;
   private _itemEvents!: ItemEvents; // keep reference alive
   private _timeEvents!: TimeEvents; // keep reference alive
+  private _economyEvents!: EconomyEvents; // keep reference alive
 
   onCreate(options: { [key: string]: string }) {
     console.log('🏨 Hotel Humboldt Room creada');
@@ -64,8 +66,10 @@ export class HotelHumboldtRoom extends Room {
     // Configurar handlers de mensajes
     this.setupMessageHandlers();
     
-    // Inicializar eventos de inventario
-    this.inventoryEvents = new InventoryEvents(this);
+    // Inicializar economía (banca, transferencias) PRIMERO
+    this._economyEvents = new EconomyEvents(this);
+    // Inicializar eventos de inventario con referencia a economía
+    this.inventoryEvents = new InventoryEvents(this, this._economyEvents);
     // Inicializar sistema de ítems del mundo
     this._itemEvents = new ItemEvents(this, (clientId: string) => {
       const p = this.players.get(clientId);
@@ -166,6 +170,9 @@ export class HotelHumboldtRoom extends Room {
         this.broadcast('players:updated', {
           players: Array.from(this.players.values()),
         });
+    
+    // Crear inventario inicial para el jugador
+    this.inventoryEvents.createPlayerInventory(client.sessionId);
     
     // Enviar mensaje de bienvenida solo al jugador que se conectó
     this.sendSystemMessageToClient(client, `¡Bienvenido al Hotel Humboldt, ${player.username}!`);

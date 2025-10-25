@@ -7,6 +7,7 @@ interface UIState {
   isMapOpen: boolean;
   isChatOpen: boolean;
   isShopOpen: boolean;
+  isBankOpen: boolean;
   isSettingsOpen: boolean;
   showCharacterCreator: boolean;
   
@@ -31,12 +32,14 @@ interface UIState {
   toggleMap: () => void;
   toggleChat: () => void;
   toggleShop: () => void;
+  toggleBank: () => void;
   toggleSettings: () => void;
   setInventoryOpen: (isOpen: boolean) => void;
   setShowCharacterCreator: (show: boolean) => void;
   setMapOpen: (isOpen: boolean) => void;
   setChatOpen: (isOpen: boolean) => void;
   setShopOpen: (isOpen: boolean) => void;
+  setBankOpen: (isOpen: boolean) => void;
   setSettingsOpen: (isOpen: boolean) => void;
   setHUDVisible: (isVisible: boolean) => void;
   setMinimapVisible: (isVisible: boolean) => void;
@@ -78,6 +81,7 @@ export const useUIStore = create<UIState>()(
       isMapOpen: false,
       isChatOpen: false,
       isShopOpen: false,
+      isBankOpen: false,
       isSettingsOpen: false,
       showCharacterCreator: false,
       isHUDVisible: true,
@@ -126,6 +130,16 @@ export const useUIStore = create<UIState>()(
         }));
       },
 
+      toggleBank: () => {
+        set((state) => ({
+          isBankOpen: !state.isBankOpen,
+          isInventoryOpen: state.isBankOpen ? state.isInventoryOpen : false,
+          isMapOpen: state.isBankOpen ? state.isMapOpen : false,
+          isShopOpen: state.isBankOpen ? state.isShopOpen : false,
+          isSettingsOpen: state.isBankOpen ? state.isSettingsOpen : false,
+        }));
+      },
+
       toggleSettings: () => {
         set((state) => ({
           isSettingsOpen: !state.isSettingsOpen,
@@ -154,6 +168,10 @@ export const useUIStore = create<UIState>()(
 
       setShopOpen: (isOpen) => {
         set({ isShopOpen: isOpen });
+      },
+
+      setBankOpen: (isOpen) => {
+        set({ isBankOpen: isOpen });
       },
 
       setSettingsOpen: (isOpen) => {
@@ -219,6 +237,7 @@ export const useUIStore = create<UIState>()(
           isMapOpen: false,
           isChatOpen: false,
           isShopOpen: false,
+          isBankOpen: false,
           isSettingsOpen: false,
           showCharacterCreator: false,
         });
