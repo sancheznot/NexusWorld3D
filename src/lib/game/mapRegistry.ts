@@ -113,6 +113,18 @@ registerMaps([
         targetRotation: { x: 0, y: 0, z: 0 },
         isActive: true,
         icon: '🛒'
+      },
+      {
+        id: 'supermarket-entrance',
+        name: 'Supermercado',
+        description: 'Entrar al supermercado',
+        position: { x: -35, y: 1, z: -20 },
+        radius: 1,
+        targetMap: 'supermarket',
+        targetPosition: { x: 0, y: 1, z: 0 },
+        targetRotation: { x: 0, y: 0, z: 0 },
+        isActive: true,
+        icon: '🛒'
       }
     ],
     objects: [], // Objetos 3D en este mapa
@@ -154,6 +166,29 @@ registerMaps([
       }
     ],
     objects: [], // Objetos 3D del interior del hotel
+  },
+  // ===== MAPA SUPERMERCADO =====
+  {
+    id: 'supermarket',
+    name: 'Supermercado',
+    description: 'Mapa del supermercado',
+    spawnPosition: { x: 0, y: 1, z: 0 },
+    spawnRotation: { x: 0, y: 0, z: 0 },
+    portals: [
+      {
+        id: 'supermarket-exit',
+        name: 'Salida del Supermercado',
+        description: 'Volver al exterior',
+        position: { x: 0, y: 1, z: -2 },
+        radius: 1,
+        targetMap: 'exterior',
+        targetPosition: { x: -35, y: 1, z: -18 },
+        targetRotation: { x: 0, y: 0, z: 0 },
+        isActive: true,
+        icon: '🚪'
+      }
+    ],
+    objects: [],
   },
   // ===== OTROS MAPAS INTERIORES =====
   // Cada uno tiene su portal de salida que te lleva de vuelta al exterior

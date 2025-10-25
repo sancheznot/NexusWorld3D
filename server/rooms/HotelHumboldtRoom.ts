@@ -3,6 +3,7 @@ import { gameRedis } from '../../src/lib/services/redis';
 import { InventoryEvents } from '../InventoryEvents';
 import { ItemEvents } from '../ItemEvents';
 import { TimeEvents } from '../TimeEvents';
+import { ShopEvents } from '../ShopEvents';
 import { EconomyEvents } from '../EconomyEvents';
 
 interface PlayerData {
@@ -44,6 +45,7 @@ export class HotelHumboldtRoom extends Room {
   private _itemEvents!: ItemEvents; // keep reference alive
   private _timeEvents!: TimeEvents; // keep reference alive
   private _economyEvents!: EconomyEvents; // keep reference alive
+  private _shopEvents!: ShopEvents; // keep reference alive
 
   onCreate(options: { [key: string]: string }) {
     console.log('🏨 Hotel Humboldt Room creada');
@@ -77,6 +79,17 @@ export class HotelHumboldtRoom extends Room {
     }, (playerId: string, baseItem) => this.inventoryEvents.addItemFromWorld(playerId, baseItem));
     // Inicializar sistema de tiempo (día/noche)
     this._timeEvents = new TimeEvents(this);
+
+    // Inicializar sistema de tiendas
+    this._shopEvents = new ShopEvents(this, {
+      grantItemToPlayer: (playerId, baseItem) => this.inventoryEvents.addItemFromWorld(playerId, baseItem),
+      getPlayerRole: (_playerId) => undefined,
+      getPlayerMapId: (clientId: string) => {
+        const p = this.players.get(clientId);
+        return p?.mapId || null;
+      },
+      economy: { chargeWalletMajor: (userId: string, amount: number, reason?: string) => this._economyEvents.chargeWalletMajor(userId, amount, reason) },
+    });
     
     // Configurar limpieza automática
     this.setupCleanup();

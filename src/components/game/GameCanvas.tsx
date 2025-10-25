@@ -36,6 +36,9 @@ import { usePortalSystem } from '@/hooks/usePortalSystem';
 import ServerClock from '@/components/ui/ServerClock';
 import timeClient from '@/lib/colyseus/TimeClient';
 import BankUI from '@/components/ui/BankUI';
+import ShopUI from '@/components/ui/ShopUI';
+import NPCShopTrigger from '@/components/world/NPCShopTrigger';
+import { NPCS } from '@/constants/npcs';
 
 export default function GameCanvas() {
   const { isConnected, connectionError, connect, joinGame } = useSocket();
@@ -294,6 +297,16 @@ export default function GameCanvas() {
               mapId={currentMap}
               playerPosition={[position.x, position.y, position.z]}
             />
+
+            {/* NPC Shops por mapa (del config) */}
+            {Object.values(NPCS).filter(n => n.mapId === currentMap && n.opensShopId).map(npc => (
+              <NPCShopTrigger
+                key={npc.id}
+                zone={{ id: npc.id, kind: 'shop', name: npc.name, position: npc.zone.position, radius: npc.zone.radius }}
+                visual={npc.visual as { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] }}
+                playerPosition={playerVec3}
+              />
+            ))}
           
           {/* Current Player */}
           <PlayerV2 
@@ -436,6 +449,7 @@ export default function GameCanvas() {
       {/* Inventory UI */}
       <InventoryUI />
       {currentMap === 'bank' && <BankUI />}
+      <ShopUI />
 
       {isMapOpen && (
         <div className="absolute inset-0 z-20 bg-black bg-opacity-50 flex items-center justify-center">

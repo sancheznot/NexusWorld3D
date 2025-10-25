@@ -281,6 +281,22 @@ export class EconomyEvents {
       this.sendLedger(client, userId);
     }
   }
+
+  // Débito directo del monedero; devuelve true si pudo debitar
+  public chargeWalletMajor(userId: string, amountMajor: number, reason?: string): boolean {
+    const amountMinor = money.clampTransferMinor(money.toMinor(amountMajor));
+    const curr = this.getWalletMinor(userId);
+    if (curr < amountMinor) return false;
+    const next = money.subMinor(curr, amountMinor);
+    this.state.walletMinor.set(userId, next);
+    this.pushLedger({ userId, type: 'withdraw', amountMinor: -amountMinor, balanceAfterMinor: this.getBankMinor(userId), reason: reason ?? 'shop', timestamp: Date.now() });
+    const client = this.room.clients.find(c => c.sessionId === userId);
+    if (client) {
+      this.sendWallet(client, userId);
+      this.sendLedger(client, userId);
+    }
+    return true;
+  }
 }
 
 
