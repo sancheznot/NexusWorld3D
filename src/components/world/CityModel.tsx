@@ -96,13 +96,19 @@ export default function CityModel({
     const spawns = scanVehicleSpawns(scene);
     if (spawns.length > 0) {
       const spawn = spawns.find(s => /Spawn_Car_exterior_01/i.test(s.id)) || spawns[0];
+      // Pequeño offset hacia adelante y elevar Y para evitar incrustaciones
+      const fwdX = -Math.sin(spawn.rotationY);
+      const fwdZ = -Math.cos(spawn.rotationY);
+      const px = spawn.position.x + fwdX * 2.0;
+      const pz = spawn.position.z + fwdZ * 2.0;
+      const py = (spawn.position.y || 0) + 1.2;
       // Crear físico del vehículo
-      physicsRef.current.createSimpleVehicle({ x: spawn.position.x, y: spawn.position.y, z: spawn.position.z }, 'vehicle:test:car_07');
+      physicsRef.current.createRaycastVehicle({ x: px, y: py, z: pz }, 'vehicle:test:car_07');
       // Cargar modelo visual si existe, sino fallback de vehicle
       (async () => {
         try {
           const cfg = VEHICLES_CATALOG.car_07;
-          const obj = await modelLoader.loadModel({ name: cfg.name, path: cfg.path, type: cfg.type, category: 'prop', position: [spawn.position.x, spawn.position.y, spawn.position.z], rotation: [0, spawn.rotationY, 0], scale: 1 });
+          const obj = await modelLoader.loadModel({ name: cfg.name, path: cfg.path, type: cfg.type, category: 'prop', position: [px, py, pz], rotation: [0, spawn.rotationY, 0], scale: 1 });
           scene.add(obj);
         } catch {}
       })();

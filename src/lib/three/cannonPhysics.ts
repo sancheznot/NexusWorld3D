@@ -341,6 +341,22 @@ export class CannonPhysics {
     };
   }
 
+  // Obtener transform de un body por id
+  getBodyTransform(id: string): { position: { x: number; y: number; z: number }; rotationY: number } | null {
+    const body = this.bodies.get(id);
+    if (!body) return null;
+    const p = body.position;
+    // Extraer yaw aproximado desde quaternion
+    const q = body.quaternion;
+    // Convert quaternion to Euler yaw (y)
+    const ysqr = q.y * q.y;
+    // source: standard conversion
+    const t3 = +2.0 * (q.w * q.y + q.x * q.z);
+    const t4 = +1.0 - 2.0 * (ysqr + q.z * q.z);
+    const yaw = Math.atan2(t3, t4);
+    return { position: { x: p.x, y: p.y, z: p.z }, rotationY: yaw };
+  }
+
   applyForce(force: { x: number; y: number; z: number }) {
     if (!this.playerBody) return;
     
@@ -413,6 +429,101 @@ export class CannonPhysics {
     const engineForce = (input.throttle - input.brake) * 4000; // N
     const force = worldForward.scale(engineForce);
     body.applyForce(force, body.position);
+  }
+
+  // ==== Raycast Vehicle (Cannon) - versión básica ====
+  createRaycastVehicle(position: { x: number; y: number; z: number }, id: string) {
+    if (this.bodies.has(id)) return this.bodies.get(id)!;
+    const chassisBody = new CANNON.Body({ mass: 600 });
+    chassisBody.addShape(new CANNON.Box(new CANNON.Vec3(0.9, 0.4, 1.8)));
+    chassisBody.position.set(position.x, position.y + 0.8, position.z);
+    chassisBody.angularDamping = 0.6;
+    chassisBody.linearDamping = 0.05;
+    this.world.addBody(chassisBody);
+    this.bodies.set(id, chassisBody);
+
+    const options: {
+      chassisBody: CANNON.Body;
+      indexRightAxis: number;
+      indexUpAxis: number;
+      indexForwardAxis: number;
+    } = {
+      chassisBody,
+      indexRightAxis: 0, // x
+      indexUpAxis: 1,    // y
+      indexForwardAxis: 2, // z
+    };
+    type RaycastVehicleType = {
+      addWheel: (opts: unknown) => void;
+      addToWorld: (world: CANNON.World) => void;
+      setBrake: (brake: number, wheelIndex: number) => void;
+      setSteeringValue: (value: number, wheelIndex: number) => void;
+      applyEngineForce: (force: number, wheelIndex: number) => void;
+    };
+    const RaycastVehicleCtor = (CANNON as unknown as { RaycastVehicle: new (opts: unknown) => RaycastVehicleType }).RaycastVehicle;
+    const vehicle: RaycastVehicleType = new RaycastVehicleCtor(options);
+
+    const wheelOptions = {
+      radius: 0.4,
+      directionLocal: new CANNON.Vec3(0, -1, 0),
+      suspensionStiffness: 30,
+      suspensionRestLength: 0.3,
+      frictionSlip: 5,
+      dampingRelaxation: 2.3,
+      dampingCompression: 4.4,
+      maxSuspensionForce: 100000,
+      rollInfluence: 0.01,
+      axleLocal: new CANNON.Vec3(-1, 0, 0),
+      chassisConnectionPointLocal: new CANNON.Vec3(1, 1, 0),
+      maxSuspensionTravel: 0.3,
+      customSlidingRotationalSpeed: -30,
+      useCustomSlidingRotationalSpeed: true,
+    };
+
+    const halfWidth = 0.9, wheelBase = 1.5;
+    // FL, FR, RL, RR
+    const points = [
+      new CANNON.Vec3(halfWidth, 0, wheelBase),
+      new CANNON.Vec3(-halfWidth, 0, wheelBase),
+      new CANNON.Vec3(halfWidth, 0, -wheelBase),
+      new CANNON.Vec3(-halfWidth, 0, -wheelBase),
+    ];
+    points.forEach((p) => {
+      const opt = { ...wheelOptions, chassisConnectionPointLocal: p };
+      vehicle.addWheel(opt);
+    });
+    vehicle.addToWorld(this.world);
+    // Guardar ref en bodies map usando key `${id}:vehicle`
+    (this as unknown as Record<string, unknown>)[`${id}:vehicle`] = vehicle;
+    return chassisBody;
+  }
+
+  updateRaycastVehicle(id: string, input: { throttle: number; brake: number; steer: number }) {
+    type RaycastVehicleType = {
+      setBrake: (brake: number, wheelIndex: number) => void;
+      setSteeringValue: (value: number, wheelIndex: number) => void;
+      applyEngineForce: (force: number, wheelIndex: number) => void;
+    };
+    const vehicle = (this as unknown as Record<string, RaycastVehicleType>)[`${id}:vehicle`];
+    if (!vehicle) return;
+    const maxSteer = 0.4; // rad
+    const engineForce = 1500;
+    const brakeForce = 20;
+    // Reset
+    for (let i = 0; i < 4; i++) {
+      vehicle.setBrake(0, i);
+    }
+    // Steer front wheels (0,1)
+    vehicle.setSteeringValue(maxSteer * input.steer, 0);
+    vehicle.setSteeringValue(maxSteer * input.steer, 1);
+    // Engine rear wheels (2,3)
+    const force = engineForce * (input.throttle - input.brake);
+    vehicle.applyEngineForce(force, 2);
+    vehicle.applyEngineForce(force, 3);
+    if (input.brake > 0.1) {
+      vehicle.setBrake(brakeForce * input.brake, 2);
+      vehicle.setBrake(brakeForce * input.brake, 3);
+    }
   }
 
   // Crear collider cilíndrico para árboles

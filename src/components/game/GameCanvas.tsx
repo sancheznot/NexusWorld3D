@@ -59,8 +59,9 @@ export default function GameCanvas() {
   const [showCharacterCreator, setShowCharacterCreator] = useState(false);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentMap, setCurrentMap] = useState('exterior');
+  const [isDriving, setIsDriving] = useState(false);
   
-  useKeyboard(isGameStarted && !showSettings);
+  useKeyboard(isGameStarted && !showSettings && !isDriving);
   // Vehículo simple: actualizar controles desde teclado (temporal)
   useEffect(() => {
     if (!isGameStarted) return;
@@ -76,12 +77,12 @@ export default function GameCanvas() {
         const throttle = w ? 1 : 0;
         const brake = s ? 1 : 0;
         const steer = (a ? -1 : 0) + (d ? 1 : 0);
-        physics.updateSimpleVehicle('vehicle:test:car_07', { throttle, brake, steer }, 1 / 60);
+        physics.updateRaycastVehicle('vehicle:test:car_07', { throttle, brake, steer });
       }
       raf = requestAnimationFrame(loop);
     };
     // Eventos simples para setear flags
-    const kd = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); const w = window as unknown as { _vk_up?: boolean; _vk_down?: boolean; _vk_left?: boolean; _vk_right?: boolean }; if (k==='w'||k==='arrowup') w._vk_up=true; if(k==='s'||k==='arrowdown') w._vk_down=true; if(k==='a'||k==='arrowleft') w._vk_left=true; if(k==='d'||k==='arrowright') w._vk_right=true; };
+    const kd = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (k==='f') setIsDriving((v)=>!v); const w = window as unknown as { _vk_up?: boolean; _vk_down?: boolean; _vk_left?: boolean; _vk_right?: boolean }; if (k==='w'||k==='arrowup') w._vk_up=true; if(k==='s'||k==='arrowdown') w._vk_down=true; if(k==='a'||k==='arrowleft') w._vk_left=true; if(k==='d'||k==='arrowright') w._vk_right=true; };
     const ku = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); const w = window as unknown as { _vk_up?: boolean; _vk_down?: boolean; _vk_left?: boolean; _vk_right?: boolean }; if (k==='w'||k==='arrowup') w._vk_up=false; if(k==='s'||k==='arrowdown') w._vk_down=false; if(k==='a'||k==='arrowleft') w._vk_left=false; if(k==='d'||k==='arrowright') w._vk_right=false; };
     window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
     loop();
