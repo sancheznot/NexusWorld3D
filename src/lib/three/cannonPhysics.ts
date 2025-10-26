@@ -380,6 +380,41 @@ export class CannonPhysics {
     return this.world;
   }
 
+  // 🚗 Construir vehículo básico (raycast-like simplificado usando un box dinámico)
+  createSimpleVehicle(position: { x: number; y: number; z: number }, id: string) {
+    if (this.bodies.has(id)) return this.bodies.get(id)!;
+    const body = new CANNON.Body({ mass: 800 }); // kg aproximados
+    const chassis = new CANNON.Box(new CANNON.Vec3(0.9, 0.7, 2.1));
+    body.addShape(chassis);
+    body.position.set(position.x, position.y + 0.8, position.z);
+    body.material = this.staticMaterial;
+    body.angularDamping = 0.7;
+    body.linearDamping = 0.1;
+    this.world.addBody(body);
+    this.bodies.set(id, body);
+    return body;
+  }
+
+  // Controles básicos para vehículo (aceleración/freno/steer)
+  updateSimpleVehicle(id: string, input: { throttle: number; brake: number; steer: number }, deltaTime: number) {
+    const body = this.bodies.get(id);
+    if (!body) return;
+    // Dirección (gira el quaternion y aplica fuerza hacia el frente local)
+    const steerAngle = input.steer * 0.8 * deltaTime; // rad/s
+    const q = body.quaternion;
+    const euler = new CANNON.Vec3();
+    q.toEuler(euler);
+    euler.y += steerAngle;
+    q.setFromEuler(euler.x, euler.y, euler.z);
+
+    // Vector forward (local -Z en Cannon default) → usamos -Z como forward
+    const forward = new CANNON.Vec3(0, 0, -1);
+    const worldForward = q.vmult(forward);
+    const engineForce = (input.throttle - input.brake) * 4000; // N
+    const force = worldForward.scale(engineForce);
+    body.applyForce(force, body.position);
+  }
+
   // Crear collider cilíndrico para árboles
   createTreeCollider(position: [number, number, number], radius: number = 0.5, height: number = 5, id: string) {
     if (this.bodies.has(id)) {

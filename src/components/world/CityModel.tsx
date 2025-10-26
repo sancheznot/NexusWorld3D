@@ -7,6 +7,9 @@ import { useCannonPhysics } from '@/hooks/useCannonPhysics';
 import { NATURAL_MESH_PATTERNS } from '@/constants/physics';
 import { generateSceneLights } from '@/lib/three/sceneLights';
 import { useTimeStore } from '@/store/timeStore';
+import { scanVehicleSpawns } from '@/lib/game/vehicleSpawns';
+import { modelLoader } from '@/lib/three/modelLoader';
+import { VEHICLES_CATALOG } from '@/constants/vehicles';
 
 interface CityModelProps {
   modelPath: string;
@@ -88,6 +91,22 @@ export default function CityModel({
 
     console.log(`💡 Ciudad (LM_): ${created} luces auto`);
     console.log(`✅ Ciudad: ${boxes} box colliders, ${hills} trimesh colliders`);
+
+    // Escanear spawns de vehículos (Spawn_Car_*) y crear uno de prueba si existe
+    const spawns = scanVehicleSpawns(scene);
+    if (spawns.length > 0) {
+      const spawn = spawns.find(s => /Spawn_Car_exterior_01/i.test(s.id)) || spawns[0];
+      // Crear físico del vehículo
+      physicsRef.current.createSimpleVehicle({ x: spawn.position.x, y: spawn.position.y, z: spawn.position.z }, 'vehicle:test:car_07');
+      // Cargar modelo visual si existe, sino fallback de vehicle
+      (async () => {
+        try {
+          const cfg = VEHICLES_CATALOG.car_07;
+          const obj = await modelLoader.loadModel({ name: cfg.name, path: cfg.path, type: cfg.type, category: 'prop', position: [spawn.position.x, spawn.position.y, spawn.position.z], rotation: [0, spawn.rotationY, 0], scale: 1 });
+          scene.add(obj);
+        } catch {}
+      })();
+    }
   }, [scene, physicsRef, name, phase]);
 
   return (

@@ -61,6 +61,32 @@ export default function GameCanvas() {
   const [currentMap, setCurrentMap] = useState('exterior');
   
   useKeyboard(isGameStarted && !showSettings);
+  // Vehículo simple: actualizar controles desde teclado (temporal)
+  useEffect(() => {
+    if (!isGameStarted) return;
+    let raf = 0;
+    const loop = () => {
+      const physics = getPhysicsInstance();
+      if (physics) {
+        // Leer teclas globalmente (rápido): usar document.activeElement no/ state store si existiera
+        const w = (window as unknown as { _vk_up?: boolean })._vk_up || false;
+        const s = (window as unknown as { _vk_down?: boolean })._vk_down || false;
+        const a = (window as unknown as { _vk_left?: boolean })._vk_left || false;
+        const d = (window as unknown as { _vk_right?: boolean })._vk_right || false;
+        const throttle = w ? 1 : 0;
+        const brake = s ? 1 : 0;
+        const steer = (a ? -1 : 0) + (d ? 1 : 0);
+        physics.updateSimpleVehicle('vehicle:test:car_07', { throttle, brake, steer }, 1 / 60);
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    // Eventos simples para setear flags
+    const kd = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); const w = window as unknown as { _vk_up?: boolean; _vk_down?: boolean; _vk_left?: boolean; _vk_right?: boolean }; if (k==='w'||k==='arrowup') w._vk_up=true; if(k==='s'||k==='arrowdown') w._vk_down=true; if(k==='a'||k==='arrowleft') w._vk_left=true; if(k==='d'||k==='arrowright') w._vk_right=true; };
+    const ku = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); const w = window as unknown as { _vk_up?: boolean; _vk_down?: boolean; _vk_left?: boolean; _vk_right?: boolean }; if (k==='w'||k==='arrowup') w._vk_up=false; if(k==='s'||k==='arrowdown') w._vk_down=false; if(k==='a'||k==='arrowleft') w._vk_left=false; if(k==='d'||k==='arrowright') w._vk_right=false; };
+    window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
+    loop();
+    return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); if (raf) cancelAnimationFrame(raf); };
+  }, [isGameStarted]);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showModelInfo, setShowModelInfo] = useState(false);
   
