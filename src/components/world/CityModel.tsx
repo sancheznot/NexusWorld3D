@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo } from 'react';
+import * as THREE from 'three';
 import { useGLTF } from '@react-three/drei';
 import { useCannonPhysics } from '@/hooks/useCannonPhysics';
 import { NATURAL_MESH_PATTERNS } from '@/constants/physics';
@@ -40,8 +41,32 @@ export default function CityModel({
 
     const hills = physicsRef.current.createNamedTrimeshCollidersFromScene(
       scene,
-      (n) => NATURAL_MESH_PATTERNS.some(pattern => new RegExp(`^${pattern}`, 'i').test(n)),
+      (n) => NATURAL_MESH_PATTERNS.some(pattern => new RegExp(`${pattern}`, 'i').test(n)),
       `${name}-hills`
+    );
+
+    // Fallback rápido para carros y rigs complejos: collider por bounding box del grupo completo
+    physicsRef.current.createBBoxCollidersFromScene(
+      scene,
+      (n, obj) => /CarRig_|Car_\d+/.test(n) && obj.type !== 'Bone',
+      `${name}-cars` 
+    );
+
+    // Colliders para brazos de parking: detectar piezas largas/delgadas bajo "Parking_"
+    physicsRef.current.createBBoxCollidersFromScene(
+      scene,
+      (n, obj) => {
+        if (obj.type === 'Bone') return false;
+        if (!/Parking_/i.test(n)) return false;
+        const box = new THREE.Box3().setFromObject(obj);
+        if (box.isEmpty()) return false;
+        const size = box.getSize(new THREE.Vector3());
+        const length = Math.max(size.x, size.z);
+        const thickness = Math.min(size.x, size.z);
+        // brazo típico: muy largo, poco espesor y altura baja
+        return length / Math.max(thickness, 0.0001) > 4 && size.y < 1.5;
+      },
+      `${name}-parking-arms`
     );
 
     const isNightLike = phase === 'night' || phase === 'dusk';

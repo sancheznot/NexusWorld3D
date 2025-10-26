@@ -81,8 +81,17 @@ export class CannonPhysics {
     idPrefix: string
   ) {
     let count = 0;
+    const matchesWithAncestors = (obj: THREE.Object3D): boolean => {
+      let current: THREE.Object3D | null = obj;
+      while (current) {
+        if (filter(current.name)) return true;
+        current = current.parent;
+      }
+      return false;
+    };
+
     scene.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh && filter(child.name)) {
+      if ((child as THREE.Mesh).isMesh && matchesWithAncestors(child)) {
         const mesh = child as THREE.Mesh;
         mesh.updateMatrixWorld(true);
 
@@ -527,11 +536,16 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
         const center = worldBox.getCenter(new THREE.Vector3());
 
         const pos: [number, number, number] = [center.x, worldBox.min.y, center.z];
-        const sz: [number, number, number] = [size.x, size.y, size.z];
+        // 👉 Asegurar grosor mínimo para planos (si algún eje es ~0, no colisiona)
+        const MIN_THICKNESS = 0.2; // 20cm
+        const sx = Math.max(size.x, MIN_THICKNESS);
+        const sy = Math.max(size.y, MIN_THICKNESS);
+        const sz = Math.max(size.z, MIN_THICKNESS);
+        const szVec: [number, number, number] = [sx, sy, sz];
 
         const id = `${idPrefix}-${child.name}-${count}`;
         if (!this.bodies.has(id)) {
-          this.createBoxCollider(pos, sz, id);
+          this.createBoxCollider(pos, szVec, id);
           count += 1;
         }
       }
@@ -578,6 +592,32 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
     this.world.addBody(body);
     this.bodies.set(id, body);
     console.log(`🎨 Mesh collider created (three-to-cannon): ${id} with ${meshesProcessed} meshes at (${position[0].toFixed(1)}, ${position[1].toFixed(1)}, ${position[2].toFixed(1)})`);
+  }
+
+  // 📦 Fallback: crear colliders de caja a partir del bounding box mundial de un Object3D (grupos completos)
+  createBBoxCollidersFromScene(
+    scene: THREE.Object3D,
+    filter: (name: string, obj: THREE.Object3D) => boolean,
+    idPrefix: string
+  ) {
+    let count = 0;
+    scene.traverse((child) => {
+      if (!filter(child.name, child)) return;
+      const box = new THREE.Box3().setFromObject(child);
+      if (!box.isEmpty()) {
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const id = `${idPrefix}-bbox-${child.name}-${count}`;
+        if (!this.bodies.has(id)) {
+          const pos: [number, number, number] = [center.x, box.min.y, center.z];
+          const sz: [number, number, number] = [size.x, size.y, size.z];
+          this.createBoxCollider(pos, sz, id);
+          count += 1;
+        }
+      }
+    });
+    if (count > 0) console.log(`📦 BBox colliders creados: ${count} (${idPrefix})`);
+    return count;
   }
 
   // Construir Trimesh robusto aplicando matrixWorld y limpiando triángulos degenerados
