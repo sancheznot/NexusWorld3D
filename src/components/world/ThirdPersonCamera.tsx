@@ -36,22 +36,25 @@ export default function ThirdPersonCamera({ }: ThirdPersonCameraProps) {
     // Verificar si estamos conduciendo y usar la posición del vehículo
     const w = window as unknown as { 
       _veh_pos?: { x: number; y: number; z: number }; 
+      _veh_yaw?: number;
       _isDriving?: boolean 
     };
     const vehPos = w._veh_pos;
+    const vehYaw = w._veh_yaw ?? 0;
     const isDriving = w._isDriving;
     
-    let targetPos: THREE.Vector3;
+    // p = punto al que mira la cámara (ancla). target = posición deseada de la cámara
+    let anchor: THREE.Vector3;
     
     if (isDriving && vehPos) {
-      // Seguir al vehículo
-      targetPos = new THREE.Vector3(vehPos.x, vehPos.y + 1, vehPos.z);
+      // Ancla: posición del vehículo
+      anchor = new THREE.Vector3(vehPos.x, vehPos.y + 1.0, vehPos.z);
     } else {
       // Seguir al jugador
-      targetPos = new THREE.Vector3(position.x, position.y, position.z);
+      anchor = new THREE.Vector3(position.x, position.y, position.z);
     }
     
-    const p = targetPos;
+    const p = anchor;
     const { horizontal: yaw, vertical: pitch } = getCameraState();
 
     // Ajustar distancia y altura si estamos conduciendo
@@ -59,15 +62,26 @@ export default function ThirdPersonCamera({ }: ThirdPersonCameraProps) {
     const height = isDriving ? cameraHeight * 1.2 : cameraHeight;
     const smooth = isDriving ? smoothness * 0.8 : smoothness;
 
-    const horizontalDist = baseDistance * Math.cos(pitch);
-    // Cámara DETRÁS del personaje: restar el offset en lugar de sumar
-    const camOffset = new THREE.Vector3(
-      -Math.sin(yaw) * horizontalDist,  // Negativo para estar detrás
-      height + baseDistance * Math.sin(pitch),
-      -Math.cos(yaw) * horizontalDist   // Negativo para estar detrás
-    );
-
-    let target = p.clone().add(camOffset);
+    let target: THREE.Vector3;
+    if (isDriving && vehPos) {
+      // Offset detrás del vehículo: si el forward local es ( -sin(yaw), -cos(yaw) ),
+      // el vector hacia atrás es ( +sin(yaw), +cos(yaw) )
+      const back = new THREE.Vector3(
+        Math.sin(vehYaw) * baseDistance,
+        height,
+        Math.cos(vehYaw) * baseDistance
+      );
+      target = p.clone().add(back);
+    } else {
+      const horizontalDist = baseDistance * Math.cos(pitch);
+      // Detrás del jugador según yaw de mouse
+      const camOffset = new THREE.Vector3(
+        -Math.sin(yaw) * horizontalDist,
+        height + baseDistance * Math.sin(pitch),
+        -Math.cos(yaw) * horizontalDist
+      );
+      target = p.clone().add(camOffset);
+    }
     
     // Colisiones de cámara: solo si está habilitado en config
     if (GAME_CONFIG.camera.enableCollision) {

@@ -102,6 +102,8 @@ export default function GameCanvas() {
           try { physics.stopVehicle('playerCar'); } catch {}
           // Rehabilitar colisiones del jugador
           try { physics.setPlayerCollisionEnabled(true); } catch {}
+          // Anular cualquier velocidad residual del jugador y teleport limpio
+          try { physics.setPlayerVelocityZero(); } catch {}
           physics.setPlayerPosition({ x: vx + 2, y: vy, z: vz });
           updatePositionStore({ x: vx + 2, y: vy, z: vz });
         }

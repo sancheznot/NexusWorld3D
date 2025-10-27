@@ -121,6 +121,7 @@ export default function CannonCar({ driving, spawn, modelPath = '/models/vehicle
         y: t.position.y,
         z: t.position.z,
       };
+      (window as unknown as { _veh_yaw?: number })._veh_yaw = t.rotationY;
     }
   });
 
@@ -133,11 +134,27 @@ export default function CannonCar({ driving, spawn, modelPath = '/models/vehicle
     <group ref={groupRef} position={[spawn.x, spawn.y, spawn.z]} rotation={[0, spawn.yaw, 0]}
       userData={{ vehicleId: id }}>
       <primitive object={visual} />
-      {/* Debug box para chasis */}
-      <mesh position={[0, 0.7, 0]}>
+      {/* Debug chasis */}
+      <mesh position={[0, 0.5, 0]}>
         <boxGeometry args={[1.6, 1.0, 3.8]} />
-        <meshStandardMaterial color="#ff0000" transparent opacity={0.15} />
+        <meshStandardMaterial color="#ff0000" transparent opacity={0.12} />
       </mesh>
+      {/* Debug ruedas (visuales) */}
+      {(() => {
+        const halfWidth = 0.85; const wheelBase = 1.6; const r = 0.38; const y = 0.1;
+        const wheels = [
+          [ halfWidth, y,  wheelBase],
+          [-halfWidth, y,  wheelBase],
+          [ halfWidth, y, -wheelBase],
+          [-halfWidth, y, -wheelBase],
+        ];
+        return wheels.map((p, i) => (
+          <mesh key={i} position={[p[0], p[1], p[2]]}>
+            <sphereGeometry args={[r, 12, 12]} />
+            <meshStandardMaterial color="#111111" metalness={0.1} roughness={0.9} />
+          </mesh>
+        ));
+      })()}
     </group>
   );
 }

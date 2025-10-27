@@ -13,11 +13,13 @@ export class CannonPhysics {
   private acceleration = PHYSICS_CONFIG.ACCELERATION; // Velocidad de aceleración
   private deceleration = PHYSICS_CONFIG.DECELERATION; // Velocidad de desaceleración
   private staticBodiesCreated = false; // Flag para evitar recrear colliders estáticos
+  private vehicleState: Map<string, { reverseMode: boolean }> = new Map();
   
   // Materiales compartidos (CRÍTICO para que funcionen las colisiones)
   private playerMaterial!: CANNON.Material;
   private groundMaterial!: CANNON.Material;
   private staticMaterial!: CANNON.Material;
+  private vehicleMaterial!: CANNON.Material;
 
   constructor() {
     // Crear mundo de física
@@ -168,6 +170,31 @@ export class CannonPhysics {
       }
     );
     this.world.addContactMaterial(playerStaticContact);
+
+    // Material del vehículo (neumáticos/chasis) y contactos relevantes
+    this.vehicleMaterial = new CANNON.Material('vehicle');
+    const vehicleGround = new CANNON.ContactMaterial(
+      this.vehicleMaterial,
+      this.groundMaterial,
+      {
+        friction: 0.1,
+        restitution: 0.0,
+        contactEquationStiffness: 1e8,
+        contactEquationRelaxation: 3,
+      }
+    );
+    const vehicleStatic = new CANNON.ContactMaterial(
+      this.vehicleMaterial,
+      this.staticMaterial,
+      {
+        friction: 0.2,
+        restitution: 0.0,
+        contactEquationStiffness: 1e8,
+        contactEquationRelaxation: 3,
+      }
+    );
+    this.world.addContactMaterial(vehicleGround);
+    this.world.addContactMaterial(vehicleStatic);
     
     console.log('✅ Materiales de física configurados correctamente');
   }
@@ -341,6 +368,12 @@ export class CannonPhysics {
     };
   }
 
+  setPlayerVelocityZero() {
+    if (!this.playerBody) return;
+    this.playerBody.velocity.set(0, 0, 0);
+    this.playerBody.angularVelocity.set(0, 0, 0);
+  }
+
   // Obtener transform de un body por id
   getBodyTransform(id: string): { position: { x: number; y: number; z: number }; rotationY: number } | null {
     const body = this.bodies.get(id);
@@ -355,6 +388,13 @@ export class CannonPhysics {
     const t4 = +1.0 - 2.0 * (ysqr + q.z * q.z);
     const yaw = Math.atan2(t3, t4);
     return { position: { x: p.x, y: p.y, z: p.z }, rotationY: yaw };
+  }
+
+  // Obtener velocidad lineal de un body por id
+  getBodyVelocity(id: string): { x: number; y: number; z: number } | null {
+    const body = this.bodies.get(id);
+    if (!body) return null;
+    return { x: body.velocity.x, y: body.velocity.y, z: body.velocity.z };
   }
 
   applyForce(force: { x: number; y: number; z: number }) {
@@ -436,12 +476,19 @@ export class CannonPhysics {
     if (this.bodies.has(id)) return this.bodies.get(id)!;
     const chassisBody = new CANNON.Body({ mass: 600 });
     // Chasis aproximado al modelo (ancho 1.6m, alto 1.0m, largo 3.8m)
-    chassisBody.addShape(new CANNON.Box(new CANNON.Vec3(0.8, 0.5, 1.9)));
-    chassisBody.position.set(position.x, position.y + 0.8, position.z);
+    // Bajamos el centro de masa desplazando el shape hacia abajo
+    const chassisShape = new CANNON.Box(new CANNON.Vec3(0.8, 0.5, 1.9));
+    chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0, 0));
+    // Posicionar chasis moderadamente elevado; CityModel publica spawn cercano al suelo
+    chassisBody.position.set(position.x, position.y + 0.6, position.z);
     chassisBody.quaternion.setFromEuler(0, rotationY, 0);
-    chassisBody.angularDamping = 0.6;
-    chassisBody.linearDamping = 0.05;
+    chassisBody.angularDamping = 0.5;
+    chassisBody.linearDamping = 0.02; // resistencia moderada
+    chassisBody.material = this.vehicleMaterial;
     this.world.addBody(chassisBody);
+
+    // Nota: no usamos esferas físicas como ruedas. RaycastVehicle ya maneja
+    // ruedas/suspensión; agregar shapes extra al chasis introduce fricción indeseada.
     this.bodies.set(id, chassisBody);
 
     const options: {
@@ -455,28 +502,21 @@ export class CannonPhysics {
       indexUpAxis: 1,    // y
       indexForwardAxis: 2, // z
     };
-    type RaycastVehicleType = {
-      addWheel: (opts: unknown) => void;
-      addToWorld: (world: CANNON.World) => void;
-      setBrake: (brake: number, wheelIndex: number) => void;
-      setSteeringValue: (value: number, wheelIndex: number) => void;
-      applyEngineForce: (force: number, wheelIndex: number) => void;
-    };
-    const RaycastVehicleCtor = (CANNON as unknown as { RaycastVehicle: new (opts: unknown) => RaycastVehicleType }).RaycastVehicle;
-    const vehicle: RaycastVehicleType = new RaycastVehicleCtor(options);
+    const RaycastVehicleCtor = (CANNON as unknown as { RaycastVehicle: new (opts: unknown) => { wheelInfos: Array<{ frictionSlip: number; rollInfluence: number; suspensionRestLength?: number; suspensionLength?: number }>; addWheel: (o: unknown)=>void; addToWorld: (w: CANNON.World)=>void; setBrake: (b:number,i:number)=>void; setSteeringValue: (v:number,i:number)=>void; applyEngineForce: (f:number,i:number)=>void; getWheelInfo: (i:number)=>{ worldTransform: { position: CANNON.Vec3 } } } }).RaycastVehicle;
+    const vehicle = new RaycastVehicleCtor(options);
 
     const wheelOptions = {
       radius: 0.38,
       directionLocal: new CANNON.Vec3(0, -1, 0),
-      suspensionStiffness: 40,
+      suspensionStiffness: 32,
       suspensionRestLength: 0.35,
-      frictionSlip: 6,
-      dampingRelaxation: 2.5,
-      dampingCompression: 4.8,
-      maxSuspensionForce: 100000,
-      rollInfluence: 0.01,
+      frictionSlip: 9.5,
+      dampingRelaxation: 2.6,
+      dampingCompression: 5.0,
+      maxSuspensionForce: 120000,
+      rollInfluence: 0.03,
       axleLocal: new CANNON.Vec3(-1, 0, 0),
-      chassisConnectionPointLocal: new CANNON.Vec3(1, 1, 0),
+      chassisConnectionPointLocal: new CANNON.Vec3(1, 0.6, 0),
       maxSuspensionTravel: 0.35,
       customSlidingRotationalSpeed: -30,
       useCustomSlidingRotationalSpeed: true,
@@ -494,24 +534,32 @@ export class CannonPhysics {
       const opt = { ...wheelOptions, chassisConnectionPointLocal: p };
       vehicle.addWheel(opt);
     });
+    // Ajustes por eje (inspirado en setups robustos): más agarre atrás, menos roll en frente
+    const wi = vehicle.wheelInfos as Array<{ frictionSlip: number; rollInfluence: number }>;
+    if (wi && wi.length === 4) {
+      // Grip uniforme (baseline más predecible)
+      wi[0].frictionSlip = 9.5; wi[1].frictionSlip = 9.5;
+      wi[2].frictionSlip = 9.5; wi[3].frictionSlip = 9.5;
+      wi[0].rollInfluence = 0.02; wi[1].rollInfluence = 0.02;
+      wi[2].rollInfluence = 0.03; wi[3].rollInfluence = 0.03;
+    }
     vehicle.addToWorld(this.world);
     // Guardar ref en bodies map usando key `${id}:vehicle`
     (this as unknown as Record<string, unknown>)[`${id}:vehicle`] = vehicle;
+    this.vehicleState.set(id, { reverseMode: false });
     return chassisBody;
   }
 
   updateRaycastVehicle(id: string, input: { throttle: number; brake: number; steer: number }) {
-    type RaycastVehicleType = {
-      setBrake: (brake: number, wheelIndex: number) => void;
-      setSteeringValue: (value: number, wheelIndex: number) => void;
-      applyEngineForce: (force: number, wheelIndex: number) => void;
-    };
-    const vehicle = (this as unknown as Record<string, RaycastVehicleType>)[`${id}:vehicle`];
+    const vehicle = (this as unknown as Record<string, { wheelInfos: Array<{ suspensionRestLength: number; suspensionLength: number }>; setBrake: (b:number,i:number)=>void; setSteeringValue: (v:number,i:number)=>void; applyEngineForce: (f:number,i:number)=>void; getWheelInfo: (i:number)=>{ worldTransform: { position: CANNON.Vec3 } } }>)[`${id}:vehicle`];
     if (!vehicle) return;
     const chassis = this.bodies.get(id);
-    const maxSteer = 0.6; // rad, a bit stronger steering
-    const engineForceBase = 1800;
-    const brakeForce = 80;
+    const maxSteer = 0.6; // baseline estable
+    const engineForceBase = 3200; // baseline empuje
+    const engineForceReverseBase = 2800;
+    const brakeForce = 260;
+    const maxForwardSpeed = 35; // baseline
+    const maxReverseSpeed = -12; // m/s ~ 43 km/h
 
     // Reset brakes each frame
     for (let i = 0; i < 4; i++) vehicle.setBrake(0, i);
@@ -524,40 +572,85 @@ export class CannonPhysics {
       forwardSpeed = chassis.velocity.dot(forwardWorld);
     }
 
-    // Speed-based steering attenuation (less steer at high speed)
-    const speedAtt = Math.max(0.4, 1 - Math.min(Math.abs(forwardSpeed) / 20, 0.6));
+    // Speed-based steering curve (más giro a baja, menos a alta)
+    const speedNorm = Math.min(Math.abs(forwardSpeed) / 25, 1);
+    const speedAtt = 1 - 0.5 * speedNorm;
     const steerVal = maxSteer * speedAtt * input.steer;
     vehicle.setSteeringValue(steerVal, 0);
     vehicle.setSteeringValue(steerVal, 1);
 
-    // Throttle/Brake/Reverse logic
+    // Estado de marcha (histeresis) para reversa
+    const state = this.vehicleState.get(id) || { reverseMode: false };
     let engineForce = 0;
+
+    // Cualquier aceleración hacia adelante cancela reversa
+    if (input.throttle > 0.01) state.reverseMode = false;
+
     if (input.throttle > 0.01) {
-      // Accelerate forward
-      engineForce = engineForceBase * input.throttle;
+      // Forward with torque curve (más par a baja velocidad)
+      if (forwardSpeed < maxForwardSpeed) {
+        const lowSpeedBoost = 1.0 + Math.max(0, 1 - Math.abs(forwardSpeed) / 8) * 0.8;
+        engineForce = engineForceBase * lowSpeedBoost * input.throttle;
+      }
     } else if (input.brake > 0.01) {
-      if (forwardSpeed > 0.5) {
-        // Moving forward: use brakes to stop
+      // Si estamos yendo claramente hacia adelante, primero frenar fuerte
+      if (!state.reverseMode && forwardSpeed > 1.0) {
         vehicle.setBrake(brakeForce * input.brake, 2);
         vehicle.setBrake(brakeForce * input.brake, 3);
-        engineForce = 0;
       } else {
-        // Near stopped or rolling backward: go in reverse
-        engineForce = -engineForceBase * input.brake;
+        // Activar o mantener reversa si casi detenidos (histeresis 1.0 m/s)
+        state.reverseMode = true;
+        if (forwardSpeed > maxReverseSpeed) {
+          const lowSpeedBoostR = 1.0 + Math.max(0, 1 - Math.abs(forwardSpeed) / 8) * 0.8;
+          engineForce = -engineForceReverseBase * lowSpeedBoostR * input.brake;
+        }
       }
     }
+    this.vehicleState.set(id, state);
 
     vehicle.applyEngineForce(engineForce, 2);
     vehicle.applyEngineForce(engineForce, 3);
+
+    // Freno motor ligero cuando no hay input
+    if (input.throttle < 0.01 && input.brake < 0.01 && chassis) {
+      const coastBrake = 1; // casi sin freno motor
+      vehicle.setBrake(coastBrake, 2);
+      vehicle.setBrake(coastBrake, 3);
+    }
+
+    // Anti-roll (estabilizador): comparar compresión de suspensiones izquierda/derecha por eje
+    try {
+      const wi = vehicle.wheelInfos as Array<{ suspensionRestLength: number; suspensionLength: number }>;
+      const antiRollStiffnessFront = 500;
+      const antiRollStiffnessRear = 700;
+      const applyAntiRoll = (a: number, b: number, k: number) => {
+        const wl = wi[a]; const wr = wi[b];
+        const travelL = wl.suspensionRestLength - wl.suspensionLength; // compresión
+        const travelR = wr.suspensionRestLength - wr.suspensionLength;
+        const force = (travelL - travelR) * k;
+        if (force !== 0 && chassis) {
+          const up = new CANNON.Vec3(0, 1, 0);
+          // aplicar arriba en el lado comprimido, abajo en el otro
+          const worldPosL = vehicle.getWheelInfo(a).worldTransform.position as CANNON.Vec3;
+          const worldPosR = vehicle.getWheelInfo(b).worldTransform.position as CANNON.Vec3;
+          const fL = up.scale(-force);
+          const fR = up.scale(force);
+          chassis.applyForce(fL, worldPosL);
+          chassis.applyForce(fR, worldPosR);
+        }
+      };
+      applyAntiRoll(0, 1, antiRollStiffnessFront);
+      applyAntiRoll(2, 3, antiRollStiffnessRear);
+    } catch {}
   }
 
   stopVehicle(id: string) {
     const vehicle = (this as unknown as Record<string, { setBrake: (b: number, i: number) => void; applyEngineForce: (f: number, i: number) => void } >)[`${id}:vehicle`];
     const body = this.bodies.get(id);
     if (vehicle) {
-      for (let i = 0; i < 4; i++) { vehicle.setBrake(120, i); vehicle.applyEngineForce(0, i); }
+      for (let i = 0; i < 4; i++) { vehicle.setBrake(400, i); vehicle.applyEngineForce(0, i); }
     }
-    if (body) { body.velocity.set(0, body.velocity.y, 0); }
+    if (body) { body.velocity.set(0, body.velocity.y, 0); body.angularVelocity.set(0, body.angularVelocity.y * 0.2, 0); }
   }
 
   removeVehicle(id: string) {
@@ -566,6 +659,7 @@ export class CannonPhysics {
     if (vehicle && vehicle.removeFromWorld) vehicle.removeFromWorld(this.world);
     if (body) { this.world.removeBody(body); this.bodies.delete(id); }
     delete (this as unknown as Record<string, unknown>)[`${id}:vehicle`];
+    this.vehicleState.delete(id);
   }
 
   // Crear collider cilíndrico para árboles
