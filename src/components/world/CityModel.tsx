@@ -7,9 +7,7 @@ import { useCannonPhysics } from '@/hooks/useCannonPhysics';
 import { NATURAL_MESH_PATTERNS } from '@/constants/physics';
 import { generateSceneLights } from '@/lib/three/sceneLights';
 import { useTimeStore } from '@/store/timeStore';
-import { scanVehicleSpawns } from '@/lib/game/vehicleSpawns';
-import { modelLoader } from '@/lib/three/modelLoader';
-import { VEHICLES_CATALOG } from '@/constants/vehicles';
+import { scanVehicleSpawns, resolveSpawnSlot } from '@/lib/game/vehicleSpawns';
 
 interface CityModelProps {
   modelPath: string;
@@ -92,26 +90,25 @@ export default function CityModel({
     console.log(`💡 Ciudad (LM_): ${created} luces auto`);
     console.log(`✅ Ciudad: ${boxes} box colliders, ${hills} trimesh colliders`);
 
-    // Escanear spawns de vehículos (Spawn_Car_*) y crear uno de prueba si existe
+    // Escanear spawns de vehículos (Spawn_Car_*) y publicar el spawn para CannonCar
     const spawns = scanVehicleSpawns(scene);
     if (spawns.length > 0) {
       const spawn = spawns.find(s => /Spawn_Car_exterior_01/i.test(s.id)) || spawns[0];
-      // Pequeño offset hacia adelante y elevar Y para evitar incrustaciones
-      const fwdX = -Math.sin(spawn.rotationY);
-      const fwdZ = -Math.cos(spawn.rotationY);
-      const px = spawn.position.x + fwdX * 2.0;
-      const pz = spawn.position.z + fwdZ * 2.0;
-      const py = (spawn.position.y || 0) + 1.2;
-      // Crear físico del vehículo
-      physicsRef.current.createRaycastVehicle({ x: px, y: py, z: pz }, 'vehicle:test:car_07');
-      // Cargar modelo visual si existe, sino fallback de vehicle
-      (async () => {
-        try {
-          const cfg = VEHICLES_CATALOG.car_07;
-          const obj = await modelLoader.loadModel({ name: cfg.name, path: cfg.path, type: cfg.type, category: 'prop', position: [px, py, pz], rotation: [0, spawn.rotationY, 0], scale: 1 });
-          scene.add(obj);
-        } catch {}
-      })();
+      // Si hay hijo slot_* úsalo; si no, aplica offset y elevación
+      const slot = resolveSpawnSlot(spawn, 'slot_1');
+      const fwdX = -Math.sin(slot.rotationY);
+      const fwdZ = -Math.cos(slot.rotationY);
+      const px = slot.position.x + fwdX * 0.2; // offset leve
+      const pz = slot.position.z + fwdZ * 0.2;
+      const py = (slot.position.y || 0) + 0.8; // Altura ajustada para el collider
+      
+      // Publicar spawn para CannonCar component
+      if (typeof window !== 'undefined') {
+        (window as unknown as { _veh_spawn?: { x: number; y: number; z: number; yaw: number } })._veh_spawn = {
+          x: px, y: py, z: pz, yaw: slot.rotationY
+        };
+        console.log(`🚗 Vehicle spawn published: (${px.toFixed(2)}, ${py.toFixed(2)}, ${pz.toFixed(2)}) yaw=${slot.rotationY.toFixed(2)}`);
+      }
     }
   }, [scene, physicsRef, name, phase]);
 

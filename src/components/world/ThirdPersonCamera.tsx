@@ -11,7 +11,7 @@ interface ThirdPersonCameraProps {
   target?: THREE.Object3D;
 }
 
-export default function ThirdPersonCamera({ target: _target }: ThirdPersonCameraProps) {
+export default function ThirdPersonCamera({ }: ThirdPersonCameraProps) {
   const { camera, scene } = useThree();
   const { position } = usePlayerStore();
   const { getCameraState } = useMouseCamera(true); // MISMA instancia global
@@ -33,12 +33,31 @@ export default function ThirdPersonCamera({ target: _target }: ThirdPersonCamera
   }, [camera]);
 
   useFrame(() => {
-    const p = new THREE.Vector3(position.x, position.y, position.z);
+    // Verificar si estamos conduciendo y usar la posición del vehículo
+    const w = window as unknown as { 
+      _veh_pos?: { x: number; y: number; z: number }; 
+      _isDriving?: boolean 
+    };
+    const vehPos = w._veh_pos;
+    const isDriving = w._isDriving;
+    
+    let targetPos: THREE.Vector3;
+    
+    if (isDriving && vehPos) {
+      // Seguir al vehículo
+      targetPos = new THREE.Vector3(vehPos.x, vehPos.y + 1, vehPos.z);
+    } else {
+      // Seguir al jugador
+      targetPos = new THREE.Vector3(position.x, position.y, position.z);
+    }
+    
+    const p = targetPos;
     const { horizontal: yaw, vertical: pitch } = getCameraState();
 
-    const baseDistance = cameraDistance;
-    const height = cameraHeight;
-    const smooth = smoothness;
+    // Ajustar distancia y altura si estamos conduciendo
+    const baseDistance = isDriving ? cameraDistance * 1.5 : cameraDistance;
+    const height = isDriving ? cameraHeight * 1.2 : cameraHeight;
+    const smooth = isDriving ? smoothness * 0.8 : smoothness;
 
     const horizontalDist = baseDistance * Math.cos(pitch);
     // Cámara DETRÁS del personaje: restar el offset en lugar de sumar
@@ -62,8 +81,8 @@ export default function ThirdPersonCamera({ target: _target }: ThirdPersonCamera
       // Construir candidatos: todos los meshes visibles de la escena
       const candidates: THREE.Object3D[] = [];
       scene.traverse((obj) => {
-        const any = obj as any;
-        if (any.isMesh && obj.visible) {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.isMesh && obj.visible) {
           // Filtrar por userData también
           const isPlayer = obj.userData?.isPlayer || obj.userData?.isRemotePlayer;
           const isPlayerMesh = obj.name.includes('player-mesh') || obj.name.includes('remotePlayer-mesh');

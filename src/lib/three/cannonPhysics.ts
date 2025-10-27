@@ -432,11 +432,13 @@ export class CannonPhysics {
   }
 
   // ==== Raycast Vehicle (Cannon) - versión básica ====
-  createRaycastVehicle(position: { x: number; y: number; z: number }, id: string) {
+  createRaycastVehicle(position: { x: number; y: number; z: number }, id: string, rotationY: number = 0) {
     if (this.bodies.has(id)) return this.bodies.get(id)!;
     const chassisBody = new CANNON.Body({ mass: 600 });
-    chassisBody.addShape(new CANNON.Box(new CANNON.Vec3(0.9, 0.4, 1.8)));
+    // Chasis aproximado al modelo (ancho 1.6m, alto 1.0m, largo 3.8m)
+    chassisBody.addShape(new CANNON.Box(new CANNON.Vec3(0.8, 0.5, 1.9)));
     chassisBody.position.set(position.x, position.y + 0.8, position.z);
+    chassisBody.quaternion.setFromEuler(0, rotationY, 0);
     chassisBody.angularDamping = 0.6;
     chassisBody.linearDamping = 0.05;
     this.world.addBody(chassisBody);
@@ -464,23 +466,23 @@ export class CannonPhysics {
     const vehicle: RaycastVehicleType = new RaycastVehicleCtor(options);
 
     const wheelOptions = {
-      radius: 0.4,
+      radius: 0.38,
       directionLocal: new CANNON.Vec3(0, -1, 0),
-      suspensionStiffness: 30,
-      suspensionRestLength: 0.3,
-      frictionSlip: 5,
-      dampingRelaxation: 2.3,
-      dampingCompression: 4.4,
+      suspensionStiffness: 40,
+      suspensionRestLength: 0.35,
+      frictionSlip: 6,
+      dampingRelaxation: 2.5,
+      dampingCompression: 4.8,
       maxSuspensionForce: 100000,
       rollInfluence: 0.01,
       axleLocal: new CANNON.Vec3(-1, 0, 0),
       chassisConnectionPointLocal: new CANNON.Vec3(1, 1, 0),
-      maxSuspensionTravel: 0.3,
+      maxSuspensionTravel: 0.35,
       customSlidingRotationalSpeed: -30,
       useCustomSlidingRotationalSpeed: true,
     };
 
-    const halfWidth = 0.9, wheelBase = 1.5;
+    const halfWidth = 0.85, wheelBase = 1.6;
     // FL, FR, RL, RR
     const points = [
       new CANNON.Vec3(halfWidth, 0, wheelBase),
@@ -506,24 +508,64 @@ export class CannonPhysics {
     };
     const vehicle = (this as unknown as Record<string, RaycastVehicleType>)[`${id}:vehicle`];
     if (!vehicle) return;
-    const maxSteer = 0.4; // rad
-    const engineForce = 1500;
-    const brakeForce = 20;
-    // Reset
-    for (let i = 0; i < 4; i++) {
-      vehicle.setBrake(0, i);
+    const chassis = this.bodies.get(id);
+    const maxSteer = 0.6; // rad, a bit stronger steering
+    const engineForceBase = 1800;
+    const brakeForce = 80;
+
+    // Reset brakes each frame
+    for (let i = 0; i < 4; i++) vehicle.setBrake(0, i);
+
+    // Estimate forward speed along chassis forward axis (Z)
+    let forwardSpeed = 0;
+    if (chassis) {
+      const forwardLocal = new CANNON.Vec3(0, 0, 1);
+      const forwardWorld = chassis.quaternion.vmult(forwardLocal);
+      forwardSpeed = chassis.velocity.dot(forwardWorld);
     }
-    // Steer front wheels (0,1)
-    vehicle.setSteeringValue(maxSteer * input.steer, 0);
-    vehicle.setSteeringValue(maxSteer * input.steer, 1);
-    // Engine rear wheels (2,3)
-    const force = engineForce * (input.throttle - input.brake);
-    vehicle.applyEngineForce(force, 2);
-    vehicle.applyEngineForce(force, 3);
-    if (input.brake > 0.1) {
-      vehicle.setBrake(brakeForce * input.brake, 2);
-      vehicle.setBrake(brakeForce * input.brake, 3);
+
+    // Speed-based steering attenuation (less steer at high speed)
+    const speedAtt = Math.max(0.4, 1 - Math.min(Math.abs(forwardSpeed) / 20, 0.6));
+    const steerVal = maxSteer * speedAtt * input.steer;
+    vehicle.setSteeringValue(steerVal, 0);
+    vehicle.setSteeringValue(steerVal, 1);
+
+    // Throttle/Brake/Reverse logic
+    let engineForce = 0;
+    if (input.throttle > 0.01) {
+      // Accelerate forward
+      engineForce = engineForceBase * input.throttle;
+    } else if (input.brake > 0.01) {
+      if (forwardSpeed > 0.5) {
+        // Moving forward: use brakes to stop
+        vehicle.setBrake(brakeForce * input.brake, 2);
+        vehicle.setBrake(brakeForce * input.brake, 3);
+        engineForce = 0;
+      } else {
+        // Near stopped or rolling backward: go in reverse
+        engineForce = -engineForceBase * input.brake;
+      }
     }
+
+    vehicle.applyEngineForce(engineForce, 2);
+    vehicle.applyEngineForce(engineForce, 3);
+  }
+
+  stopVehicle(id: string) {
+    const vehicle = (this as unknown as Record<string, { setBrake: (b: number, i: number) => void; applyEngineForce: (f: number, i: number) => void } >)[`${id}:vehicle`];
+    const body = this.bodies.get(id);
+    if (vehicle) {
+      for (let i = 0; i < 4; i++) { vehicle.setBrake(120, i); vehicle.applyEngineForce(0, i); }
+    }
+    if (body) { body.velocity.set(0, body.velocity.y, 0); }
+  }
+
+  removeVehicle(id: string) {
+    const vehicle = (this as unknown as Record<string, { removeFromWorld?: (w: CANNON.World) => void }>)[`${id}:vehicle`];
+    const body = this.bodies.get(id);
+    if (vehicle && vehicle.removeFromWorld) vehicle.removeFromWorld(this.world);
+    if (body) { this.world.removeBody(body); this.bodies.delete(id); }
+    delete (this as unknown as Record<string, unknown>)[`${id}:vehicle`];
   }
 
   // Crear collider cilíndrico para árboles
@@ -823,6 +865,14 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
     this.playerBody = null;
     this.staticBodiesCreated = false;
     console.log('🧹 Cannon.js physics disposed');
+  }
+
+  // Habilitar/deshabilitar colisiones del jugador (útil al conducir)
+  setPlayerCollisionEnabled(enabled: boolean) {
+    if (!this.playerBody) return;
+    this.playerBody.collisionResponse = enabled;
+    // Opcional: desactivar máscaras para garantizar no colisionar
+    this.playerBody.collisionFilterMask = enabled ? -1 : 0;
   }
 
   // 🔥 Remover bodies por prefijo de id (útil al cambiar de mapa)

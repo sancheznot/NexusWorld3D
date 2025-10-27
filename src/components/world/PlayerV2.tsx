@@ -207,10 +207,7 @@ export default function PlayerV2({
       }, clampedDelta);
     }
     
-    // Actualizar física de Cannon.js (esto mueve el cuerpo con la velocidad aplicada)
-    if (physicsRef.current) {
-      physicsRef.current.update(clampedDelta);
-    }
+    // La simulación de Cannon.js ahora se realiza globalmente en CannonStepper
     
     // Manejar saltos con pequeña demora para sincronizar con anim
     const nowMs = performance.now();

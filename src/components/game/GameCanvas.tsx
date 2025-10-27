@@ -42,6 +42,8 @@ import JobsUI from '@/components/ui/JobsUI';
 import NPCJobTrigger from '@/components/world/NPCJobTrigger';
 import JobWaypointsLayer from '@/components/world/JobWaypointsLayer';
 import { NPCS } from '@/constants/npcs';
+import CannonCar from '@/components/vehicles/CannonCar';
+import CannonStepper from '@/components/physics/CannonStepper';
 
 export default function GameCanvas() {
   const { isConnected, connectionError, connect, joinGame } = useSocket();
@@ -60,34 +62,9 @@ export default function GameCanvas() {
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentMap, setCurrentMap] = useState('exterior');
   const [isDriving, setIsDriving] = useState(false);
-  
-  useKeyboard(isGameStarted && !showSettings && !isDriving);
-  // Vehículo simple: actualizar controles desde teclado (temporal)
-  useEffect(() => {
-    if (!isGameStarted) return;
-    let raf = 0;
-    const loop = () => {
-      const physics = getPhysicsInstance();
-      if (physics) {
-        // Leer teclas globalmente (rápido): usar document.activeElement no/ state store si existiera
-        const w = (window as unknown as { _vk_up?: boolean })._vk_up || false;
-        const s = (window as unknown as { _vk_down?: boolean })._vk_down || false;
-        const a = (window as unknown as { _vk_left?: boolean })._vk_left || false;
-        const d = (window as unknown as { _vk_right?: boolean })._vk_right || false;
-        const throttle = w ? 1 : 0;
-        const brake = s ? 1 : 0;
-        const steer = (a ? -1 : 0) + (d ? 1 : 0);
-        physics.updateRaycastVehicle('vehicle:test:car_07', { throttle, brake, steer });
-      }
-      raf = requestAnimationFrame(loop);
-    };
-    // Eventos simples para setear flags
-    const kd = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); if (k==='f') setIsDriving((v)=>!v); const w = window as unknown as { _vk_up?: boolean; _vk_down?: boolean; _vk_left?: boolean; _vk_right?: boolean }; if (k==='w'||k==='arrowup') w._vk_up=true; if(k==='s'||k==='arrowdown') w._vk_down=true; if(k==='a'||k==='arrowleft') w._vk_left=true; if(k==='d'||k==='arrowright') w._vk_right=true; };
-    const ku = (e: KeyboardEvent) => { const k = e.key.toLowerCase(); const w = window as unknown as { _vk_up?: boolean; _vk_down?: boolean; _vk_left?: boolean; _vk_right?: boolean }; if (k==='w'||k==='arrowup') w._vk_up=false; if(k==='s'||k==='arrowdown') w._vk_down=false; if(k==='a'||k==='arrowleft') w._vk_left=false; if(k==='d'||k==='arrowright') w._vk_right=false; };
-    window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
-    loop();
-    return () => { window.removeEventListener('keydown', kd); window.removeEventListener('keyup', ku); if (raf) cancelAnimationFrame(raf); };
-  }, [isGameStarted]);
+  const [hidePlayerWhileDriving, setHidePlayerWhileDriving] = useState(false);
+  const [canEnterVehicle, setCanEnterVehicle] = useState(false);
+  const [vehSpawn, setVehSpawn] = useState<{ x: number; y: number; z: number; yaw: number } | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [showModelInfo, setShowModelInfo] = useState(false);
   
@@ -96,6 +73,130 @@ export default function GameCanvas() {
   const updatePositionStore = usePlayerStore((s) => s.updatePosition);
   const updateRotationStore = usePlayerStore((s) => s.updateRotation);
   const playerVec3 = useMemo(() => new Vector3(position.x, position.y, position.z), [position.x, position.y, position.z]);
+  
+  // Deshabilitar controles del jugador cuando está conduciendo
+  useKeyboard(isGameStarted && !showSettings && !isDriving);
+  
+  // Toggle entrar/salir del vehículo (F)
+  useEffect(() => {
+    if (!isGameStarted) return;
+    
+    const onF = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'f') return;
+      e.preventDefault();
+      const w = window as unknown as { _veh_pos?: { x: number; y: number; z: number }; _veh_spawn?: { x: number; y: number; z: number } };
+      const veh = w._veh_pos || w._veh_spawn;
+      const px = position.x, py = position.y, pz = position.z;
+      const vx = veh?.x ?? px, vy = veh?.y ?? py, vz = veh?.z ?? pz;
+      const dx = vx - px, dy = vy - py, dz = vz - pz;
+      const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+      console.log(`🔑 F pressed. isDriving=${isDriving} dist=${dist.toFixed(2)}m canEnter=${canEnterVehicle}`);
+
+      if (isDriving) {
+        setIsDriving(false);
+        setHidePlayerWhileDriving(false);
+        (window as unknown as { _isDriving?: boolean })._isDriving = false;
+        const physics = getPhysicsInstance();
+        if (physics && veh) {
+          // Detener el vehículo al salir
+          try { physics.stopVehicle('playerCar'); } catch {}
+          // Rehabilitar colisiones del jugador
+          try { physics.setPlayerCollisionEnabled(true); } catch {}
+          physics.setPlayerPosition({ x: vx + 2, y: vy, z: vz });
+          updatePositionStore({ x: vx + 2, y: vy, z: vz });
+        }
+        return;
+      }
+
+      if (dist <= 6) {
+        setIsDriving(true);
+        setHidePlayerWhileDriving(true);
+        (window as unknown as { _isDriving?: boolean })._isDriving = true;
+        // Deshabilitar colisiones del jugador mientras conduce
+        const physics = getPhysicsInstance();
+        try { physics?.setPlayerCollisionEnabled(false); } catch {}
+        console.log('✅ Enter vehicle triggered');
+      } else {
+        console.log('⛔ Muy lejos para entrar (requiere <= 6m)');
+      }
+    };
+    
+    window.addEventListener('keydown', onF);
+    return () => window.removeEventListener('keydown', onF);
+  }, [isGameStarted, canEnterVehicle, isDriving, updatePositionStore, position.x, position.y, position.z]);
+
+  // Calcular proximidad al vehículo (cada 200ms)
+  useEffect(() => {
+    if (isDriving) {
+      setCanEnterVehicle(false);
+      return;
+    }
+    
+    const t = setInterval(() => {
+      const w = window as unknown as { 
+        _veh_pos?: { x: number; y: number; z: number }; 
+        _veh_spawn?: { x: number; y: number; z: number } 
+      };
+      const vehPos = w._veh_pos || w._veh_spawn;
+      if (!vehPos) { 
+        setCanEnterVehicle(false); 
+        return; 
+      }
+      
+      const dx = vehPos.x - position.x;
+      const dy = vehPos.y - position.y;
+      const dz = vehPos.z - position.z;
+      const distSq = dx*dx + dy*dy + dz*dz;
+      
+      // Permitir entrar si está a menos de 5 metros
+      setCanEnterVehicle(distSq < 25);
+    }, 200);
+    
+    return () => clearInterval(t);
+  }, [position.x, position.y, position.z, isDriving]);
+
+  // Obtener spawn publicado por CityModel (con polling para evitar race condition)
+  useEffect(() => {
+    if (currentMap !== 'exterior') {
+      setVehSpawn(null);
+      return;
+    }
+    
+    let attempts = 0;
+    const maxAttempts = 20; // 2 segundos máximo
+    
+    const checkSpawn = () => {
+      const s = (window as unknown as { _veh_spawn?: { x: number; y: number; z: number; yaw: number } })._veh_spawn;
+      if (s) {
+        setVehSpawn(s);
+        console.log(`🚗 Vehículo spawneado en: X=${s.x.toFixed(1)}, Y=${s.y.toFixed(1)}, Z=${s.z.toFixed(1)}`);
+        console.log(`📍 Tu jugador está en: X=${position.x.toFixed(1)}, Y=${position.y.toFixed(1)}, Z=${position.z.toFixed(1)}`);
+        const distance = Math.sqrt(
+          Math.pow(s.x - position.x, 2) + 
+          Math.pow(s.z - position.z, 2)
+        );
+        console.log(`📏 Distancia al vehículo: ${distance.toFixed(1)} metros`);
+        return true;
+      }
+      return false;
+    };
+    
+    // Intentar inmediatamente
+    if (checkSpawn()) return;
+    
+    // Si no está disponible, hacer polling cada 100ms
+    const interval = setInterval(() => {
+      attempts++;
+      if (checkSpawn() || attempts >= maxAttempts) {
+        clearInterval(interval);
+        if (attempts >= maxAttempts) {
+          console.warn('⚠️ No se encontró spawn de vehículo después de 2 segundos');
+        }
+      }
+    }, 100);
+    
+    return () => clearInterval(interval);
+  }, [currentMap, position.x, position.y, position.z]);
   
   // Constantes para evitar re-renderizados
   const hotelInteriorProps = useMemo(() => ({
@@ -254,6 +355,8 @@ export default function GameCanvas() {
           className={`w-full h-full cursor-crosshair ${showSettings ? 'pointer-events-none' : 'pointer-events-auto'}`}
         >
         <Suspense fallback={null}>
+            {/* Physics stepper for Cannon.js */}
+            <CannonStepper />
             {/* Lighting */}
             <Lighting />
             
@@ -351,13 +454,15 @@ export default function GameCanvas() {
               />
             ))}
           
-          {/* Current Player */}
-          <PlayerV2 
-            position={[position.x, position.y, position.z]}
-            isCurrentPlayer={true}
-            keyboardEnabled={keyboardEnabled}
-            customization={player?.customization}
-          />
+          {/* Current Player - Ocultar cuando está conduciendo */}
+          {!hidePlayerWhileDriving && (
+            <PlayerV2 
+              position={[position.x, position.y, position.z]}
+              isCurrentPlayer={true}
+              keyboardEnabled={keyboardEnabled}
+              customization={player?.customization}
+            />
+          )}
           
             {/* Other Players - filtrados por mapa actual */}
             {(() => {
@@ -399,6 +504,34 @@ export default function GameCanvas() {
                     
                     {/* Testing Camera */}
                     <TestingCamera />
+        {/* Vehículo (Cannon RaycastVehicle) - Solo renderizar si hay spawn disponible */}
+        {vehSpawn && (
+          <CannonCar
+            driving={isDriving}
+            spawn={vehSpawn}
+            modelPath="/models/vehicles/cars/Car_07.glb"
+          />
+        )}
+
+        {/* DEBUG 3D: Pilar verde en el spawn del vehículo para verificar render */}
+        {vehSpawn && (
+          <group position={[vehSpawn.x, vehSpawn.y, vehSpawn.z]}> 
+            {/* Pilar */}
+            <mesh position={[0, 1, 0]}>
+              <boxGeometry args={[0.4, 2, 0.4]} />
+              <meshStandardMaterial color="#00ff66" emissive="#003311" emissiveIntensity={1.0} />
+            </mesh>
+            {/* Esfera brillante */}
+            <mesh position={[0, 0.5, 0]}>
+              <sphereGeometry args={[0.35, 16, 16]} />
+              <meshStandardMaterial color="#ffff00" emissive="#666600" emissiveIntensity={1.5} />
+            </mesh>
+            {/* Ejes */}
+            <axesHelper args={[2]} />
+            {/* Luz puntual */}
+            <pointLight color="#ffffff" intensity={2.0} distance={6} position={[0, 2, 0]} />
+          </group>
+        )}
         </Suspense>
         </Canvas>
       )}
@@ -493,6 +626,48 @@ export default function GameCanvas() {
       <InventoryUI />
       {currentMap === 'bank' && <BankUI />}
       <ShopUI />
+
+      {/* Hint para conducir */}
+      {!isDriving && canEnterVehicle && (
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20">
+          <div className="px-3 py-1 rounded bg-black/70 text-white text-sm">
+            Presiona <span className="font-bold">F</span> para conducir
+          </div>
+          <div className="mt-2 flex justify-center">
+            <button
+              onClick={() => {
+                setIsDriving(true);
+                setHidePlayerWhileDriving(true);
+                (window as unknown as { _isDriving?: boolean })._isDriving = true;
+                console.log('✅ Enter vehicle via button');
+              }}
+              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
+            >
+              Entrar al vehículo
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Debug: Mostrar ubicación del vehículo */}
+      {process.env.NODE_ENV === 'development' && vehSpawn && (
+        <div className="absolute bottom-32 left-4 z-20 bg-blue-900/80 text-white text-xs p-2 rounded">
+          <div className="font-bold mb-1">🚗 Vehículo:</div>
+          <div>X: {vehSpawn.x.toFixed(1)}</div>
+          <div>Y: {vehSpawn.y.toFixed(1)}</div>
+          <div>Z: {vehSpawn.z.toFixed(1)}</div>
+          <div className="mt-1 font-bold">📍 Tu posición:</div>
+          <div>X: {position.x.toFixed(1)}</div>
+          <div>Y: {position.y.toFixed(1)}</div>
+          <div>Z: {position.z.toFixed(1)}</div>
+          <div className="mt-1 font-bold">
+            📏 Distancia: {Math.sqrt(
+              Math.pow(vehSpawn.x - position.x, 2) + 
+              Math.pow(vehSpawn.z - position.z, 2)
+            ).toFixed(1)}m
+          </div>
+        </div>
+      )}
       <JobsUI />
 
       {isMapOpen && (
