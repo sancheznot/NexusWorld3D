@@ -1,13 +1,15 @@
 # 📋 Resumen del Estado Actual - Hotel Humboldt
 
 **Fecha:** 2025-11-10  
-**Última Actualización:** Fase 5 completada + Correcciones ⭐✅
+**Última Actualización:** Fase 6 completada - Inclinación del Personaje ⭐✅
 
 ---
 
 ## 🎯 ¿Dónde Estamos?
 
-Hemos completado **5 fases** de mejoras en la física de vehículos, integrando características avanzadas del repositorio **Sketchbook** de swift502, con todas las correcciones de bugs y constantes centralizadas.
+Hemos completado **6 fases** de mejoras:
+- **Fases 1-5**: Física de vehículos avanzada (Sketchbook)
+- **Fase 6**: Sistema de inclinación del personaje (Sketchbook) ⭐ NUEVO
 
 ---
 
@@ -39,13 +41,21 @@ Hemos completado **5 fases** de mejoras en la física de vehículos, integrando 
 - ✅ Sistema anti-vuelco implementado
 - ✅ Auto-enderezamiento si se voltea
 
-### **Fase 5: Mejoras Avanzadas (Sketchbook Integration)** ⭐ NUEVO
+### **Fase 5: Mejoras Avanzadas de Vehículos (Sketchbook Integration)**
 - ✅ Física de aire mejorada (control gradual en 2 segundos)
 - ✅ Drift correction (auto-enderezamiento)
 - ✅ Speed factor realista (más difícil girar a alta velocidad)
 - ✅ Volante visual con rotación sincronizada
 - ✅ Flip factor (más fácil hacer trucos a baja velocidad)
 - ✅ Auto-corrección cuando está boca abajo
+
+### **Fase 6: Inclinación del Personaje (Sketchbook Integration)** ⭐ NUEVO
+- ✅ Sistema de inclinación lateral al girar
+- ✅ Cálculo de velocidad angular
+- ✅ Compensación vertical automática
+- ✅ Suavizado con interpolación
+- ✅ Constantes configurables
+- ✅ Solo para jugador local
 
 ---
 
@@ -98,19 +108,28 @@ Hemos completado **5 fases** de mejoras en la física de vehículos, integrando 
 
 ### **Física**
 - `src/lib/three/cannonPhysics.ts` - Motor de física principal
-- `src/lib/physics/SpringSimulator.ts` - Simulador de resorte (NUEVO)
+- `src/lib/physics/SpringSimulator.ts` - Simulador de resorte
 
 ### **Vehículo**
 - `src/components/vehicles/CannonCar.tsx` - Componente del carro
 
+### **Personaje**
+- `src/components/world/AnimatedCharacter.tsx` - Componente del personaje con inclinación ⭐ NUEVO
+- `src/components/world/PlayerV2.tsx` - Controlador del jugador
+
+### **Constantes**
+- `src/constants/game.ts` - Configuración centralizada (vehículos + personaje) ⭐ ACTUALIZADO
+
 ### **UI**
-- `src/components/ui/VehicleHUD.tsx` - HUD del vehículo (NUEVO)
+- `src/components/ui/VehicleHUD.tsx` - HUD del vehículo
 - `src/components/game/GameCanvas.tsx` - Canvas principal
 
 ### **Documentación**
 - `docs/CHANGELOG_VEHICULOS.md` - Registro de cambios detallado (Fases 1-5)
 - `docs/FASE_5_MEJORAS_AVANZADAS.md` - Documentación detallada de Fase 5
-- `docs/FASE_5_CORRECCIONES.md` - Correcciones de bugs y constantes ⭐ NUEVO
+- `docs/FASE_5_CORRECCIONES.md` - Correcciones de bugs y constantes
+- `docs/FASE_6_PERSONAJE_INCLINACION.md` - Inclinación del personaje ⭐ NUEVO
+- `docs/PLAN_PERSONAJE_SKETCHBOOK.md` - Plan de implementación de personaje
 - `docs/PLAN_MEJORAS_VEHICULOS.md` - Plan de mejoras
 - `docs/ANALISIS_COMPARATIVO.md` - Análisis comparativo
 - `docs/RESUMEN_ESTADO_ACTUAL.md` - Este documento
@@ -119,12 +138,13 @@ Hemos completado **5 fases** de mejoras en la física de vehículos, integrando 
 
 ## 🚀 Próximos Pasos (Pendientes)
 
-### **Opción A: Mejoras de Personaje**
+### **Opción A: Mejoras de Personaje** (Continuación de Fase 6)
 De Sketchbook aún podemos integrar:
+- ✅ Inclinación del personaje al moverse (COMPLETADO)
 - ⬜ Sistema de estados del personaje (idle, walk, run, jump, fall)
-- ⬜ Física de caída mejorada
-- ⬜ Inclinación del personaje al moverse
-- ⬜ Animaciones suaves con transiciones
+- ⬜ Física de caída mejorada con detección de impacto
+- ⬜ Animaciones suaves con transiciones entre estados
+- ⬜ Estados de vehículo (driving, entering, exiting)
 
 ### **Opción B: Más Mejoras de Vehículo**
 - ⬜ Sonidos del motor (según RPM)
@@ -143,31 +163,49 @@ De Sketchbook aún podemos integrar:
 ## 📖 Documentos Clave para Leer
 
 ### **Para entender qué se hizo:**
+
+#### **Vehículos (Fases 1-5)**
 1. **`docs/CHANGELOG_VEHICULOS.md`** ⭐ MÁS IMPORTANTE
    - Registro detallado de todas las fases (1-5)
    - Código antes/después
    - Explicaciones de cada cambio
 
-2. **`docs/FASE_5_MEJORAS_AVANZADAS.md`** ⭐ NUEVO
+2. **`docs/FASE_5_MEJORAS_AVANZADAS.md`**
    - Documentación detallada de Fase 5
    - Integración de Sketchbook
    - Comparaciones y ejemplos
 
-3. **`docs/PLAN_MEJORAS_VEHICULOS.md`**
-   - Plan original de mejoras
+3. **`docs/FASE_5_CORRECCIONES.md`**
+   - Correcciones de bugs post-Fase 5
+   - Centralización de constantes
+
+#### **Personaje (Fase 6)** ⭐ NUEVO
+4. **`docs/FASE_6_PERSONAJE_INCLINACION.md`** ⭐ NUEVO
+   - Sistema de inclinación del personaje
+   - Integración de Sketchbook
+   - Constantes configurables
+
+5. **`docs/PLAN_PERSONAJE_SKETCHBOOK.md`**
+   - Plan completo de implementación de personaje
+   - 4 fases priorizadas
+   - Características de Sketchbook a integrar
+
+#### **Planificación**
+6. **`docs/PLAN_MEJORAS_VEHICULOS.md`**
+   - Plan original de mejoras de vehículos
    - Fases propuestas
    - Instrucciones de testing
 
-4. **`docs/ANALISIS_COMPARATIVO.md`**
+7. **`docs/ANALISIS_COMPARATIVO.md`**
    - Comparación entre nuestro código y Sketchbook
    - Fortalezas y debilidades
    - Recomendaciones
 
 ### **Para continuar el desarrollo:**
-1. Lee **`CHANGELOG_VEHICULOS.md`** - Fase 5 (última)
-2. Lee **`FASE_5_MEJORAS_AVANZADAS.md`** - Detalles de integración de Sketchbook
+1. Lee **`FASE_6_PERSONAJE_INCLINACION.md`** - Última implementación ⭐
+2. Lee **`PLAN_PERSONAJE_SKETCHBOOK.md`** - Plan de personaje
 3. Revisa este documento (`RESUMEN_ESTADO_ACTUAL.md`)
-4. Decide qué hacer a continuación (Opción A, B o C)
+4. Decide qué hacer a continuación (Opción A recomendada: continuar con personaje)
 
 ---
 

@@ -3,8 +3,10 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { SkeletonUtils } from 'three-stdlib';
 import { useGLTF, useAnimations, Html } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { AnimationAction } from 'three';
+import { GAME_CONFIG } from '@/constants/game';
 
   // Mapeo de animaciones - mapear estados a nombres reales de animaciones
   const getAnimationName = (animationState: string, actions: Record<string, AnimationAction | null>) => {
@@ -62,12 +64,19 @@ export default function AnimatedCharacter({
   animation,
 }: AnimatedCharacterProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const tiltContainerRef = useRef<THREE.Group>(null);
   // useGLTF de @react-three/drei ya soporta Draco automáticamente
   const { scene, animations } = useGLTF(modelPath);
   // Clonar con SkeletonUtils para preservar rigs/skins y evitar T-pose
   const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
   const { actions } = useAnimations(animations, groupRef);
   const [modelLoaded, setModelLoaded] = useState(false);
+  
+  // Sistema de inclinación (Sketchbook)
+  const lastRotationRef = useRef(rotation[1]); // Guardar última rotación Y
+  const angularVelocityRef = useRef(0);
+  const velocityRef = useRef(new THREE.Vector3());
+  const lastPositionRef = useRef(new THREE.Vector3(...position));
 
   // Cargar modelo y configurar
   useEffect(() => {
@@ -160,6 +169,61 @@ export default function AnimatedCharacter({
     }
   }, [modelLoaded, actions, animation]);
 
+  // Sistema de inclinación del personaje (Sketchbook)
+  useFrame((_, delta) => {
+    if (!isCurrentPlayer || !tiltContainerRef.current) return;
+    
+    // Calcular velocidad del personaje
+    const currentPosition = new THREE.Vector3(...position);
+    velocityRef.current.copy(currentPosition).sub(lastPositionRef.current).divideScalar(delta);
+    lastPositionRef.current.copy(currentPosition);
+    
+    // Calcular velocidad angular (cambio de rotación por segundo)
+    const currentRotation = rotation[1];
+    let rotationDelta = currentRotation - lastRotationRef.current;
+    
+    // Normalizar el delta de rotación para manejar el wrap-around de -π a π
+    if (rotationDelta > Math.PI) rotationDelta -= Math.PI * 2;
+    if (rotationDelta < -Math.PI) rotationDelta += Math.PI * 2;
+    
+    angularVelocityRef.current = rotationDelta / delta;
+    lastRotationRef.current = currentRotation;
+    
+    // Aplicar inclinación lateral basada en velocidad angular y velocidad lineal
+    // Fórmula de Sketchbook: rotation.z = -angularVelocity * multiplier * velocity.length()
+    const velocityLength = velocityRef.current.length();
+    
+    // Escalar la inclinación basado en la velocidad (más velocidad = más inclinación permitida)
+    // Velocidad de caminar ~4 unidades/s, correr ~8 unidades/s
+    const velocityFactor = Math.min(velocityLength / 6, 1.0); // Normalizar: 0 en parado, 1 a velocidad de sprint
+    const adjustedMultiplier = GAME_CONFIG.player.tilt.multiplier * velocityFactor;
+    
+    const tiltAmount = -angularVelocityRef.current * adjustedMultiplier * velocityLength;
+    
+    // Limitar la inclinación máxima para evitar que se vea exagerado
+    const maxTilt = 0.25; // ~14 grados máximo
+    const clampedTilt = THREE.MathUtils.clamp(tiltAmount, -maxTilt, maxTilt);
+    
+    // Aplicar inclinación con suavizado
+    tiltContainerRef.current.rotation.z = THREE.MathUtils.lerp(
+      tiltContainerRef.current.rotation.z,
+      clampedTilt,
+      0.15 // Factor de suavizado (más alto = más rápido)
+    );
+    
+    // Compensación vertical para evitar que el personaje flote cuando se inclina
+    // Fórmula de Sketchbook: position.y = (cos(abs(tilt)) / 2) - 0.5
+    const verticalCompensation = 
+      (Math.cos(Math.abs(clampedTilt)) / 2) * GAME_CONFIG.player.tilt.verticalCompensation + 
+      GAME_CONFIG.player.tilt.verticalOffset;
+    
+    tiltContainerRef.current.position.y = THREE.MathUtils.lerp(
+      tiltContainerRef.current.position.y,
+      verticalCompensation,
+      0.15 // Factor de suavizado
+    );
+  });
+
   if (!modelLoaded) {
     return (
       <Html center>
@@ -170,9 +234,12 @@ export default function AnimatedCharacter({
 
   return (
     <group ref={groupRef} position={position} rotation={rotation} scale={scale}>
-      {/* Offset Y para bajar el modelo y alinearlo con el cilindro de física */}
-      <group position={[0, -1, 0]}>
-        <primitive object={clonedScene} />
+      {/* Contenedor de inclinación (tiltContainer) - centrado para inclinación fácil */}
+      <group ref={tiltContainerRef}>
+        {/* Offset Y para bajar el modelo y alinearlo con el cilindro de física */}
+        <group position={[0, -1, 0]}>
+          <primitive object={clonedScene} />
+        </group>
       </group>
       {!isCurrentPlayer && username && (
         <Html position={[0, 2.5, 0]}>

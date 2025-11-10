@@ -59,6 +59,12 @@ export const GAME_CONFIG = {
       y: 1.05,
       z: -25,
     },
+    // Sistema de inclinación del personaje (Sketchbook)
+    tilt: {
+      multiplier: 1.2,          // Multiplicador de inclinación base (se escala con velocidad)
+      verticalOffset: 0,        // Offset vertical base - 0 para mantener altura normal
+      verticalCompensation: 0.1, // Compensación vertical para evitar flotación - Reducido
+    },
   },
   vehicle: {
     // Física del vehículo
