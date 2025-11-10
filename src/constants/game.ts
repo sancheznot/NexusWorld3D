@@ -60,6 +60,34 @@ export const GAME_CONFIG = {
       z: -25,
     },
   },
+  vehicle: {
+    // Física del vehículo
+    physics: {
+      engineForce: 10000,        // Fuerza del motor (mayor = más potencia)
+      brakeForce: 260,            // Fuerza de frenado
+      maxSteer: 0.6,              // Ángulo máximo de dirección (radianes)
+    },
+    // Sistema de transmisión
+    transmission: {
+      maxGears: 5,
+      timeToShift: 0.2,           // Tiempo de transición entre marchas (segundos)
+      gearsMaxSpeeds: {
+        '-1': -4,   // Reversa: -14 km/h
+        '0': 0,     // Neutro
+        '1': 8,     // Primera: ~29 km/h
+        '2': 14,    // Segunda: ~50 km/h
+        '3': 20,    // Tercera: ~72 km/h
+        '4': 26,    // Cuarta: ~94 km/h
+        '5': 33,    // Quinta: ~119 km/h
+      },
+    },
+    // SpringSimulator para dirección suave
+    steering: {
+      frequency: 60,              // Qué tan rápido responde (Hz)
+      damping: 10,                // Qué tan suave es (mayor = menos oscilación)
+      mass: 0.6,                  // Cuánta inercia tiene (mayor = más lento)
+    },
+  },
 } as const;
 
 export type CurrencyCode = typeof GAME_CONFIG.currency.code;

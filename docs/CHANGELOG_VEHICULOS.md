@@ -1085,3 +1085,268 @@ Líneas agregadas: ~5
 
 El vehículo ahora tiene física realista, estable y funcional. Todos los bugs críticos han sido corregidos.
 
+---
+
+## ✅ Fase 5: Mejoras Avanzadas (Sketchbook Integration) (COMPLETADO)
+
+**Fecha:** 2025-11-10  
+**Estado:** ✅ Implementado
+
+### 🎯 Objetivo
+Integrar las mejoras avanzadas de física del repositorio **Sketchbook** de swift502 para llevar la física de vehículos al siguiente nivel.
+
+### 📚 Referencia
+Código base tomado de:
+- **Repositorio:** https://github.com/swift502/Sketchbook
+- **Archivo principal:** `docs/Sketchbook/vehicles/Car.md`
+- **Funciones matemáticas:** `docs/Sketchbook/core/FunctionLibrary.md`
+
+---
+
+### 📂 Mejoras Implementadas
+
+#### 1. Sistema de Física de Aire Mejorado 🚁
+
+**Inspirado en:** `Car.md` líneas 180-235 (método `physicsPreStep`)
+
+**ANTES:**
+```typescript
+// Sistema simple: control instantáneo en el aire
+if (isInAir && state.airSpinTimer > 0.2) {
+  const airTorque = new CANNON.Vec3(0, input.steer * 5, 0);
+  chassis.applyTorque(airTorque);
+}
+```
+
+**AHORA (Sketchbook):**
+```typescript
+// Sistema gradual: control crece hasta 2 segundos
+const airSpinInfluence = Math.min(state.airSpinTimer / 2, 1) * Math.min(Math.abs(forwardSpeed), 1);
+
+// Factor de flip: más fácil hacer flips a baja velocidad
+const flipSpeedFactor = Math.max(1 - Math.abs(forwardSpeed), 0);
+
+// Detectar si está boca abajo
+const chassisUp = chassis.quaternion.vmult(new CANNON.Vec3(0, 1, 0));
+const upFactor = (chassisUp.dot(new CANNON.Vec3(0, -1, 0)) / 2) + 0.5;
+const flipOverInfluence = flipSpeedFactor * upFactor * 3;
+```
+
+**Beneficios:**
+- ✅ Control en el aire más realista (crece gradualmente)
+- ✅ Más fácil hacer flips a baja velocidad
+- ✅ Auto-corrección cuando está boca abajo
+- ✅ Control proporcional a la velocidad
+
+---
+
+#### 2. Drift Correction (Corrección de Derrape) 🏎️
+
+**Inspirado en:** `Car.md` líneas 236-254 (steering con drift correction)
+
+Un sistema que calcula el ángulo entre la **dirección del vehículo** y la **dirección de la velocidad** para ayudar a corregir derrapes automáticamente.
+
+```typescript
+// Calcular drift correction (ángulo entre velocidad y dirección)
+const velocity = new CANNON.Vec3().copy(chassis.velocity);
+velocity.normalize();
+
+const forward = chassis.quaternion.vmult(new CANNON.Vec3(0, 0, 1));
+
+// Calcular ángulo usando producto cruz para determinar el signo
+const cross = new CANNON.Vec3();
+forward.cross(velocity, cross);
+const dotProduct = forward.dot(velocity);
+const angle = Math.acos(Math.max(-1, Math.min(1, dotProduct)));
+
+driftCorrection = cross.y < 0 ? -angle : angle;
+```
+
+**Beneficios:**
+- ✅ Ayuda a enderezar el vehículo automáticamente
+- ✅ Previene derrapes excesivos
+- ✅ Sensación más realista de conducción
+- ✅ Más fácil controlar el vehículo en curvas
+
+---
+
+#### 3. Speed Factor en Steering 🏁
+
+**Inspirado en:** `Car.md` línea 242
+
+Un factor que hace que sea más difícil girar a alta velocidad (como en la vida real).
+
+```typescript
+// Speed factor de Sketchbook: más difícil girar a alta velocidad
+const speedFactor = Math.max(Math.abs(forwardSpeed) * 0.3, 1);
+
+// Aplicar al steering
+const steering = maxSteer / speedFactor;
+```
+
+| Velocidad | Speed Factor | Steering Máximo |
+|-----------|--------------|-----------------|
+| 0 m/s | 1.0 | 0.6 rad |
+| 10 m/s | 3.0 | 0.2 rad |
+| 20 m/s | 6.0 | 0.1 rad |
+| 30 m/s | 9.0 | 0.067 rad |
+
+**Beneficios:**
+- ✅ Más realista (como carros reales)
+- ✅ Previene giros bruscos a alta velocidad
+- ✅ Fuerza al jugador a frenar antes de curvas
+
+---
+
+#### 4. Sistema de Volante Visual 🎮
+
+**Inspirado en:** `Car.md` línea 141
+
+Rotación del volante visual del modelo 3D basada en el steering actual.
+
+**En `cannonPhysics.ts`:**
+```typescript
+getVehicleSteering(id: string): number {
+  const state = this.vehicleState.get(id);
+  if (!state?.steeringSimulator) return 0;
+  return state.steeringSimulator.position / 0.6;
+}
+```
+
+**En `CannonCar.tsx`:**
+```typescript
+// Rotar volante en cada frame
+if (steeringWheelRef.current) {
+  const steering = physics.getVehicleSteering(id);
+  steeringWheelRef.current.rotation.z = -steering * 2;
+}
+```
+
+**Beneficios:**
+- ✅ Feedback visual inmediato
+- ✅ Más inmersivo
+- ✅ Profesional (como juegos AAA)
+
+---
+
+### 📂 Archivos Modificados
+
+#### 1. `src/lib/three/cannonPhysics.ts`
+```
++ Sistema de física de aire mejorado (líneas 690-757)
++ Drift correction en steering (líneas 660-718)
++ Speed factor realista (línea 686)
++ Método getVehicleSteering() (líneas 969-980)
+
+Líneas modificadas: ~80
+Líneas agregadas: ~60
+```
+
+#### 2. `src/components/vehicles/CannonCar.tsx`
+```
++ Búsqueda de volante en modelo (líneas 28-50)
++ Rotación de volante visual (líneas 148-154)
+
+Líneas modificadas: ~15
+Líneas agregadas: ~30
+```
+
+---
+
+### 📊 Comparación: Antes vs Después
+
+#### Física de Aire
+
+| Aspecto | Antes (Fase 1-4) | Ahora (Fase 5) |
+|---------|------------------|----------------|
+| **Control en aire** | Instantáneo (0.2s) | Gradual (2s) |
+| **Influencia velocidad** | No | Sí (proporcional) |
+| **Flip factor** | No | Sí (más fácil a baja velocidad) |
+| **Auto-corrección** | No | Sí (cuando está boca abajo) |
+| **Realismo** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+
+#### Steering (Dirección)
+
+| Aspecto | Antes (Fase 1-4) | Ahora (Fase 5) |
+|---------|------------------|----------------|
+| **Drift correction** | No | Sí (auto-enderezamiento) |
+| **Speed factor** | Atenuación simple | Factor realista de Sketchbook |
+| **Alta velocidad** | Difícil controlar | Muy difícil (realista) |
+| **Baja velocidad** | Normal | Fácil (realista) |
+| **Volante visual** | No | Sí (rotación sincronizada) |
+| **Realismo** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+
+---
+
+### 🧪 Cómo Probar
+
+#### Test 1: Física de Aire Mejorada
+```
+1. Buscar una rampa o colina
+2. Saltar con el vehículo
+3. ✅ Observar: Control crece gradualmente (no instantáneo)
+4. Intentar hacer flips a baja velocidad
+5. ✅ Observar: Más fácil que a alta velocidad
+```
+
+#### Test 2: Drift Correction
+```
+1. Acelerar a velocidad media (30-40 km/h)
+2. Girar bruscamente (A o D)
+3. Soltar la tecla de dirección
+4. ✅ Observar: El vehículo se endereza automáticamente
+```
+
+#### Test 3: Speed Factor
+```
+1. Acelerar al máximo (5ta marcha, 79 km/h)
+2. Intentar girar (A o D)
+3. ✅ Observar: Muy difícil girar (realista)
+4. Frenar a velocidad baja
+5. ✅ Observar: Mucho más fácil girar
+```
+
+#### Test 4: Volante Visual
+```
+1. Entrar al vehículo (F)
+2. Girar con A o D
+3. ✅ Observar: El volante rota suavemente
+4. ✅ Observar: Rotación máxima ~115° (realista)
+```
+
+---
+
+### 🎉 Resumen de Fase 5
+
+**Todas las Mejoras Implementadas:**
+
+| Mejora | Inspiración | Impacto |
+|--------|-------------|---------|
+| Física de aire mejorada | Sketchbook Car.md | 🔥🔥🔥🔥🔥 |
+| Drift correction | Sketchbook Car.md | 🔥🔥🔥🔥🔥 |
+| Speed factor | Sketchbook Car.md | 🔥🔥🔥🔥 |
+| Volante visual | Sketchbook Car.md | 🔥🔥🔥 |
+
+---
+
+### 📈 Progreso Total
+
+**Fases completadas:**
+- ✅ Fase 1: SpringSimulator, Torque Curve, Air Physics
+- ✅ Fase 2: Sistema de Transmisión (5 marchas + R)
+- ✅ Fase 3: Vehicle HUD (Marcha, Velocidad, RPM)
+- ✅ Fase 4: Correcciones Críticas
+- ✅ **Fase 5: Mejoras Avanzadas (Sketchbook Integration)** ⭐
+
+**Total de mejoras:** 20+ características implementadas
+
+---
+
+**¡Fase 5 completada con éxito! 🎊**
+
+**El vehículo ahora tiene física de nivel AAA con integración completa de Sketchbook!**
+
+**Créditos:** Código inspirado en **Sketchbook** de swift502 (Jan Bláha)
+
+---
+

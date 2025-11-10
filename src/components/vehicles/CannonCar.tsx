@@ -17,12 +17,16 @@ interface CannonCarProps {
 
 export default function CannonCar({ driving, spawn, modelPath = '/models/vehicles/cars/Car_07.glb', id = 'playerCar' }: CannonCarProps) {
   const groupRef = useRef<THREE.Group>(null);
+  const steeringWheelRef = useRef<THREE.Object3D | null>(null);
   const [controls, setControls] = useState({ forward: false, backward: false, left: false, right: false, handbrake: false });
 
   // Cargar modelo una sola vez y clonar para editar sin mutar cache
   const { scene } = useGLTF(modelPath, 'https://www.gstatic.com/draco/v1/decoders/');
   const visual = useMemo(() => {
     const cloned = scene.clone(true);
+    
+    // Buscar el volante en el modelo (nombres comunes: steering, wheel, volante)
+    let steeringWheel: THREE.Object3D | null = null;
     cloned.traverse((child) => {
       const mesh = child as THREE.Mesh;
       if (mesh.isMesh) {
@@ -30,7 +34,21 @@ export default function CannonCar({ driving, spawn, modelPath = '/models/vehicle
         mesh.receiveShadow = true;
         mesh.frustumCulled = false;
       }
+      
+      // Buscar volante por nombre
+      const name = child.name.toLowerCase();
+      if (!steeringWheel && (
+        name.includes('steering') || 
+        name.includes('volante') || 
+        (name.includes('wheel') && !name.includes('tire') && !name.includes('rim'))
+      )) {
+        steeringWheel = child;
+        console.log('🎮 Volante encontrado:', child.name);
+      }
     });
+    
+    steeringWheelRef.current = steeringWheel;
+    
     // Auto-escalar a ~4.2m largo
     const box = new THREE.Box3().setFromObject(cloned);
     const size = box.getSize(new THREE.Vector3());
@@ -125,6 +143,14 @@ export default function CannonCar({ driving, spawn, modelPath = '/models/vehicle
         z: t.position.z,
       };
       (window as unknown as { _veh_yaw?: number })._veh_yaw = t.rotationY;
+    }
+
+    // Rotar volante visual según steering (sistema de Sketchbook)
+    if (steeringWheelRef.current) {
+      const steering = physics.getVehicleSteering(id);
+      // Rotación en Z (como en Sketchbook): -steering * 2 radianes
+      // Esto da aproximadamente 115 grados de rotación máxima (realista)
+      steeringWheelRef.current.rotation.z = -steering * 2;
     }
   });
 

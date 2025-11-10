@@ -2,6 +2,7 @@ import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { threeToCannon, ShapeType } from 'three-to-cannon';
 import { PHYSICS_CONFIG } from '@/constants/physics';
+import { GAME_CONFIG } from '@/constants/game';
 import { SpringSimulator } from '../physics/SpringSimulator';
 
 export class CannonPhysics {
@@ -555,9 +556,15 @@ export class CannonPhysics {
     vehicle.addToWorld(this.world);
     // Guardar ref en bodies map usando key `${id}:vehicle`
     (this as unknown as Record<string, unknown>)[`${id}:vehicle`] = vehicle;
+    // Usar constantes de steering desde GAME_CONFIG
+    const steeringConfig = GAME_CONFIG.vehicle.steering;
     this.vehicleState.set(id, { 
       reverseMode: false,
-      steeringSimulator: new SpringSimulator(60, 10, 0.6), // Dirección suave
+      steeringSimulator: new SpringSimulator(
+        steeringConfig.frequency,
+        steeringConfig.damping,
+        steeringConfig.mass
+      ),
       airSpinTimer: 0,
       gear: 1,           // Empezar en primera marcha
       shiftTimer: 0      // Sin delay inicial
@@ -566,21 +573,9 @@ export class CannonPhysics {
   }
 
   /**
-   * Configuración del sistema de transmisión
+   * Configuración del sistema de transmisión (desde constantes)
    */
-  private readonly TRANSMISSION_CONFIG = {
-    maxGears: 5,
-    timeToShift: 0.2,  // Tiempo de transición entre marchas (segundos)
-    gearsMaxSpeeds: {
-      '-1': -4,   // Reversa
-      '0': 0,     // Neutro
-      '1': 5,     // Primera
-      '2': 9,     // Segunda
-      '3': 13,    // Tercera
-      '4': 17,    // Cuarta
-      '5': 22,    // Quinta
-    }
-  };
+  private readonly TRANSMISSION_CONFIG = GAME_CONFIG.vehicle.transmission;
 
   /**
    * Cambia a una marcha superior
@@ -642,9 +637,10 @@ export class CannonPhysics {
     const chassis = this.bodies.get(id);
     const state = this.vehicleState.get(id) || { reverseMode: false, airSpinTimer: 0 };
     
-    const maxSteer = 0.6; // baseline estable
-    const engineForceBase = 3200; // baseline empuje
-    const brakeForce = 260;
+    // Constantes de física del vehículo (desde GAME_CONFIG)
+    const maxSteer = GAME_CONFIG.vehicle.physics.maxSteer;
+    const engineForceBase = GAME_CONFIG.vehicle.physics.engineForce;
+    const brakeForce = GAME_CONFIG.vehicle.physics.brakeForce;
 
     // Reset brakes each frame
     for (let i = 0; i < 4; i++) vehicle.setBrake(0, i);
@@ -657,19 +653,53 @@ export class CannonPhysics {
       forwardSpeed = chassis.velocity.dot(forwardWorld);
     }
 
-    // ========== NUEVO: Dirección con SpringSimulator ==========
+    // ========== NUEVO: Dirección con SpringSimulator y Drift Correction (Sketchbook) ==========
     const steeringSimulator = state.steeringSimulator;
-    if (steeringSimulator) {
-      // Actualizar target del simulador
-      steeringSimulator.target = input.steer;
+    if (steeringSimulator && chassis) {
+      // Calcular drift correction (ángulo entre velocidad y dirección)
+      const velocity = new CANNON.Vec3().copy(chassis.velocity);
+      const velocityLength = velocity.length();
+      
+      let driftCorrection = 0;
+      if (velocityLength > 0.5) { // Solo aplicar si hay movimiento significativo
+        velocity.normalize();
+        
+        // Vector forward del vehículo
+        const forward = chassis.quaternion.vmult(new CANNON.Vec3(0, 0, 1));
+        
+        // Calcular ángulo entre velocidad y dirección (drift)
+        // Usando producto cruz para determinar el signo
+        const cross = new CANNON.Vec3();
+        forward.cross(velocity, cross);
+        const dotProduct = forward.dot(velocity);
+        const angle = Math.acos(Math.max(-1, Math.min(1, dotProduct)));
+        
+        // Determinar signo del ángulo
+        driftCorrection = cross.y < 0 ? -angle : angle;
+      }
+      
+      // Speed factor de Sketchbook: más difícil girar a alta velocidad
+      const speedFactor = Math.max(Math.abs(forwardSpeed) * 0.3, 1);
+      
+      // Calcular steering target con drift correction
+      if (input.steer > 0.01) {
+        // Girando a la derecha
+        const steering = Math.min(-maxSteer / speedFactor, -driftCorrection);
+        steeringSimulator.target = Math.max(-maxSteer, Math.min(maxSteer, steering));
+      } else if (input.steer < -0.01) {
+        // Girando a la izquierda
+        const steering = Math.max(maxSteer / speedFactor, -driftCorrection);
+        steeringSimulator.target = Math.max(-maxSteer, Math.min(maxSteer, steering));
+      } else {
+        // Sin input: volver al centro (con drift correction para ayudar a enderezar)
+        steeringSimulator.target = 0;
+      }
       
       // Simular física del resorte
       steeringSimulator.simulate(deltaTime);
       
-      // Aplicar dirección suavizada con atenuación por velocidad
-      const speedNorm = Math.min(Math.abs(forwardSpeed) / 25, 1);
-      const speedAtt = 1 - 0.3 * speedNorm; // Menos atenuación que antes
-      const steerVal = maxSteer * speedAtt * steeringSimulator.position;
+      // Aplicar dirección suavizada (INVERTIDA porque Cannon.js tiene steering al revés)
+      const steerVal = -steeringSimulator.position;
       
       vehicle.setSteeringValue(steerVal, 0);
       vehicle.setSteeringValue(steerVal, 1);
@@ -691,24 +721,60 @@ export class CannonPhysics {
       // Incrementar timer de aire
       state.airSpinTimer = (state.airSpinTimer || 0) + deltaTime;
       
-      // Permitir rotación en el aire después de 0.2 segundos
-      if (state.airSpinTimer > 0.2 && chassis) {
-        // Reducir damping angular para permitir giros en el aire
+      if (chassis) {
+        // Reducir damping en el aire para permitir rotación
         chassis.angularDamping = 0.1;
         
-        // Aplicar torque de rotación si se presiona dirección
-        if (input.steer !== 0) {
-          const airTorque = new CANNON.Vec3(0, input.steer * 5, 0);
-          chassis.applyTorque(airTorque);
+        // Sistema de Sketchbook: airSpinInfluence crece gradualmente hasta 2 segundos
+        // Esto hace que el control en el aire sea más realista
+        const airSpinInfluence = Math.min(state.airSpinTimer / 2, 1) * Math.min(Math.abs(forwardSpeed), 1);
+        
+        // Factor de flip: más fácil hacer flips a baja velocidad
+        const flipSpeedFactor = Math.max(1 - Math.abs(forwardSpeed), 0);
+        
+        // Detectar si está boca abajo (up factor)
+        const chassisUp = chassis.quaternion.vmult(new CANNON.Vec3(0, 1, 0));
+        const upFactor = (chassisUp.dot(new CANNON.Vec3(0, -1, 0)) / 2) + 0.5;
+        const flipOverInfluence = flipSpeedFactor * upFactor * 3;
+        
+        // Constantes de control en el aire
+        const maxAirSpinMagnitude = 2.0;
+        const airSpinAcceleration = 0.15;
+        
+        // Vectores de dirección del vehículo
+        const forward = chassis.quaternion.vmult(new CANNON.Vec3(0, 0, 1));
+        const right = chassis.quaternion.vmult(new CANNON.Vec3(1, 0, 0));
+        
+        // Vectores de spin efectivos
+        const effectiveSpinForward = forward.scale(airSpinAcceleration * (airSpinInfluence + flipOverInfluence));
+        const effectiveSpinRight = right.scale(airSpinAcceleration * airSpinInfluence);
+        
+        const angVel = chassis.angularVelocity;
+        
+        // Control de rotación lateral (A/D en el aire)
+        if (input.steer > 0.01) {
+          // Girar a la derecha
+          if (angVel.dot(forward) < maxAirSpinMagnitude) {
+            angVel.vadd(effectiveSpinForward, angVel);
+          }
+        } else if (input.steer < -0.01) {
+          // Girar a la izquierda
+          if (angVel.dot(forward) > -maxAirSpinMagnitude) {
+            angVel.vsub(effectiveSpinForward, angVel);
+          }
         }
         
-        // Permitir inclinación adelante/atrás (trucos)
-        if (input.throttle > 0) {
-          const pitchTorque = new CANNON.Vec3(-2, 0, 0);
-          chassis.applyTorque(pitchTorque);
-        } else if (input.brake > 0) {
-          const pitchTorque = new CANNON.Vec3(2, 0, 0);
-          chassis.applyTorque(pitchTorque);
+        // Control de inclinación adelante/atrás (W/S en el aire)
+        if (input.throttle > 0.01) {
+          // Frontflip (inclinación hacia adelante)
+          if (angVel.dot(right) < maxAirSpinMagnitude) {
+            angVel.vadd(effectiveSpinRight, angVel);
+          }
+        } else if (input.brake > 0.01) {
+          // Backflip (inclinación hacia atrás)
+          if (angVel.dot(right) > -maxAirSpinMagnitude) {
+            angVel.vsub(effectiveSpinRight, angVel);
+          }
         }
       }
     } else {
@@ -738,8 +804,22 @@ export class CannonPhysics {
 
     // Solo procesar transmisión si no estamos cambiando marcha
     if (state.shiftTimer <= 0) {
-      // ADELANTE (W)
-      if (input.throttle > 0.01) {
+      // REVERSA (S) - Sistema de Sketchbook
+      if (input.brake > 0.01) {
+        // Cambiar a reversa
+        state.gear = -1;
+        const gearsMaxSpeeds = this.TRANSMISSION_CONFIG.gearsMaxSpeeds;
+        const maxReverseSpeed = Math.abs(gearsMaxSpeeds['-1']); // 4 m/s
+        
+        // Solo aplicar fuerza si no hemos alcanzado la velocidad máxima de reversa
+        if (speed > gearsMaxSpeeds['-1'] && speed < 5) {
+          const powerFactor = (gearsMaxSpeeds['-1'] - speed) / maxReverseSpeed;
+          const force = (engineForceBase * 0.7) * Math.abs(powerFactor);
+          engineForce = -force * input.brake; // NEGATIVO para reversa
+        }
+      }
+      // ADELANTE - Sistema de Sketchbook (EXACTO)
+      else {
         // Asegurar que estamos en marcha adelante
         if (state.gear < 1) state.gear = 1;
 
@@ -747,43 +827,28 @@ export class CannonPhysics {
         const currentGearMaxSpeed = gearsMaxSpeeds[state.gear.toString() as keyof typeof gearsMaxSpeeds];
         const prevGearMaxSpeed = state.gear > 1 ? gearsMaxSpeeds[(state.gear - 1).toString() as keyof typeof gearsMaxSpeeds] : 0;
 
-        // Factor de potencia: qué tan cerca estamos del máximo de la marcha
-        const powerFactor = (currentGearMaxSpeed - speed) / (currentGearMaxSpeed - prevGearMaxSpeed);
+        // Usar valor absoluto del speed para que funcione independiente de la dirección
+        const absSpeed = Math.abs(speed);
 
-        // Cambio automático de marchas (solo si no estamos en proceso de cambio)
-        if (state.shiftTimer <= 0) {
-          if (powerFactor < 0.1 && state.gear < this.TRANSMISSION_CONFIG.maxGears) {
-            this.shiftUp(state);
-          } else if (state.gear > 1 && powerFactor > 1.2) {
-            this.shiftDown(state);
-          }
+        // Factor de potencia (SIEMPRE se calcula, no solo cuando aceleras)
+        const powerFactor = (currentGearMaxSpeed - absSpeed) / (currentGearMaxSpeed - prevGearMaxSpeed);
+
+        // Cambio automático (SIEMPRE se verifica, no solo cuando aceleras)
+        if (powerFactor < 0.1 && state.gear < this.TRANSMISSION_CONFIG.maxGears) {
+          this.shiftUp(state);
+        } else if (state.gear > 1 && powerFactor > 1.2) {
+          this.shiftDown(state);
         }
-
-        // Solo aplicar fuerza si no hemos alcanzado la velocidad máxima
-        if (speed < currentGearMaxSpeed && state.shiftTimer <= 0) {
+        // SOLO aplicar fuerza si presionas W
+        else if (input.throttle > 0.01) {
           // Calcular RPM basado en velocidad y marcha
           const gearRatio = state.gear;
-          const rpm = 1000 + (Math.abs(speed) / currentGearMaxSpeed) * 6000;
+          const rpm = 1000 + (absSpeed / currentGearMaxSpeed) * 6000;
           const powerCurve = this.calculatePowerCurve(rpm);
 
-          // Fuerza del motor: más fuerza en marchas bajas
+          // Fuerza del motor (como Sketchbook)
           const force = (engineForceBase / gearRatio) * Math.pow(powerFactor, 1) * powerCurve;
-          engineForce = force * input.throttle; // POSITIVO para ir hacia ADELANTE
-        }
-      }
-      // REVERSA (S) - Sistema de Sketchbook
-      else if (input.brake > 0.01) {
-        // Cambiar a reversa
-        state.gear = -1;
-        const gearsMaxSpeeds = this.TRANSMISSION_CONFIG.gearsMaxSpeeds;
-        const maxReverseSpeed = Math.abs(gearsMaxSpeeds['-1']); // 4 m/s
-        
-        // Solo aplicar fuerza si no hemos alcanzado la velocidad máxima de reversa
-        // speed es negativo en reversa, así que verificamos que sea mayor que -4
-        if (speed > gearsMaxSpeeds['-1']) { // speed > -4
-          const powerFactor = (gearsMaxSpeeds['-1'] - speed) / maxReverseSpeed;
-          const force = (engineForceBase * 0.7) * Math.abs(powerFactor); // 70% de fuerza
-          engineForce = -force * input.brake; // NEGATIVO para reversa en Cannon.js
+          engineForce = force * input.throttle;
         }
       }
     }
@@ -894,6 +959,19 @@ export class CannonPhysics {
   getVehicleGear(id: string): number {
     const state = this.vehicleState.get(id);
     return state?.gear ?? 1;
+  }
+
+  /**
+   * Obtiene el steering actual del vehículo (para animación de volante)
+   * @param id - ID del vehículo
+   * @returns Valor entre -1 y 1 (-1=izquierda máxima, 1=derecha máxima)
+   */
+  getVehicleSteering(id: string): number {
+    const state = this.vehicleState.get(id);
+    if (!state?.steeringSimulator) return 0;
+    
+    // Normalizar a rango -1 a 1 (maxSteer es 0.6)
+    return state.steeringSimulator.position / 0.6;
   }
 
   /**

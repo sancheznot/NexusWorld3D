@@ -1,13 +1,13 @@
 # 📋 Resumen del Estado Actual - Hotel Humboldt
 
 **Fecha:** 2025-11-10  
-**Última Actualización:** Fase 4 completada
+**Última Actualización:** Fase 5 completada + Correcciones ⭐✅
 
 ---
 
 ## 🎯 ¿Dónde Estamos?
 
-Hemos completado **4 fases** de mejoras en la física de vehículos, integrando características del repositorio **Sketchbook** de swift502.
+Hemos completado **5 fases** de mejoras en la física de vehículos, integrando características avanzadas del repositorio **Sketchbook** de swift502, con todas las correcciones de bugs y constantes centralizadas.
 
 ---
 
@@ -39,6 +39,14 @@ Hemos completado **4 fases** de mejoras en la física de vehículos, integrando 
 - ✅ Sistema anti-vuelco implementado
 - ✅ Auto-enderezamiento si se voltea
 
+### **Fase 5: Mejoras Avanzadas (Sketchbook Integration)** ⭐ NUEVO
+- ✅ Física de aire mejorada (control gradual en 2 segundos)
+- ✅ Drift correction (auto-enderezamiento)
+- ✅ Speed factor realista (más difícil girar a alta velocidad)
+- ✅ Volante visual con rotación sincronizada
+- ✅ Flip factor (más fácil hacer trucos a baja velocidad)
+- ✅ Auto-corrección cuando está boca abajo
+
 ---
 
 ## 🎮 Controles Actuales
@@ -58,12 +66,14 @@ Hemos completado **4 fases** de mejoras en la física de vehículos, integrando 
 ### **Sistema de Física**
 - ✅ SpringSimulator para dirección suave
 - ✅ Torque curve (curva de potencia del motor)
-- ✅ Air physics (física en el aire)
+- ✅ Air physics mejorada (control gradual, flip factor)
 - ✅ Sistema de transmisión (5 marchas)
 - ✅ Cambios automáticos
 - ✅ Freno de mano
 - ✅ Sistema anti-vuelco
 - ✅ Auto-enderezamiento
+- ✅ Drift correction (auto-enderezamiento de derrapes)
+- ✅ Speed factor (dirección realista según velocidad)
 
 ### **Límites de Velocidad**
 | Marcha | Velocidad Máx |
@@ -80,6 +90,7 @@ Hemos completado **4 fases** de mejoras en la física de vehículos, integrando 
 - ✅ Velocímetro
 - ✅ Tacómetro con zona roja
 - ✅ Diseño moderno con Tailwind CSS
+- ✅ Volante visual con rotación sincronizada
 
 ---
 
@@ -97,7 +108,9 @@ Hemos completado **4 fases** de mejoras en la física de vehículos, integrando 
 - `src/components/game/GameCanvas.tsx` - Canvas principal
 
 ### **Documentación**
-- `docs/CHANGELOG_VEHICULOS.md` - Registro de cambios detallado
+- `docs/CHANGELOG_VEHICULOS.md` - Registro de cambios detallado (Fases 1-5)
+- `docs/FASE_5_MEJORAS_AVANZADAS.md` - Documentación detallada de Fase 5
+- `docs/FASE_5_CORRECCIONES.md` - Correcciones de bugs y constantes ⭐ NUEVO
 - `docs/PLAN_MEJORAS_VEHICULOS.md` - Plan de mejoras
 - `docs/ANALISIS_COMPARATIVO.md` - Análisis comparativo
 - `docs/RESUMEN_ESTADO_ACTUAL.md` - Este documento
@@ -131,24 +144,30 @@ De Sketchbook aún podemos integrar:
 
 ### **Para entender qué se hizo:**
 1. **`docs/CHANGELOG_VEHICULOS.md`** ⭐ MÁS IMPORTANTE
-   - Registro detallado de todas las fases
+   - Registro detallado de todas las fases (1-5)
    - Código antes/después
    - Explicaciones de cada cambio
 
-2. **`docs/PLAN_MEJORAS_VEHICULOS.md`**
+2. **`docs/FASE_5_MEJORAS_AVANZADAS.md`** ⭐ NUEVO
+   - Documentación detallada de Fase 5
+   - Integración de Sketchbook
+   - Comparaciones y ejemplos
+
+3. **`docs/PLAN_MEJORAS_VEHICULOS.md`**
    - Plan original de mejoras
    - Fases propuestas
    - Instrucciones de testing
 
-3. **`docs/ANALISIS_COMPARATIVO.md`**
+4. **`docs/ANALISIS_COMPARATIVO.md`**
    - Comparación entre nuestro código y Sketchbook
    - Fortalezas y debilidades
    - Recomendaciones
 
 ### **Para continuar el desarrollo:**
-1. Lee **`CHANGELOG_VEHICULOS.md`** - Fase 4 (última)
-2. Revisa este documento (`RESUMEN_ESTADO_ACTUAL.md`)
-3. Decide qué hacer a continuación (Opción A, B o C)
+1. Lee **`CHANGELOG_VEHICULOS.md`** - Fase 5 (última)
+2. Lee **`FASE_5_MEJORAS_AVANZADAS.md`** - Detalles de integración de Sketchbook
+3. Revisa este documento (`RESUMEN_ESTADO_ACTUAL.md`)
+4. Decide qué hacer a continuación (Opción A, B o C)
 
 ---
 
@@ -197,12 +216,16 @@ Después de cada cambio, probar:
 
 ## 🎉 Logros
 
-**De arcade básico a simulación AAA:**
-- ✅ Física realista con transmisión completa
+**De arcade básico a simulación AAA con integración de Sketchbook:**
+- ✅ Física realista con transmisión completa (5 marchas + R)
 - ✅ HUD profesional con información en tiempo real
 - ✅ Sistema anti-vuelco inteligente
-- ✅ Controles suaves y responsivos
+- ✅ Controles suaves y responsivos con drift correction
+- ✅ Física de aire avanzada (control gradual, flip factor)
+- ✅ Speed factor realista (más difícil girar a alta velocidad)
+- ✅ Volante visual sincronizado
 - ✅ Código bien organizado y documentado
+- ✅ **20+ características implementadas en 5 fases**
 
 ---
 
@@ -210,11 +233,12 @@ Después de cada cambio, probar:
 
 **Empieza leyendo:**
 1. Este documento (`RESUMEN_ESTADO_ACTUAL.md`)
-2. `CHANGELOG_VEHICULOS.md` - Fase 4
+2. `FASE_5_MEJORAS_AVANZADAS.md` - Detalles de integración de Sketchbook ⭐
+3. `CHANGELOG_VEHICULOS.md` - Fase 5
 
 **Luego decide:**
-- ¿Continuar con personaje?
-- ¿Más mejoras de vehículo?
+- ¿Continuar con personaje? (Sistema de estados, inclinación, etc.)
+- ¿Más mejoras de vehículo? (Sonidos, partículas, daño)
 - ¿Optimización y pulido?
 
 **Comando sugerido para empezar:**
@@ -222,8 +246,11 @@ Después de cada cambio, probar:
 # Ver el estado actual
 git status
 
-# Leer el changelog
-cat docs/CHANGELOG_VEHICULOS.md | tail -n 300
+# Leer el resumen de Fase 5
+cat docs/FASE_5_MEJORAS_AVANZADAS.md
+
+# Leer el changelog completo
+cat docs/CHANGELOG_VEHICULOS.md | tail -n 400
 
 # Leer este resumen
 cat docs/RESUMEN_ESTADO_ACTUAL.md
@@ -231,5 +258,7 @@ cat docs/RESUMEN_ESTADO_ACTUAL.md
 
 ---
 
-**¡Todo funcionando y listo para continuar! 🚗✨**
+**¡Todo funcionando con física de nivel AAA! 🚗✨🎊**
+
+**Fase 5 completada:** Integración completa de Sketchbook con drift correction, speed factor, física de aire avanzada y volante visual.
 
