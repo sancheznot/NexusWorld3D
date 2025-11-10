@@ -55,9 +55,9 @@ export const GAME_CONFIG = {
   },
   player: {
     spawnPosition: {
-      x: -4.9,
+      x: 46,
       y: 1.05,
-      z: 33.9,
+      z: -25,
     },
   },
 } as const;

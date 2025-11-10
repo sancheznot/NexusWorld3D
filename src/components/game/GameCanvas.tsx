@@ -23,6 +23,7 @@ import GameSettings from '@/components/game/GameSettings';
 import ModelInfo from '@/components/ui/ModelInfo';
 import FPSCounter from '@/components/ui/FPSCounter';
 import PlayerStatsHUD from '@/components/ui/PlayerStatsHUD';
+import VehicleHUD from '@/components/ui/VehicleHUD';
 import AdminTeleportUI from '@/components/ui/AdminTeleportUI';
 import ChatWindow from '@/components/chat/ChatWindow';
 import InventoryUI from '@/components/inventory/InventoryUI';
@@ -558,6 +559,9 @@ export default function GameCanvas() {
       
       {/* Player Stats HUD - Reorganizado */}
       <PlayerStatsHUD className="absolute top-4 right-4 z-10" />
+      
+      {/* Vehicle HUD - Mostrar solo cuando está conduciendo */}
+      {isDriving && <VehicleHUD vehicleId="playerCar" visible={isDriving} />}
       
       {/* Server Clock HUD */}
       {/* <ServerClock /> */}

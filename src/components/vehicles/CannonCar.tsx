@@ -17,7 +17,7 @@ interface CannonCarProps {
 
 export default function CannonCar({ driving, spawn, modelPath = '/models/vehicles/cars/Car_07.glb', id = 'playerCar' }: CannonCarProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const [controls, setControls] = useState({ forward: false, backward: false, left: false, right: false });
+  const [controls, setControls] = useState({ forward: false, backward: false, left: false, right: false, handbrake: false });
 
   // Cargar modelo una sola vez y clonar para editar sin mutar cache
   const { scene } = useGLTF(modelPath, 'https://www.gstatic.com/draco/v1/decoders/');
@@ -68,12 +68,13 @@ export default function CannonCar({ driving, spawn, modelPath = '/models/vehicle
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase();
-      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
+      if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
       setControls((p) => ({
         forward: p.forward || k === 'w' || k === 'arrowup',
         backward: p.backward || k === 's' || k === 'arrowdown',
         left: p.left || k === 'a' || k === 'arrowleft',
         right: p.right || k === 'd' || k === 'arrowright',
+        handbrake: p.handbrake || k === ' ', // Space
       }));
     };
     const onUp = (e: KeyboardEvent) => {
@@ -83,6 +84,7 @@ export default function CannonCar({ driving, spawn, modelPath = '/models/vehicle
         backward: (k === 's' || k === 'arrowdown') ? false : p.backward,
         left: (k === 'a' || k === 'arrowleft') ? false : p.left,
         right: (k === 'd' || k === 'arrowright') ? false : p.right,
+        handbrake: k === ' ' ? false : p.handbrake, // Space
       }));
     };
     window.addEventListener('keydown', onDown);
@@ -90,12 +92,12 @@ export default function CannonCar({ driving, spawn, modelPath = '/models/vehicle
     return () => {
       window.removeEventListener('keydown', onDown);
       window.removeEventListener('keyup', onUp);
-      setControls({ forward: false, backward: false, left: false, right: false });
+      setControls({ forward: false, backward: false, left: false, right: false, handbrake: false });
     };
   }, []);
 
   // Actualizar vehículo y sincronizar visual
-  useFrame(() => {
+  useFrame((state, delta) => {
     const physics = getPhysicsInstance();
     if (!physics) return;
 
@@ -104,7 +106,8 @@ export default function CannonCar({ driving, spawn, modelPath = '/models/vehicle
       const throttle = controls.forward ? 1 : 0;
       const brake = controls.backward ? 1 : 0;
       const steer = controls.left ? -1 : controls.right ? 1 : 0;
-      physics.updateRaycastVehicle(id, { throttle, brake, steer });
+      const handbrake = controls.handbrake ? 1 : 0; // Space
+      physics.updateRaycastVehicle(id, { throttle, brake, steer, handbrake }, delta);
     } else {
       physics.stopVehicle(id);
     }
