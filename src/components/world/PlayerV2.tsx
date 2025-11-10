@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { usePlayerStore } from '@/store/playerStore';
 import { useAdvancedMovement } from '@/hooks/useAdvancedMovement';
@@ -8,11 +8,13 @@ import { useCannonPhysics } from '@/hooks/useCannonPhysics';
 import { useAdminTeleport } from '@/hooks/useAdminTeleport';
 import { collisionSystem } from '@/lib/three/collisionSystem';
 import AnimatedCharacter from '@/components/world/AnimatedCharacter';
-import { useCharacterAnimation } from '@/hooks/useCharacterAnimation';
+import { useCharacterAnimation, type AnimationState } from '@/hooks/useCharacterAnimation';
 import { PHYSICS_CONFIG } from '@/constants/physics';
 import { GAME_CONFIG } from '@/constants/game';
 import * as THREE from 'three';
 import { PlayerCustomization } from '@/types/player.types';
+import { CharacterStateMachine } from '@/lib/character/CharacterStateMachine';
+import { CharacterStateContext } from '@/lib/character/CharacterState';
 
 interface PlayerProps {
   position?: [number, number, number];
@@ -81,6 +83,12 @@ export default function PlayerV2({
   const landingAnimationUntilRef = useRef(0);
   const wasGroundedRef = useRef(true);
   const wasJumpingRef = useRef(false); // Para saber si estamos en un salto intencional
+
+  // Sistema de Estados (Sketchbook) - OPCIONAL
+  const stateMachine = useMemo(() => {
+    if (!GAME_CONFIG.player.stateMachine.enabled) return null;
+    return new CharacterStateMachine(); // Inicia en IdleState por defecto
+  }, []);
 
   const defaultCustomization: PlayerCustomization = {
     bodyColor: '#007bff',
@@ -413,42 +421,79 @@ export default function PlayerV2({
     return `/models/characters/${gender}/${gender}-all.glb`;
   };
 
-  // Resolver animación final incluyendo física de caída (Sketchbook)
+  // Resolver animación final
   let desiredAnim = currentAnimation;
   const nowAnim = performance.now();
   
-  // Prioridad 1: Animaciones de aterrizaje (landing)
-  if (fallState === 'landing' && nowAnim < landingAnimationUntilRef.current) {
-    const impactVelocity = groundImpactVelocityRef.current.y;
-    if (impactVelocity < GAME_CONFIG.player.fall.hardLandingThreshold) {
-      // Caída fuerte: Roll - Usar 'jump' como placeholder hasta tener animación real
-      desiredAnim = 'jump'; // TODO: Cambiar a 'drop_rolling' cuando tengamos la animación
-    } else if (impactVelocity < GAME_CONFIG.player.fall.softLandingThreshold) {
-      // Caída media: Drop Running - Usar 'walking' como placeholder
-      desiredAnim = 'walking'; // TODO: Cambiar a 'drop_running' cuando tengamos la animación
+  // MODO 1: Usar State Machine (Sketchbook) si está habilitado
+  if (GAME_CONFIG.player.stateMachine.enabled && stateMachine && isCurrentPlayer) {
+    const velocity = physicsRef.current?.getPlayerVelocity() || { x: 0, y: 0, z: 0 };
+    const isGrounded = physicsRef.current?.isGrounded() || true;
+    const stamina = usePlayerStore.getState().stamina;
+    
+    // Convertir input de nuestro formato (x, z) a formato Sketchbook (forward, backward, left, right)
+    const sketchbookInput = {
+      forward: input.z > 0,
+      backward: input.z < 0,
+      left: input.x < 0,
+      right: input.x > 0,
+      run: input.isRunning,
+      jump: input.isJumping,
+    };
+    
+    // Construir contexto actualizado para el State Machine
+    const context: CharacterStateContext = {
+      input: sketchbookInput,
+      isGrounded,
+      velocity,
+      stamina,
+    };
+    
+    // Actualizar State Machine y obtener animación
+    const deltaTime = 1/60; // Aproximación, en producción usar delta real
+    const stateAnimation = stateMachine.update(deltaTime, context);
+    // Mapear nombres de animación de Sketchbook a nuestras animaciones
+    desiredAnim = stateAnimation as AnimationState;
+    
+    if (GAME_CONFIG.player.stateMachine.debugLogs) {
+      // Los logs ya se hacen en el State Machine
     }
   }
-  // Prioridad 2: Animación de caída en el aire
-  else if (fallState === 'falling' && !physicsRef.current?.isGrounded() && wasJumpingRef.current) {
-    // Solo mostrar animación de salto/caída si fue un salto intencional
-    desiredAnim = 'jump'; // TODO: Cambiar a 'falling' cuando tengamos la animación
-  }
-  // Prioridad 3: Salto
-  else if (nowAnim < jumpLockedUntilRef.current) {
-    desiredAnim = 'jump';
-  }
-  // Prioridad 4: Correr
-  else if (runAnimStateRef.current) {
-    desiredAnim = 'running';
-  }
-  // Prioridad 5: Caminar o idle
+  // MODO 2: Usar lógica actual (sistema que ya funciona bien)
   else {
-    const moving = Math.abs(input.x) > 0.05 || Math.abs(input.z) > 0.05;
-    desiredAnim = moving ? 'walking' : 'idle';
-    
-    // Resetear estado de caída si ya terminó la animación
-    if (fallState === 'landing' && nowAnim >= landingAnimationUntilRef.current) {
-      setFallState('none');
+    // Prioridad 1: Animaciones de aterrizaje (landing)
+    if (fallState === 'landing' && nowAnim < landingAnimationUntilRef.current) {
+      const impactVelocity = groundImpactVelocityRef.current.y;
+      if (impactVelocity < GAME_CONFIG.player.fall.hardLandingThreshold) {
+        // Caída fuerte: Roll - Usar 'jump' como placeholder hasta tener animación real
+        desiredAnim = 'jump'; // TODO: Cambiar a 'drop_rolling' cuando tengamos la animación
+      } else if (impactVelocity < GAME_CONFIG.player.fall.softLandingThreshold) {
+        // Caída media: Drop Running - Usar 'walking' como placeholder
+        desiredAnim = 'walking'; // TODO: Cambiar a 'drop_running' cuando tengamos la animación
+      }
+    }
+    // Prioridad 2: Animación de caída en el aire
+    else if (fallState === 'falling' && !physicsRef.current?.isGrounded() && wasJumpingRef.current) {
+      // Solo mostrar animación de salto/caída si fue un salto intencional
+      desiredAnim = 'jump'; // TODO: Cambiar a 'falling' cuando tengamos la animación
+    }
+    // Prioridad 3: Salto
+    else if (nowAnim < jumpLockedUntilRef.current) {
+      desiredAnim = 'jump';
+    }
+    // Prioridad 4: Correr
+    else if (runAnimStateRef.current) {
+      desiredAnim = 'running';
+    }
+    // Prioridad 5: Caminar o idle
+    else {
+      const moving = Math.abs(input.x) > 0.05 || Math.abs(input.z) > 0.05;
+      desiredAnim = moving ? 'walking' : 'idle';
+      
+      // Resetear estado de caída si ya terminó la animación
+      if (fallState === 'landing' && nowAnim >= landingAnimationUntilRef.current) {
+        setFallState('none');
+      }
     }
   }
 

@@ -81,6 +81,11 @@ export const GAME_CONFIG = {
       // Control en el aire
       airControl: 0.05,            // Control muy reducido mientras cae
     },
+    // Sistema de estados (Sketchbook) - EXPERIMENTAL
+    stateMachine: {
+      enabled: false,              // Activar/desactivar State Machine (false = usar lógica actual)
+      debugLogs: true,            // Mostrar logs de transiciones de estado
+    },
   },
   vehicle: {
     // Física del vehículo

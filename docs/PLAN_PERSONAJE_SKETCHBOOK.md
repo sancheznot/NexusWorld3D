@@ -1,7 +1,7 @@
 # 🎮 Plan: Sistema de Personaje de Sketchbook
 
 **Fecha:** 2025-11-10  
-**Estado:** 🚀 En Progreso - Fases 1 y 3 Completadas ✅✅
+**Estado:** 🚀 En Progreso - Fases 1, 3 y 2 Completadas ✅✅✅
 
 ---
 
@@ -22,13 +22,14 @@ Implementar las características del sistema de personaje de Sketchbook para mej
 - Interacción con vehículos (entrar/salir)
 - **Inclinación del personaje al moverse** ⭐ (Fase 1/6)
 - **Física de caída mejorada con 3 niveles** ⭐ (Fase 3/7)
+- **CollisionGroups para mejor física** ⭐ (Fase 8)
+- **Sistema de Estados (State Machine)** ⭐ (Fase 2/9) - OPCIONAL
 
 ### ❌ Lo que Nos Falta de Sketchbook:
-- Sistema de estados (State Machine)
-- Transiciones suaves entre estados
-- Mejor control de salto
+- Transiciones suaves entre estados (necesita State Machine activo)
+- Mejor control de salto (requiere State Machine)
 - Estados de vehículo (Driving, EnteringVehicle, ExitingVehicle)
-- Mejoras de colisiones (mallas, CollisionGroups)
+- Mejoras de colisiones (mallas mejoradas)
 
 ---
 
@@ -63,13 +64,13 @@ El personaje se inclina sutilmente en la dirección del movimiento, proporcional
 
 ---
 
-### 🥈 **Fase 2: Sistema de Estados Básico** (MEDIA PRIORIDAD)
+### ✅ **Fase 2: Sistema de Estados Básico** (COMPLETADA) ⭐
 **Impacto:** 🔥🔥🔥🔥  
 **Dificultad:** ⭐⭐⭐⭐  
-**Tiempo estimado:** 3-4 horas
+**Tiempo real:** 3 horas
 
-**¿Qué es?**
-Máquina de estados que controla el comportamiento del personaje.
+**¿Qué se implementó?**
+Máquina de estados completa que controla el comportamiento del personaje. Sistema OPCIONAL activable por constante.
 
 **Archivos de referencia:**
 - `docs/Sketchbook/character/character-state/CharacterStateBase.md`
@@ -77,24 +78,46 @@ Máquina de estados que controla el comportamiento del personaje.
 - `docs/Sketchbook/character/character-state/Walk.md`
 - `docs/Sketchbook/character/character-state/Sprint.md`
 
-**Estados a implementar:**
-1. `Idle` - Quieto
-2. `Walk` - Caminando
-3. `Sprint` - Corriendo
-4. `JumpIdle` - Saltando desde quieto
-5. `Falling` - Cayendo
+**Estados implementados:**
+1. ✅ `IdleState` - Personaje quieto
+2. ✅ `WalkState` - Caminando
+3. ✅ `SprintState` - Corriendo
+4. ✅ `JumpState` - Saltando
+5. ✅ `FallingState` - Cayendo
+6. ✅ `LandingState` - Aterrizando
 
-**Implementación:**
-1. Crear clase base `CharacterStateBase`
-2. Crear estados individuales
-3. Sistema de transiciones
-4. Integrar con animaciones existentes
+**Implementación realizada:**
+1. ✅ Crear clase base `CharacterState` abstracta
+2. ✅ Crear `CharacterStateMachine` para gestionar transiciones
+3. ✅ Implementar 6 estados concretos
+4. ✅ Sistema de transiciones automáticas
+5. ✅ Integración opcional en `PlayerV2.tsx`
+6. ✅ Constante de activación `GAME_CONFIG.player.stateMachine.enabled`
+7. ✅ Conversión de inputs (x,z → forward/backward/left/right)
+8. ✅ Logs automáticos de transiciones
+
+**Archivos creados:**
+- ✅ `src/lib/character/CharacterState.ts`
+- ✅ `src/lib/character/CharacterStateMachine.ts`
+- ✅ `src/lib/character/states/CharacterStates.ts`
+- ✅ `docs/FASE_9_STATE_MACHINE.md`
+
+**Archivos modificados:**
+- ✅ `src/components/world/PlayerV2.tsx` (integración dual)
+- ✅ `src/constants/game.ts` (constante de activación)
+
+**Resultados:**
+- ✅ Sistema State Machine completo e integrado
+- ✅ Coexiste con el sistema actual (no destructivo)
+- ✅ Activable/desactivable con una constante
+- ✅ Preparado para futuras extensiones
 
 **Beneficios:**
 - ✅ Código más organizado y mantenible
-- ✅ Fácil agregar nuevos comportamientos
-- ✅ Transiciones suaves entre acciones
-- ✅ Base para características futuras
+- ✅ Fácil agregar nuevos comportamientos (combate, interacciones)
+- ✅ Transiciones controladas entre estados
+- ✅ Base sólida para características futuras
+- ✅ Debugging mejorado con logs automáticos
 
 ---
 
