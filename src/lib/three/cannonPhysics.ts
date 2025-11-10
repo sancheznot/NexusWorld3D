@@ -114,13 +114,24 @@ export class CannonPhysics {
         if (/^(Hill_03\.001)$/i.test(child.name)) {
           const res = threeToCannon(mesh, { type: ShapeType.HULL });
           if (res?.shape) {
-            const body = new CANNON.Body({ mass: 0 });
+            const body = new CANNON.Body({ 
+              mass: 0,
+              collisionFilterGroup: CollisionGroups.Default,
+              collisionFilterMask: -1, // Colisiona con todo
+            });
             body.addShape(res.shape, res.offset, res.orientation);
             const wp = new THREE.Vector3(); mesh.getWorldPosition(wp);
             const wq = new THREE.Quaternion(); mesh.getWorldQuaternion(wq);
             body.position.set(wp.x, wp.y, wp.z);
             body.quaternion.set(wq.x, wq.y, wq.z, wq.w);
             body.material = this.staticMaterial; body.allowSleep = false; body.collisionResponse = true;
+            
+            // Aplicar CollisionGroups a todas las shapes del body
+            body.shapes.forEach((shape) => {
+              shape.collisionFilterGroup = CollisionGroups.Default;
+              shape.collisionFilterMask = -1;
+            });
+            
             this.world.addBody(body); this.bodies.set(id, body); count += 1; 
             // Mantener visible el mesh visual (no transparente)
             return;
@@ -1134,12 +1145,22 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
 
   // 🔹 Si no es grande, crear collider normal
   const shape = new CANNON.Box(new CANNON.Vec3(sx / 2, sy / 2, sz / 2));
-  const body = new CANNON.Body({ mass: 0 });
+  const body = new CANNON.Body({ 
+    mass: 0,
+    collisionFilterGroup: CollisionGroups.Default,
+    collisionFilterMask: -1, // Colisiona con todo
+  });
   body.addShape(shape);
   body.position.set(position[0], position[1] + sy / 2, position[2]);
   body.material = this.staticMaterial;
   body.allowSleep = false;
   body.collisionResponse = true;
+
+  // Aplicar CollisionGroups a todas las shapes
+  body.shapes.forEach((shape) => {
+    shape.collisionFilterGroup = CollisionGroups.Default;
+    shape.collisionFilterMask = -1;
+  });
 
   this.world.addBody(body);
   this.bodies.set(id, body);
@@ -1159,7 +1180,11 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
       return;
     }
 
-    const body = new CANNON.Body({ mass: 0 }); // mass 0 = estático
+    const body = new CANNON.Body({ 
+      mass: 0, // mass 0 = estático
+      collisionFilterGroup: CollisionGroups.Default,
+      collisionFilterMask: -1, // Colisiona con todo
+    });
     body.addShape(cannonShape);
     body.position.set(position.x, position.y, position.z);
     body.quaternion.setFromEuler(rotation.x, rotation.y, rotation.z);
@@ -1168,6 +1193,12 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
     // IMPORTANTE: Asegurar que el body no se duerma y responda a colisiones
     body.allowSleep = false;
     body.collisionResponse = true;
+    
+    // Aplicar CollisionGroups a todas las shapes
+    body.shapes.forEach((shape) => {
+      shape.collisionFilterGroup = CollisionGroups.Default;
+      shape.collisionFilterMask = -1;
+    });
     
     this.world.addBody(body);
     this.bodies.set(id, body);
@@ -1226,7 +1257,11 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
       return;
     }
 
-    const body = new CANNON.Body({ mass: 0 }); // mass 0 = estático
+    const body = new CANNON.Body({ 
+      mass: 0, // mass 0 = estático
+      collisionFilterGroup: CollisionGroups.Default,
+      collisionFilterMask: -1, // Colisiona con todo
+    });
     let meshesProcessed = 0;
 
     mesh.traverse((child) => {
@@ -1248,6 +1283,12 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
 
     body.position.set(position[0], position[1], position[2]);
     body.material = this.staticMaterial; // Usar material compartido
+    
+    // Aplicar CollisionGroups a todas las shapes
+    body.shapes.forEach((shape) => {
+      shape.collisionFilterGroup = CollisionGroups.Default;
+      shape.collisionFilterMask = -1;
+    });
     
     // IMPORTANTE: Asegurar que el body no se duerma y responda a colisiones
     body.allowSleep = false;
@@ -1316,9 +1357,20 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
     }
 
     const trimesh = new CANNON.Trimesh(vertices, filtered);
-    const body = new CANNON.Body({ mass: 0 });
+    const body = new CANNON.Body({ 
+      mass: 0,
+      collisionFilterGroup: CollisionGroups.Default,
+      collisionFilterMask: -1, // Colisiona con todo
+    });
     body.addShape(trimesh);
     body.material = this.staticMaterial; body.allowSleep = false; body.collisionResponse = true;
+    
+    // Aplicar CollisionGroups a todas las shapes
+    body.shapes.forEach((shape) => {
+      shape.collisionFilterGroup = CollisionGroups.Default;
+      shape.collisionFilterMask = -1;
+    });
+    
     this.world.addBody(body); this.bodies.set(id, body);
     return true;
   }
