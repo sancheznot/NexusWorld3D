@@ -900,15 +900,16 @@ export class CannonPhysics {
 
     this.vehicleState.set(id, state);
 
-    vehicle.applyEngineForce(engineForce, 2);
-    vehicle.applyEngineForce(engineForce, 3);
+    // Aplicar fuerza del motor en ruedas traseras (0, 1 porque el modelo está invertido)
+    vehicle.applyEngineForce(engineForce, 0);
+    vehicle.applyEngineForce(engineForce, 1);
 
-    // Freno de mano (Space / Shift)
+    // Freno de mano (Space) - Aplicar en ruedas traseras (0, 1)
     if (input.handbrake && input.handbrake > 0.01) {
-      // Aplicar freno fuerte en ruedas traseras
+      // Aplicar freno fuerte en ruedas traseras (0, 1 porque el modelo está invertido)
       const handbrakeForce = brakeForce * 2; // Freno de mano muy fuerte
-      vehicle.setBrake(handbrakeForce * input.handbrake, 2);
-      vehicle.setBrake(handbrakeForce * input.handbrake, 3);
+      vehicle.setBrake(handbrakeForce * input.handbrake, 0);
+      vehicle.setBrake(handbrakeForce * input.handbrake, 1);
     }
     // Freno motor cuando no hay input (desaceleración paulatina)
     else if (input.throttle < 0.01 && input.brake < 0.01) {
