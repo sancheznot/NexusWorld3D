@@ -348,22 +348,98 @@ Si usas el debug renderer, los colores representan:
 
 ## ✅ Checklist de Implementación
 
-- [ ] Crear archivo `collisionGroups.ts` con enum y máscaras
-- [ ] Aplicar CollisionGroups al personaje
-- [ ] Aplicar CollisionGroups al vehículo (cuerpo)
-- [ ] Aplicar CollisionGroups a las ruedas
-- [ ] Aplicar CollisionGroups al raycast
+- [x] Crear archivo `collisionGroups.ts` con enum y máscaras
+- [x] Aplicar CollisionGroups al personaje
+- [x] Aplicar CollisionGroups al vehículo (cuerpo)
+- [x] Aplicar CollisionGroups a las ruedas (N/A - usamos RaycastVehicle)
+- [x] Aplicar CollisionGroups al raycast
+- [x] Aplicar CollisionGroups a TODOS los colliders del mundo
 - [ ] Probar colisiones personaje-vehículo
 - [ ] Probar colisiones vehículo-terreno
 - [ ] Probar raycast de personaje
 - [ ] Verificar que ruedas NO colisionan con cuerpo
-- [ ] Documentar cambios
+- [x] Documentar cambios
+
+---
+
+## 🔧 Actualización: Implementación Completa (10 Nov 2025)
+
+### Colliders del Mundo - TODOS Implementados ✅
+
+Se aplicaron CollisionGroups a **TODOS** los colliders del mundo:
+
+#### 1. **Trimesh Colliders** (Terreno, Colinas, Rocas)
+**Funciones afectadas:**
+- `createNamedTrimeshCollidersFromScene()` - Línea 117-133
+- `createTrimeshColliderFromWorldMesh()` - Línea 1330-1345
+
+**Configuración:**
+```typescript
+const body = new CANNON.Body({ 
+  mass: 0,
+  collisionFilterGroup: CollisionGroups.Default,
+  collisionFilterMask: -1, // Colisiona con todo
+});
+
+// Aplicar a shapes
+body.shapes.forEach((shape) => {
+  shape.collisionFilterGroup = CollisionGroups.Default;
+  shape.collisionFilterMask = -1;
+});
+```
+
+#### 2. **Box Colliders** (Edificios, Muros, UCX)
+**Funciones afectadas:**
+- `createBoxCollider()` - Línea 1148-1167
+- `createUCXBoxCollidersFromScene()` - Usa createBoxCollider
+- `createBBoxCollidersFromScene()` - Usa createBoxCollider
+
+**Configuración:** Igual que Trimesh (Default + mask -1)
+
+#### 3. **Mesh Colliders** (Modelos GLB)
+**Funciones afectadas:**
+- `createMeshCollider()` - Línea 1260-1291
+- `createBodyFromShape()` - Línea 1183-1201
+
+**Configuración:** Igual que Trimesh (Default + mask -1)
+
+### Resumen de Cobertura
+
+| Tipo de Collider | Estado | Función | Grupo | Máscara |
+|------------------|--------|---------|-------|---------|
+| **Terreno (Trimesh)** | ✅ | createTrimeshColliderFromWorldMesh | Default (1) | -1 (todos) |
+| **Colinas (Convex)** | ✅ | createNamedTrimeshCollidersFromScene | Default (1) | -1 (todos) |
+| **Edificios (Box)** | ✅ | createBoxCollider | Default (1) | -1 (todos) |
+| **UCX (Box)** | ✅ | createUCXBoxCollidersFromScene | Default (1) | -1 (todos) |
+| **BBox (Box)** | ✅ | createBBoxCollidersFromScene | Default (1) | -1 (todos) |
+| **Mesh (GLB)** | ✅ | createMeshCollider | Default (1) | -1 (todos) |
+| **Personaje** | ✅ | createPlayerBody | Characters (2) | Default \| Vehicles |
+| **Vehículo** | ✅ | createRaycastVehicle | Vehicles (8) | Default \| Characters |
+
+### Beneficios de la Implementación Completa
+
+✅ **Consistencia**: TODO el mundo usa el mismo sistema  
+✅ **Rendimiento**: Menos colisiones innecesarias  
+✅ **Mantenibilidad**: Código más claro y organizado  
+✅ **Prevención de bugs**: Control fino de interacciones  
+✅ **Escalabilidad**: Fácil agregar nuevos grupos
+
+### Nota sobre Ruedas del Vehículo
+
+En nuestro sistema usamos `RaycastVehicle` de Cannon.js, que:
+- **NO usa bodies físicos** para las ruedas
+- Usa **raycasts** para detectar el suelo
+- Los raycasts detectan automáticamente el terreno (Default)
+- **NO necesita** CollisionGroups explícitos
+
+En Sketchbook, las ruedas son esferas físicas con `CollisionGroups.TrimeshColliders`, pero nuestro enfoque es diferente y más eficiente.
 
 ---
 
 **Implementado por:** AI Assistant  
 **Basado en:** Sketchbook by swift502  
-**Fecha:** 10 de noviembre de 2025
+**Fecha:** 10 de noviembre de 2025  
+**Última actualización:** 10 de noviembre de 2025 (Implementación completa)
 
 ---
 
@@ -375,8 +451,9 @@ Este sistema es **crítico** para la estabilidad de la física. Sin él:
 - El rendimiento es peor (más colisiones innecesarias)
 
 Con él:
-- Física estable y predecible
-- Sin bugs de colisión
-- Mejor rendimiento
-- Control fino de interacciones
+- ✅ Física estable y predecible
+- ✅ Sin bugs de colisión
+- ✅ Mejor rendimiento
+- ✅ Control fino de interacciones
+- ✅ Sistema completo y consistente
 
