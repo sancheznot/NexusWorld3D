@@ -71,7 +71,6 @@ export default function PlayerV2({
  
   const runAnimStateRef = useRef(false);
   const lastHungerTickRef = useRef(0);
-  const lastGroundYVelRef = useRef(0);
   const staminaDrainAccRef = useRef(0); // acumula fracciones de drenaje
   const staminaRegenAccRef = useRef(0); // acumula fracciones de regeneración
   const currentAnimation = useCharacterAnimation(input.jumpType);
@@ -81,6 +80,7 @@ export default function PlayerV2({
   const groundImpactVelocityRef = useRef({ x: 0, y: 0, z: 0 });
   const landingAnimationUntilRef = useRef(0);
   const wasGroundedRef = useRef(true);
+  const wasJumpingRef = useRef(false); // Para saber si estamos en un salto intencional
 
   const defaultCustomization: PlayerCustomization = {
     bodyColor: '#007bff',
@@ -218,6 +218,7 @@ export default function PlayerV2({
     // Manejar saltos con pequeña demora para sincronizar con anim
     const nowMs = performance.now();
     if (physicsRef.current.isGrounded()) {
+      wasJumpingRef.current = false; // Ya no estamos saltando
       if (currentInput.isJumping && nowMs >= jumpLockedUntilRef.current) {
         if (jumpApplyAtRef.current === 0) {
           jumpApplyAtRef.current = nowMs + JUMP_APPLY_DELAY_MS;
@@ -230,6 +231,7 @@ export default function PlayerV2({
           physicsRef.current.jump(jumpForce);
           jumpAppliedRef.current = true;
           jumpLockedUntilRef.current = nowMs + JUMP_ANIM_DURATION_MS;
+          wasJumpingRef.current = true; // Marcar que iniciamos un salto intencional
         }
       }
       if (!currentInput.isJumping && nowMs > jumpLockedUntilRef.current) {
@@ -349,8 +351,12 @@ export default function PlayerV2({
       // Personaje en el aire: guardar velocidad para calcular impacto
       groundImpactVelocityRef.current = { x: velocity.x, y: velocity.y, z: velocity.z };
       
-      // Si acabamos de despegar, marcar como cayendo
-      if (wasGroundedRef.current) {
+      // Si acabamos de despegar Y fue un salto intencional, marcar como cayendo
+      if (wasGroundedRef.current && wasJumpingRef.current) {
+        setFallState('falling');
+      }
+      // Si la velocidad Y es muy negativa (cayendo rápido), también marcar como cayendo
+      else if (wasGroundedRef.current && velocity.y < -2) {
         setFallState('falling');
       }
       
@@ -359,11 +365,12 @@ export default function PlayerV2({
       // Acabamos de tocar el suelo después de estar en el aire
       handleLanding(groundImpactVelocityRef.current.y, store);
       wasGroundedRef.current = true;
+      wasJumpingRef.current = false;
     }
   });
   
   // Función para manejar el aterrizaje según velocidad de impacto
-  const handleLanding = (impactVelocityY: number, store: any) => {
+  const handleLanding = (impactVelocityY: number, store: ReturnType<typeof usePlayerStore.getState>) => {
     const now = performance.now();
     const absImpact = Math.abs(impactVelocityY);
     
@@ -422,8 +429,8 @@ export default function PlayerV2({
     }
   }
   // Prioridad 2: Animación de caída en el aire
-  else if (fallState === 'falling' && !physicsRef.current?.isGrounded()) {
-    // Usar 'jump' como placeholder para caída
+  else if (fallState === 'falling' && !physicsRef.current?.isGrounded() && wasJumpingRef.current) {
+    // Solo mostrar animación de salto/caída si fue un salto intencional
     desiredAnim = 'jump'; // TODO: Cambiar a 'falling' cuando tengamos la animación
   }
   // Prioridad 3: Salto
