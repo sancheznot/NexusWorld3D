@@ -2,6 +2,7 @@ import * as CANNON from 'cannon-es';
 import * as THREE from 'three';
 import { threeToCannon, ShapeType } from 'three-to-cannon';
 import { PHYSICS_CONFIG } from '@/constants/physics';
+import { CollisionGroups, CollisionMasks } from '@/constants/collisionGroups';
 import { GAME_CONFIG } from '@/constants/game';
 import { SpringSimulator } from '../physics/SpringSimulator';
 
@@ -226,12 +227,28 @@ export class CannonPhysics {
     // En Cannon.js, los cilindros YA están verticales por defecto (eje Y)
     const cylinderHeight = 2;
     const playerShape = new CANNON.Cylinder(0.5, 0.5, cylinderHeight, 8);
-    const playerBody = new CANNON.Body({ mass: 1 });
+    const playerBody = new CANNON.Body({ 
+      mass: 1,
+      // CollisionGroups (Sketchbook): Personaje pertenece al grupo Characters
+      collisionFilterGroup: CollisionGroups.Characters,
+      collisionFilterMask: CollisionMasks.Character,
+    });
     playerBody.addShape(playerShape);
+    
     // 👣 Pie esférico para colisionar correctamente con Trimesh
     const footRadius = 0.45;
     const footOffset = new CANNON.Vec3(0, -cylinderHeight / 2 + footRadius, 0);
-    playerBody.addShape(new CANNON.Sphere(footRadius), footOffset);
+    const footShape = new CANNON.Sphere(footRadius);
+    // Aplicar CollisionGroups a la forma del pie también
+    footShape.collisionFilterGroup = CollisionGroups.Characters;
+    footShape.collisionFilterMask = CollisionMasks.Character;
+    playerBody.addShape(footShape, footOffset);
+    
+    // Aplicar CollisionGroups a todas las shapes del cuerpo
+    playerBody.shapes.forEach((shape) => {
+      shape.collisionFilterGroup = CollisionGroups.Characters;
+      shape.collisionFilterMask = CollisionMasks.Character;
+    });
     
     // Levantar ligeramente el cilindro para evitar colisión constante con el suelo
     this.playerBaseY = cylinderHeight / 2 + 0.05; // Centro en Y=1.05 (base en Y=0.05)
@@ -251,6 +268,8 @@ export class CannonPhysics {
     this.bodies.set('player', playerBody);
     
     console.log(`👤 Player body created at Y=${this.playerBaseY} (aligned with visual model)`);
+    console.log(`🟢 Player CollisionGroup: Characters (${CollisionGroups.Characters})`);
+    console.log(`🎯 Player CollisionMask: ${CollisionMasks.Character} (colisiona con Default y Vehicles)`);
     return playerBody;
   }
 
@@ -483,10 +502,18 @@ export class CannonPhysics {
   // ==== Raycast Vehicle (Cannon) - versión básica ====
   createRaycastVehicle(position: { x: number; y: number; z: number }, id: string, rotationY: number = 0) {
     if (this.bodies.has(id)) return this.bodies.get(id)!;
-    const chassisBody = new CANNON.Body({ mass: 600 });
+    const chassisBody = new CANNON.Body({ 
+      mass: 600,
+      // CollisionGroups (Sketchbook): Vehículo pertenece al grupo Vehicles
+      collisionFilterGroup: CollisionGroups.Vehicles,
+      collisionFilterMask: CollisionMasks.VehicleBody,
+    });
     // Chasis aproximado al modelo (ancho 1.6m, alto 1.0m, largo 3.8m)
     // Bajamos el centro de masa desplazando el shape hacia abajo
     const chassisShape = new CANNON.Box(new CANNON.Vec3(0.8, 0.5, 1.9));
+    // Aplicar CollisionGroups al shape del chasis
+    chassisShape.collisionFilterGroup = CollisionGroups.Vehicles;
+    chassisShape.collisionFilterMask = CollisionMasks.VehicleBody;
     // Centro de masa en el centro del chasis (sin offset)
     chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0, 0));
     // Posicionar chasis moderadamente elevado; CityModel publica spawn cercano al suelo
@@ -500,6 +527,10 @@ export class CannonPhysics {
     // Nota: no usamos esferas físicas como ruedas. RaycastVehicle ya maneja
     // ruedas/suspensión; agregar shapes extra al chasis introduce fricción indeseada.
     this.bodies.set(id, chassisBody);
+    
+    console.log(`🚗 Vehicle body created`);
+    console.log(`🔵 Vehicle CollisionGroup: Vehicles (${CollisionGroups.Vehicles})`);
+    console.log(`🎯 Vehicle CollisionMask: ${CollisionMasks.VehicleBody} (colisiona con Default y Characters)`);
 
     const options: {
       chassisBody: CANNON.Body;
