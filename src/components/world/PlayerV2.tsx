@@ -75,6 +75,12 @@ export default function PlayerV2({
   const staminaDrainAccRef = useRef(0); // acumula fracciones de drenaje
   const staminaRegenAccRef = useRef(0); // acumula fracciones de regeneración
   const currentAnimation = useCharacterAnimation(input.jumpType);
+  
+  // Sistema de física de caída (Sketchbook)
+  const [fallState, setFallState] = useState<'none' | 'falling' | 'landing'>('none');
+  const groundImpactVelocityRef = useRef({ x: 0, y: 0, z: 0 });
+  const landingAnimationUntilRef = useRef(0);
+  const wasGroundedRef = useRef(true);
 
   const defaultCustomization: PlayerCustomization = {
     bodyColor: '#007bff',
@@ -335,19 +341,64 @@ export default function PlayerV2({
       const dmg = GAME_CONFIG.gameplay.hunger.starvationDamagePerSecond * delta;
       store.updateHealth(Math.max(0, Math.floor(store.health - dmg)));
     }
-    // Daño por caída
-    const vy = physicsRef.current.getPlayerVelocity().y;
-    if (physicsRef.current.isGrounded()) {
-      if (lastGroundYVelRef.current < -GAME_CONFIG.gameplay.health.fallDamage.minImpactSpeed) {
-        const over = Math.abs(lastGroundYVelRef.current) - GAME_CONFIG.gameplay.health.fallDamage.minImpactSpeed;
-        const damage = over * GAME_CONFIG.gameplay.health.fallDamage.damagePerUnitSpeed;
-        store.updateHealth(Math.max(0, Math.floor(store.health - damage)));
+    // Sistema de física de caída mejorado (Sketchbook)
+    const velocity = physicsRef.current.getPlayerVelocity();
+    const isGrounded = physicsRef.current.isGrounded();
+    
+    if (!isGrounded) {
+      // Personaje en el aire: guardar velocidad para calcular impacto
+      groundImpactVelocityRef.current = { x: velocity.x, y: velocity.y, z: velocity.z };
+      
+      // Si acabamos de despegar, marcar como cayendo
+      if (wasGroundedRef.current) {
+        setFallState('falling');
       }
-      lastGroundYVelRef.current = 0;
-    } else {
-      lastGroundYVelRef.current = vy;
+      
+      wasGroundedRef.current = false;
+    } else if (!wasGroundedRef.current) {
+      // Acabamos de tocar el suelo después de estar en el aire
+      handleLanding(groundImpactVelocityRef.current.y, store);
+      wasGroundedRef.current = true;
     }
   });
+  
+  // Función para manejar el aterrizaje según velocidad de impacto
+  const handleLanding = (impactVelocityY: number, store: any) => {
+    const now = performance.now();
+    const absImpact = Math.abs(impactVelocityY);
+    
+    // Determinar tipo de aterrizaje según umbrales de Sketchbook
+    if (impactVelocityY < GAME_CONFIG.player.fall.hardLandingThreshold) {
+      // Caída fuerte: Roll (rodar) - Reduce daño
+      setFallState('landing');
+      landingAnimationUntilRef.current = now + GAME_CONFIG.player.fall.dropRollingDuration;
+      
+      // Calcular daño con reducción por roll
+      if (absImpact > GAME_CONFIG.gameplay.health.fallDamage.minImpactSpeed) {
+        const over = absImpact - GAME_CONFIG.gameplay.health.fallDamage.minImpactSpeed;
+        const baseDamage = over * GAME_CONFIG.gameplay.health.fallDamage.damagePerUnitSpeed;
+        const reducedDamage = baseDamage * GAME_CONFIG.player.fall.rollDamageReduction;
+        store.updateHealth(Math.max(0, Math.floor(store.health - reducedDamage)));
+        console.log(`💥 Caída fuerte (roll): ${absImpact.toFixed(2)} m/s, daño reducido: ${reducedDamage.toFixed(1)}`);
+      }
+    } else if (impactVelocityY < GAME_CONFIG.player.fall.softLandingThreshold) {
+      // Caída media: Drop Running (aterrizaje corriendo)
+      setFallState('landing');
+      landingAnimationUntilRef.current = now + GAME_CONFIG.player.fall.dropRunningDuration;
+      
+      // Calcular daño normal
+      if (absImpact > GAME_CONFIG.gameplay.health.fallDamage.minImpactSpeed) {
+        const over = absImpact - GAME_CONFIG.gameplay.health.fallDamage.minImpactSpeed;
+        const damage = over * GAME_CONFIG.gameplay.health.fallDamage.damagePerUnitSpeed;
+        store.updateHealth(Math.max(0, Math.floor(store.health - damage)));
+        console.log(`⚠️ Caída media: ${absImpact.toFixed(2)} m/s, daño: ${damage.toFixed(1)}`);
+      }
+    } else {
+      // Caída suave: Sin animación especial
+      setFallState('none');
+      console.log(`✅ Caída suave: ${absImpact.toFixed(2)} m/s, sin daño`);
+    }
+  };
 
   const getModelPath = () => {
     const gender = custom.modelType === 'woman' ? 'women' : 'men';
@@ -355,16 +406,43 @@ export default function PlayerV2({
     return `/models/characters/${gender}/${gender}-all.glb`;
   };
 
-  // Resolver animación final incluyendo Walk Backward (S)
+  // Resolver animación final incluyendo física de caída (Sketchbook)
   let desiredAnim = currentAnimation;
   const nowAnim = performance.now();
-  if (nowAnim < jumpLockedUntilRef.current) {
+  
+  // Prioridad 1: Animaciones de aterrizaje (landing)
+  if (fallState === 'landing' && nowAnim < landingAnimationUntilRef.current) {
+    const impactVelocity = groundImpactVelocityRef.current.y;
+    if (impactVelocity < GAME_CONFIG.player.fall.hardLandingThreshold) {
+      // Caída fuerte: Roll - Usar 'jump' como placeholder hasta tener animación real
+      desiredAnim = 'jump'; // TODO: Cambiar a 'drop_rolling' cuando tengamos la animación
+    } else if (impactVelocity < GAME_CONFIG.player.fall.softLandingThreshold) {
+      // Caída media: Drop Running - Usar 'walking' como placeholder
+      desiredAnim = 'walking'; // TODO: Cambiar a 'drop_running' cuando tengamos la animación
+    }
+  }
+  // Prioridad 2: Animación de caída en el aire
+  else if (fallState === 'falling' && !physicsRef.current?.isGrounded()) {
+    // Usar 'jump' como placeholder para caída
+    desiredAnim = 'jump'; // TODO: Cambiar a 'falling' cuando tengamos la animación
+  }
+  // Prioridad 3: Salto
+  else if (nowAnim < jumpLockedUntilRef.current) {
     desiredAnim = 'jump';
-  } else if (runAnimStateRef.current) {
+  }
+  // Prioridad 4: Correr
+  else if (runAnimStateRef.current) {
     desiredAnim = 'running';
-  } else {
+  }
+  // Prioridad 5: Caminar o idle
+  else {
     const moving = Math.abs(input.x) > 0.05 || Math.abs(input.z) > 0.05;
     desiredAnim = moving ? 'walking' : 'idle';
+    
+    // Resetear estado de caída si ya terminó la animación
+    if (fallState === 'landing' && nowAnim >= landingAnimationUntilRef.current) {
+      setFallState('none');
+    }
   }
 
   return (

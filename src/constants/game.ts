@@ -65,6 +65,22 @@ export const GAME_CONFIG = {
       verticalOffset: 0,        // Offset vertical base - 0 para mantener altura normal
       verticalCompensation: 0.1, // Compensación vertical para evitar flotación - Reducido
     },
+    // Sistema de física de caída (Sketchbook)
+    fall: {
+      // Umbrales de velocidad Y (valores negativos)
+      softLandingThreshold: -2,    // Menor que esto = caída media
+      hardLandingThreshold: -6,    // Menor que esto = caída fuerte (roll)
+      
+      // Daño por caída (ya existe en gameplay.health.fallDamage, pero aquí para referencia)
+      rollDamageReduction: 0.5,    // 50% menos daño cuando haces roll
+      
+      // Duración de animaciones de aterrizaje (ms)
+      dropRunningDuration: 800,    // Duración de animación drop_running
+      dropRollingDuration: 1200,   // Duración de animación drop_rolling (roll)
+      
+      // Control en el aire
+      airControl: 0.05,            // Control muy reducido mientras cae
+    },
   },
   vehicle: {
     // Física del vehículo
