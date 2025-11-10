@@ -195,7 +195,9 @@ export default function AnimatedCharacter({
     
     // Escalar la inclinación basado en la velocidad (más velocidad = más inclinación permitida)
     // Velocidad de caminar ~4 unidades/s, correr ~8 unidades/s
-    const velocityFactor = Math.min(velocityLength / 6, 1.0); // Normalizar: 0 en parado, 1 a velocidad de sprint
+    // Usar curva cuadrática para reducir inclinación a velocidades bajas (caminar)
+    const velocityNormalized = Math.min(velocityLength / 6, 1.0); // 0 en parado, 1 a velocidad de sprint
+    const velocityFactor = velocityNormalized * velocityNormalized; // Curva cuadrática: reduce 15% más al caminar
     const adjustedMultiplier = GAME_CONFIG.player.tilt.multiplier * velocityFactor;
     
     const tiltAmount = -angularVelocityRef.current * adjustedMultiplier * velocityLength;
