@@ -1,7 +1,7 @@
 # 🎮 Plan: Sistema de Personaje de Sketchbook
 
 **Fecha:** 2025-11-10  
-**Estado:** 🚀 En Progreso - Fase 1 Completada ✅
+**Estado:** 🚀 En Progreso - Fases 1 y 3 Completadas ✅✅
 
 ---
 
@@ -20,14 +20,15 @@ Implementar las características del sistema de personaje de Sketchbook para mej
 - Sistema de stamina
 - Animaciones básicas (idle, walk, run)
 - Interacción con vehículos (entrar/salir)
-- **Inclinación del personaje al moverse** ⭐ NUEVO (Fase 1)
+- **Inclinación del personaje al moverse** ⭐ (Fase 1/6)
+- **Física de caída mejorada con 3 niveles** ⭐ (Fase 3/7)
 
 ### ❌ Lo que Nos Falta de Sketchbook:
 - Sistema de estados (State Machine)
-- Física de caída mejorada
 - Transiciones suaves entre estados
 - Mejor control de salto
 - Estados de vehículo (Driving, EnteringVehicle, ExitingVehicle)
+- Mejoras de colisiones (mallas, CollisionGroups)
 
 ---
 
@@ -97,30 +98,35 @@ Máquina de estados que controla el comportamiento del personaje.
 
 ---
 
-### 🥉 **Fase 3: Física de Caída Mejorada** (MEDIA PRIORIDAD)
+### ✅ **Fase 3: Física de Caída Mejorada** (COMPLETADA) ⭐
 **Impacto:** 🔥🔥🔥  
 **Dificultad:** ⭐⭐  
-**Tiempo estimado:** 1 hora
+**Tiempo real:** 1 hora
 
-**¿Qué es?**
-Mejor detección de caída, animaciones y daño por caída.
+**¿Qué se implementó?**
+Sistema de detección de caída con 3 niveles de impacto y animaciones apropiadas.
 
-**Archivos de referencia:**
-- `docs/Sketchbook/character/character-state/Falling.md`
-- `docs/Sketchbook/character/character-state/DropRolling.md`
-- `docs/Sketchbook/character/GroundImpactData.md`
+**Implementación realizada:**
+1. ✅ Tracking de velocidad mientras está en el aire
+2. ✅ Detección de 3 niveles de caída (suave, media, fuerte)
+3. ✅ Caída suave (> -2 m/s): sin animación especial
+4. ✅ Caída media (-2 a -6 m/s): animación drop_running
+5. ✅ Caída fuerte (< -6 m/s): animación roll + 50% menos daño
+6. ✅ Sistema de estados (none, falling, landing)
+7. ✅ Logs de debug para análisis
 
-**Implementación:**
-1. Detectar cuando el personaje está en el aire
-2. Estado `Falling` con animación
-3. Calcular velocidad de impacto
-4. Daño por caída basado en velocidad
-5. Animación de aterrizaje (roll si es alta velocidad)
+**Archivos modificados:**
+- ✅ `src/components/world/PlayerV2.tsx`
+- ✅ `src/constants/game.ts`
+- ✅ `docs/FASE_7_FISICA_CAIDA.md`
 
-**Beneficios:**
-- ✅ Más realista
-- ✅ Daño por caída más preciso
-- ✅ Animaciones de aterrizaje
+**Resultados:**
+- ✅ Detección precisa de impacto
+- ✅ Daño reducido con roll (50%)
+- ✅ Feedback visual según tipo de caída
+- ✅ Sistema extensible para futuras mejoras
+
+**Nota:** Usando animaciones placeholder (jump/walking) hasta agregar las reales (falling, drop_running, drop_rolling)
 
 ---
 
@@ -278,42 +284,42 @@ class Walk extends CharacterStateBase {
 
 ---
 
-## ✅ Fase 1 Completada - ¿Qué Sigue?
+## ✅ Fases 1 y 3 Completadas - ¿Qué Sigue?
 
-### 🎯 **Recomendación: Fase 3 - Física de Caída Mejorada**
+### 🎯 **Recomendación: Fase 2 - Sistema de Estados**
 
 **¿Por qué esta fase?**
-- ✅ Impacto visual inmediato
-- ✅ Complementa bien la inclinación que acabamos de implementar
-- ✅ Dificultad baja (⭐⭐)
-- ✅ Tiempo corto (1 hora)
-- ✅ No requiere refactorización grande
+- ✅ Organiza mejor el código existente
+- ✅ Facilita agregar nuevas características
+- ✅ Base sólida para futuras mejoras
+- ✅ Complementa las fases 1 y 3 ya implementadas
 
 **¿Qué implementaremos?**
-1. Detección mejorada de caída
-2. Animación de caída suave vs caída fuerte
-3. Sistema de "roll" al caer desde altura
-4. Mejora del daño por caída existente
+1. Crear clase base `CharacterStateBase`
+2. Implementar estados: `Idle`, `Walk`, `Sprint`, `Jump`, `Fall`
+3. Sistema de transiciones entre estados
+4. Integrar con animaciones existentes
+5. Refactorizar lógica actual a State Machine
 
 **Archivos a modificar:**
-- `src/components/world/PlayerV2.tsx` - Lógica de caída
-- `src/hooks/useCharacterAnimation.ts` - Animaciones de caída
-- `src/constants/game.ts` - Constantes de caída
+- `src/components/world/PlayerV2.tsx` - Refactorizar a estados
+- `src/lib/character/states/` - Nuevos archivos de estados
+- `src/constants/game.ts` - Constantes de estados
 
-### 🔄 Alternativa: Fase 2 - Sistema de Estados
+### 🔄 Alternativa: Mejoras de Colisiones
 
-Si prefieres algo más ambicioso (3-4 horas):
-- Refactorizar lógica de personaje a State Machine
-- Mejor organización del código
-- Base sólida para futuras características
-
----
-
-**Estado actual:** Fase 1 completada ✅  
-**Próximo paso recomendado:** Fase 3 (Física de Caída) 🎯  
-**Alternativa:** Fase 2 (Sistema de Estados) 🔄
+Si prefieres algo más técnico:
+- Analizar sistema de mallas de Sketchbook
+- Implementar CollisionGroups
+- Mejorar colisiones por capas (player, vehicle, world)
 
 ---
 
-**¡Fase 1 completada exitosamente! 🎮✨**
+**Estado actual:** Fases 1 y 3 completadas ✅✅  
+**Próximo paso recomendado:** Fase 2 (Sistema de Estados) 🎯  
+**Alternativa:** Mejoras de Colisiones 🔄
+
+---
+
+**¡2 de 4 fases completadas exitosamente! (50% progreso) 🎮✨**
 

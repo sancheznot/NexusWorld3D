@@ -1,15 +1,16 @@
 # 📋 Resumen del Estado Actual - Hotel Humboldt
 
 **Fecha:** 2025-11-10  
-**Última Actualización:** Fase 6 completada - Inclinación del Personaje ⭐✅
+**Última Actualización:** Fase 7 completada - Física de Caída Mejorada ⭐✅
 
 ---
 
 ## 🎯 ¿Dónde Estamos?
 
-Hemos completado **6 fases** de mejoras:
+Hemos completado **7 fases** de mejoras:
 - **Fases 1-5**: Física de vehículos avanzada (Sketchbook)
-- **Fase 6**: Sistema de inclinación del personaje (Sketchbook) ⭐ NUEVO
+- **Fase 6**: Sistema de inclinación del personaje (Sketchbook)
+- **Fase 7**: Física de caída mejorada (Sketchbook) ⭐ NUEVO
 
 ---
 
@@ -49,13 +50,22 @@ Hemos completado **6 fases** de mejoras:
 - ✅ Flip factor (más fácil hacer trucos a baja velocidad)
 - ✅ Auto-corrección cuando está boca abajo
 
-### **Fase 6: Inclinación del Personaje (Sketchbook Integration)** ⭐ NUEVO
+### **Fase 6: Inclinación del Personaje (Sketchbook Integration)**
 - ✅ Sistema de inclinación lateral al girar
 - ✅ Cálculo de velocidad angular
 - ✅ Compensación vertical automática
 - ✅ Suavizado con interpolación
 - ✅ Constantes configurables
 - ✅ Solo para jugador local
+
+### **Fase 7: Física de Caída Mejorada (Sketchbook Integration)** ⭐ NUEVO
+- ✅ Detección de 3 niveles de caída (suave, media, fuerte)
+- ✅ Tracking de velocidad en el aire
+- ✅ Caída suave: sin animación especial
+- ✅ Caída media: animación drop_running
+- ✅ Caída fuerte: animación roll + 50% menos daño
+- ✅ Sistema de estados (none, falling, landing)
+- ✅ Logs de debug para análisis
 
 ---
 
@@ -114,8 +124,8 @@ Hemos completado **6 fases** de mejoras:
 - `src/components/vehicles/CannonCar.tsx` - Componente del carro
 
 ### **Personaje**
-- `src/components/world/AnimatedCharacter.tsx` - Componente del personaje con inclinación ⭐ NUEVO
-- `src/components/world/PlayerV2.tsx` - Controlador del jugador
+- `src/components/world/AnimatedCharacter.tsx` - Componente del personaje con inclinación
+- `src/components/world/PlayerV2.tsx` - Controlador del jugador + física de caída ⭐ ACTUALIZADO
 
 ### **Constantes**
 - `src/constants/game.ts` - Configuración centralizada (vehículos + personaje) ⭐ ACTUALIZADO
@@ -128,7 +138,8 @@ Hemos completado **6 fases** de mejoras:
 - `docs/CHANGELOG_VEHICULOS.md` - Registro de cambios detallado (Fases 1-5)
 - `docs/FASE_5_MEJORAS_AVANZADAS.md` - Documentación detallada de Fase 5
 - `docs/FASE_5_CORRECCIONES.md` - Correcciones de bugs y constantes
-- `docs/FASE_6_PERSONAJE_INCLINACION.md` - Inclinación del personaje ⭐ NUEVO
+- `docs/FASE_6_PERSONAJE_INCLINACION.md` - Inclinación del personaje
+- `docs/FASE_7_FISICA_CAIDA.md` - Física de caída mejorada ⭐ NUEVO
 - `docs/PLAN_PERSONAJE_SKETCHBOOK.md` - Plan de implementación de personaje
 - `docs/PLAN_MEJORAS_VEHICULOS.md` - Plan de mejoras
 - `docs/ANALISIS_COMPARATIVO.md` - Análisis comparativo
@@ -138,13 +149,14 @@ Hemos completado **6 fases** de mejoras:
 
 ## 🚀 Próximos Pasos (Pendientes)
 
-### **Opción A: Mejoras de Personaje** (Continuación de Fase 6)
+### **Opción A: Mejoras de Personaje** (Continuación de Fases 6-7)
 De Sketchbook aún podemos integrar:
-- ✅ Inclinación del personaje al moverse (COMPLETADO)
+- ✅ Inclinación del personaje al moverse (COMPLETADO - Fase 6)
+- ✅ Física de caída mejorada con detección de impacto (COMPLETADO - Fase 7)
 - ⬜ Sistema de estados del personaje (idle, walk, run, jump, fall)
-- ⬜ Física de caída mejorada con detección de impacto
 - ⬜ Animaciones suaves con transiciones entre estados
 - ⬜ Estados de vehículo (driving, entering, exiting)
+- ⬜ Mejoras de colisiones (mallas, CollisionGroups)
 
 ### **Opción B: Más Mejoras de Vehículo**
 - ⬜ Sonidos del motor (según RPM)
