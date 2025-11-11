@@ -47,7 +47,8 @@ export default function CityModel({
     );
 
     // 🎯 NUEVO: Colliders precisos para árboles, rocas y postes (Sketchbook-inspired)
-    const precise = physicsRef.current.createPreciseCollidersFromScene(scene, `${name}-precise`);
+    // DESACTIVADO por ahora - solo crea colliders para objetos SIN UCX
+    // const precise = physicsRef.current.createPreciseCollidersFromScene(scene, `${name}-precise`);
 
     // Fallback rápido para carros y rigs complejos: collider por bounding box del grupo completo
     physicsRef.current.createBBoxCollidersFromScene(
@@ -92,7 +93,6 @@ export default function CityModel({
 
     console.log(`💡 Ciudad (LM_): ${created} luces auto`);
     console.log(`✅ Ciudad: ${boxes} box colliders, ${hills} trimesh colliders`);
-    console.log(`🎯 Colliders precisos: ${precise.trees} árboles, ${precise.rocks} rocas, ${precise.poles} postes`);
 
     // Escanear spawns de vehículos (Spawn_Car_*) y publicar el spawn para CannonCar
     const spawns = scanVehicleSpawns(scene);

@@ -1326,6 +1326,7 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
   }
 
   // 🎯 NUEVO: Crear colliders precisos según tipo de objeto (Sketchbook-inspired)
+  // OPTIMIZADO: Solo crea colliders si NO existe UCX_ para ese objeto
   createPreciseCollidersFromScene(
     scene: THREE.Object3D,
     idPrefix: string
@@ -1333,11 +1334,29 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
     let treeCount = 0;
     let rockCount = 0;
     let poleCount = 0;
+    let skippedUCX = 0;
+    
+    // Primero, recolectar todos los objetos con UCX_ para evitar duplicados
+    const ucxObjects = new Set<string>();
+    scene.traverse((child) => {
+      if (child.name.startsWith('UCX_')) {
+        // Extraer el nombre base del objeto (UCX_TreeName_01 -> TreeName)
+        const baseName = child.name.replace(/^UCX_/, '').replace(/_\d+$/, '');
+        ucxObjects.add(baseName.toLowerCase());
+      }
+    });
     
     scene.traverse((child) => {
       if (!(child as THREE.Mesh).isMesh) return;
       const mesh = child as THREE.Mesh;
       const name = child.name.toLowerCase();
+      
+      // ⚠️ SKIP: Si este objeto ya tiene UCX_, no crear collider duplicado
+      const baseName = child.name.replace(/_\d+$/, '');
+      if (ucxObjects.has(baseName.toLowerCase())) {
+        skippedUCX++;
+        return;
+      }
       
       // 🌳 ÁRBOLES: Cilindro (tronco) + Esfera (copa)
       if (/tree|arbol|palm|pine|oak/i.test(name)) {
@@ -1476,11 +1495,12 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
       }
     });
     
-    if (treeCount > 0 || rockCount > 0 || poleCount > 0) {
-      console.log(`🎯 Colliders precisos creados: ${treeCount} árboles, ${rockCount} rocas, ${poleCount} postes`);
+    if (treeCount > 0 || rockCount > 0 || poleCount > 0 || skippedUCX > 0) {
+      console.log(`🎯 Colliders precisos: ${treeCount} árboles, ${rockCount} rocas, ${poleCount} postes`);
+      console.log(`⏭️  Saltados (ya tienen UCX): ${skippedUCX} objetos`);
     }
     
-    return { trees: treeCount, rocks: rockCount, poles: poleCount };
+    return { trees: treeCount, rocks: rockCount, poles: poleCount, skipped: skippedUCX };
   }
 
   // Construir Trimesh robusto aplicando matrixWorld y limpiando triángulos degenerados
