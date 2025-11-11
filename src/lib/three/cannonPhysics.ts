@@ -887,8 +887,9 @@ export class CannonPhysics {
         } else if (state.gear > 1 && powerFactor > 1.2) {
           this.shiftDown(state);
         }
-        // SOLO aplicar fuerza si presionas W
-        else if (input.throttle > 0.01) {
+        
+        // SOLO aplicar fuerza si presionas W (FUERA del else if)
+        if (input.throttle > 0.01) {
           // Calcular RPM basado en velocidad y marcha
           const gearRatio = state.gear;
           const rpm = 1000 + (absSpeed / currentGearMaxSpeed) * 6000;
