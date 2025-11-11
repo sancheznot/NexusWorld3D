@@ -198,7 +198,7 @@ export class CannonPhysics {
       this.vehicleMaterial,
       this.groundMaterial,
       {
-        friction: 0.1,
+        friction: 0.1, // REVERTIDO a valor original
         restitution: 0.0,
         contactEquationStiffness: 1e8,
         contactEquationRelaxation: 3,
@@ -525,16 +525,17 @@ export class CannonPhysics {
       collisionFilterGroup: CollisionGroups.Vehicles,
       collisionFilterMask: CollisionMasks.VehicleBody,
     });
-    // Chasis aproximado al modelo (ancho 1.6m, alto 1.0m, largo 3.8m)
-    // Bajamos el centro de masa desplazando el shape hacia abajo
+    // Chasis con dimensiones ORIGINALES pero ELEVADO para evitar arrastre
+    // Dimensiones originales: ancho 1.6m, alto 1.0m, largo 3.8m
     const chassisShape = new CANNON.Box(new CANNON.Vec3(0.8, 0.5, 1.9));
     // Aplicar CollisionGroups al shape del chasis
     chassisShape.collisionFilterGroup = CollisionGroups.Vehicles;
     chassisShape.collisionFilterMask = CollisionMasks.VehicleBody;
-    // Centro de masa en el centro del chasis (sin offset)
-    chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0, 0));
-    // Posicionar chasis moderadamente elevado; CityModel publica spawn cercano al suelo
-    chassisBody.position.set(position.x, position.y + 0.6, position.z);
+    // SUBIR el shape para que NO toque el suelo (offset Y=0.4 - ESTO ES LO QUE ARREGLÓ EL PROBLEMA)
+    chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0.4, 0));
+    // Posicionar chasis elevado para que las ruedas toquen el suelo correctamente
+    // Cálculo: suspensionRestLength (0.35) + radius (0.38) + clearance (0.3) = ~1.0
+    chassisBody.position.set(position.x, position.y + 1.0, position.z);
     chassisBody.quaternion.setFromEuler(0, rotationY, 0);
     chassisBody.angularDamping = 0.5;
     chassisBody.linearDamping = 0.02; // resistencia moderada
@@ -568,7 +569,7 @@ export class CannonPhysics {
       directionLocal: new CANNON.Vec3(0, -1, 0),
       suspensionStiffness: 32,
       suspensionRestLength: 0.35,
-      frictionSlip: 9.5,
+      frictionSlip: 9.5, // REVERTIDO a valor original
       dampingRelaxation: 2.6,
       dampingCompression: 5.0,
       maxSuspensionForce: 120000,
@@ -595,7 +596,7 @@ export class CannonPhysics {
     // Ajustes por eje (inspirado en setups robustos): más agarre atrás, menos roll en frente
     const wi = vehicle.wheelInfos as Array<{ frictionSlip: number; rollInfluence: number }>;
     if (wi && wi.length === 4) {
-      // Grip uniforme (baseline más predecible)
+      // REVERTIDO a valores originales
       wi[0].frictionSlip = 9.5; wi[1].frictionSlip = 9.5;
       wi[2].frictionSlip = 9.5; wi[3].frictionSlip = 9.5;
       wi[0].rollInfluence = 0.02; wi[1].rollInfluence = 0.02;
@@ -898,9 +899,6 @@ export class CannonPhysics {
           // Fuerza del motor (como Sketchbook)
           const force = (engineForceBase / gearRatio) * Math.pow(powerFactor, 1) * powerCurve;
           engineForce = force * input.throttle;
-          
-          // DEBUG: Log para ver qué está pasando
-          console.log(`🚗 Motor: gear=${state.gear}, speed=${absSpeed.toFixed(2)} m/s, powerFactor=${powerFactor.toFixed(2)}, force=${force.toFixed(2)}, engineForce=${engineForce.toFixed(2)}`);
         }
       }
     }
