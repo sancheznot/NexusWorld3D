@@ -1325,6 +1325,164 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
     return count;
   }
 
+  // 🎯 NUEVO: Crear colliders precisos según tipo de objeto (Sketchbook-inspired)
+  createPreciseCollidersFromScene(
+    scene: THREE.Object3D,
+    idPrefix: string
+  ) {
+    let treeCount = 0;
+    let rockCount = 0;
+    let poleCount = 0;
+    
+    scene.traverse((child) => {
+      if (!(child as THREE.Mesh).isMesh) return;
+      const mesh = child as THREE.Mesh;
+      const name = child.name.toLowerCase();
+      
+      // 🌳 ÁRBOLES: Cilindro (tronco) + Esfera (copa)
+      if (/tree|arbol|palm|pine|oak/i.test(name)) {
+        const id = `${idPrefix}-tree-${treeCount}`;
+        if (this.bodies.has(id)) return;
+        
+        mesh.updateMatrixWorld(true);
+        const worldPos = new THREE.Vector3();
+        mesh.getWorldPosition(worldPos);
+        
+        const bbox = new THREE.Box3().setFromObject(mesh);
+        const size = bbox.getSize(new THREE.Vector3());
+        
+        // Estimaciones basadas en tamaño
+        const trunkRadius = Math.min(size.x, size.z) * 0.2; // 20% del ancho
+        const trunkHeight = size.y * 0.6; // 60% de la altura
+        const crownRadius = Math.max(size.x, size.z) * 0.4; // 40% del ancho
+        
+        const body = new CANNON.Body({ 
+          mass: 0,
+          collisionFilterGroup: CollisionGroups.Default,
+          collisionFilterMask: -1,
+        });
+        
+        // Tronco: Cilindro
+        const trunkShape = new CANNON.Cylinder(trunkRadius, trunkRadius, trunkHeight, 8);
+        body.addShape(trunkShape, new CANNON.Vec3(0, trunkHeight / 2, 0));
+        
+        // Copa: Esfera
+        const crownShape = new CANNON.Sphere(crownRadius);
+        body.addShape(crownShape, new CANNON.Vec3(0, trunkHeight + crownRadius * 0.5, 0));
+        
+        body.position.set(worldPos.x, worldPos.y, worldPos.z);
+        body.material = this.staticMaterial;
+        body.allowSleep = false;
+        body.collisionResponse = true;
+        
+        // Aplicar CollisionGroups a shapes
+        body.shapes.forEach((shape) => {
+          shape.collisionFilterGroup = CollisionGroups.Default;
+          shape.collisionFilterMask = -1;
+        });
+        
+        this.world.addBody(body);
+        this.bodies.set(id, body);
+        treeCount++;
+        
+        // Ocultar mesh original (opcional)
+        // mesh.visible = false;
+      }
+      
+      // 🪨 ROCAS: Convex Hull
+      else if (/rock|roca|stone|piedra|boulder/i.test(name)) {
+        const id = `${idPrefix}-rock-${rockCount}`;
+        if (this.bodies.has(id)) return;
+        
+        mesh.updateMatrixWorld(true);
+        
+        const result = threeToCannon(mesh, { type: ShapeType.HULL });
+        if (result?.shape) {
+          const body = new CANNON.Body({ 
+            mass: 0,
+            collisionFilterGroup: CollisionGroups.Default,
+            collisionFilterMask: -1,
+          });
+          
+          body.addShape(result.shape, result.offset, result.orientation);
+          
+          const worldPos = new THREE.Vector3();
+          const worldQuat = new THREE.Quaternion();
+          mesh.getWorldPosition(worldPos);
+          mesh.getWorldQuaternion(worldQuat);
+          
+          body.position.set(worldPos.x, worldPos.y, worldPos.z);
+          body.quaternion.set(worldQuat.x, worldQuat.y, worldQuat.z, worldQuat.w);
+          body.material = this.staticMaterial;
+          body.allowSleep = false;
+          body.collisionResponse = true;
+          
+          // Aplicar CollisionGroups
+          body.shapes.forEach((shape) => {
+            shape.collisionFilterGroup = CollisionGroups.Default;
+            shape.collisionFilterMask = -1;
+          });
+          
+          this.world.addBody(body);
+          this.bodies.set(id, body);
+          rockCount++;
+          
+          // Ocultar mesh original (opcional)
+          // mesh.visible = false;
+        }
+      }
+      
+      // 🚦 POSTES/FAROLAS: Cilindro delgado
+      else if (/pole|post|lamp|farol|light|street.*light/i.test(name)) {
+        const id = `${idPrefix}-pole-${poleCount}`;
+        if (this.bodies.has(id)) return;
+        
+        mesh.updateMatrixWorld(true);
+        const worldPos = new THREE.Vector3();
+        mesh.getWorldPosition(worldPos);
+        
+        const bbox = new THREE.Box3().setFromObject(mesh);
+        const size = bbox.getSize(new THREE.Vector3());
+        
+        const radius = Math.min(size.x, size.z) * 0.3; // Delgado
+        const height = size.y;
+        
+        const body = new CANNON.Body({ 
+          mass: 0,
+          collisionFilterGroup: CollisionGroups.Default,
+          collisionFilterMask: -1,
+        });
+        
+        const shape = new CANNON.Cylinder(radius, radius, height, 8);
+        body.addShape(shape, new CANNON.Vec3(0, height / 2, 0));
+        
+        body.position.set(worldPos.x, worldPos.y, worldPos.z);
+        body.material = this.staticMaterial;
+        body.allowSleep = false;
+        body.collisionResponse = true;
+        
+        // Aplicar CollisionGroups
+        body.shapes.forEach((shape) => {
+          shape.collisionFilterGroup = CollisionGroups.Default;
+          shape.collisionFilterMask = -1;
+        });
+        
+        this.world.addBody(body);
+        this.bodies.set(id, body);
+        poleCount++;
+        
+        // Ocultar mesh original (opcional)
+        // mesh.visible = false;
+      }
+    });
+    
+    if (treeCount > 0 || rockCount > 0 || poleCount > 0) {
+      console.log(`🎯 Colliders precisos creados: ${treeCount} árboles, ${rockCount} rocas, ${poleCount} postes`);
+    }
+    
+    return { trees: treeCount, rocks: rockCount, poles: poleCount };
+  }
+
   // Construir Trimesh robusto aplicando matrixWorld y limpiando triángulos degenerados
   private createTrimeshColliderFromWorldMesh(mesh: THREE.Mesh, id: string) {
     const geom = mesh.geometry;
