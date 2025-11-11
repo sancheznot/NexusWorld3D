@@ -269,8 +269,8 @@ export class CannonPhysics {
     // Configurar propiedades físicas para evitar rebote
     playerBody.allowSleep = false; // DESACTIVAR sleep para que siempre se actualice
     playerBody.collisionResponse = true; // CRÍTICO: Responder a colisiones
-    // Un poco de damping para que el aire frene suavemente, pero deje sentir aceleración
-    playerBody.linearDamping = 0.05;
+    // Damping muy bajo para caída natural sin frenado escalonado
+    playerBody.linearDamping = 0.0; // Sin damping para caída natural (antes: 0.05)
     playerBody.angularDamping = 1.0;
     playerBody.fixedRotation = true; // Evitar rotación no deseada
     
@@ -307,6 +307,9 @@ export class CannonPhysics {
       return;
     }
 
+    // Detectar si está en el aire
+    const isGrounded = this.isGrounded();
+    
     // Solo permitir correr si hay stamina suficiente (mínimo 10 puntos)
     const canRun = input.isRunning && input.stamina > 10;
     
@@ -315,9 +318,12 @@ export class CannonPhysics {
     this.targetVelocity.x = input.x * maxSpeed;
     this.targetVelocity.z = input.z * maxSpeed;
 
+    // Control en el aire: Reducir significativamente el control
+    const airControlFactor = isGrounded ? 1.0 : 0.05; // 5% de control en el aire
+    
     // Interpolar hacia la velocidad objetivo
     const lerpSpeed = (input.x !== 0 || input.z !== 0) ? this.acceleration : this.deceleration;
-    const lerpFactor = lerpSpeed * deltaTime;
+    const lerpFactor = lerpSpeed * deltaTime * airControlFactor;
 
     this.currentVelocity.x = this.lerp(this.currentVelocity.x, this.targetVelocity.x, lerpFactor);
     this.currentVelocity.z = this.lerp(this.currentVelocity.z, this.targetVelocity.z, lerpFactor);

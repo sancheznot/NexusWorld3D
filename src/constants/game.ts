@@ -83,7 +83,7 @@ export const GAME_CONFIG = {
     },
     // Sistema de estados (Sketchbook) - EXPERIMENTAL
     stateMachine: {
-      enabled: true,               // ✅ ACTIVADO - Usar State Machine de Sketchbook
+      enabled: true,               // ✅ ACTIVADO - State Machine arreglado (respeta duraciones)
       debugLogs: true,             // Mostrar logs de transiciones de estado
     },
   },

@@ -30,7 +30,7 @@ export const PHYSICS_CONFIG = {
   PLAYER_BASE_HEIGHT: 1.05,
   ACCELERATION: 30, // Aceleración lateral
   DECELERATION: 25, // Frenado lateral
-  GRAVITY: -19, // Caída más rápida y pegada al suelo
+  GRAVITY: -30, // Gravedad aumentada para caída más natural (antes: -19)
   TARGET_FPS: 120, // FPS objetivo por defecto
   MAX_DELTA_TIME: 1/90, // Paso fijo un poco más grande para responder mejor
 } as const;

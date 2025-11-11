@@ -19,7 +19,7 @@ export class IdleState extends CharacterState {
   readonly name = 'Idle';
   readonly animation = 'idle';
   
-  onEnter(context: CharacterStateContext): void {
+  onEnter(_context: CharacterStateContext): void {
     this.timer = 0;
     console.log('🧍 Estado: Idle');
   }
@@ -63,7 +63,7 @@ export class WalkState extends CharacterState {
   readonly name = 'Walk';
   readonly animation = 'walking';
   
-  onEnter(context: CharacterStateContext): void {
+  onEnter(_context: CharacterStateContext): void {
     this.timer = 0;
     console.log('🚶 Estado: Walk');
   }
@@ -108,7 +108,7 @@ export class SprintState extends CharacterState {
   readonly name = 'Sprint';
   readonly animation = 'running';
   
-  onEnter(context: CharacterStateContext): void {
+  onEnter(_context: CharacterStateContext): void {
     this.timer = 0;
     console.log('🏃 Estado: Sprint');
   }
@@ -144,35 +144,36 @@ export class SprintState extends CharacterState {
  * Estado: Jump (Saltando)
  * 
  * El personaje está en el aire por un salto intencional.
+ * IMPORTANTE: Este estado dura 1.5s completos para que la animación se vea
  * Transiciones:
- * - A Falling cuando empieza a caer (velocidad Y negativa)
- * - A Landing cuando toca el suelo
+ * - Mantiene 'jump' por 1.5s (igual que sistema actual)
+ * - Luego transiciona según si está en suelo o aire
  */
 export class JumpState extends CharacterState {
   readonly name = 'Jump';
   readonly animation = 'jump';
   
-  onEnter(context: CharacterStateContext): void {
+  onEnter(_context: CharacterStateContext): void {
     this.timer = 0;
-    this.animationLength = 1.5; // Duración completa de animación de salto
-    console.log('🦘 Estado: Jump');
+    this.animationLength = 1.5; // CRÍTICO: Duración completa de animación (igual que JUMP_ANIM_DURATION_MS)
+    console.log('🦘 Estado: Jump (1.5s bloqueado)');
   }
   
   update(deltaTime: number, context: CharacterStateContext): CharacterState | null {
     this.updateTimer(deltaTime);
     
-    // Transición a landing si toca el suelo (aterrizaje rápido)
-    if (context.isGrounded && this.timer > 0.2) {
-      return new LandingState();
+    // MANTENER estado Jump por 1.5s completos (igual que sistema actual)
+    // Esto permite que la animación se vea completa sin parpadeos
+    if (this.animationLength && this.timer < this.animationLength) {
+      return null; // Mantener Jump
     }
     
-    // Transición a falling solo cuando empieza a caer (velocidad Y negativa)
-    // Y ha pasado suficiente tiempo para la animación de impulso
-    if (context.velocity.y < -1 && this.timer > 0.5) {
+    // Después de 1.5s, transicionar según estado
+    if (context.isGrounded) {
+      return new LandingState();
+    } else {
       return new FallingState();
     }
-    
-    return null;
   }
 }
 
@@ -187,7 +188,7 @@ export class FallingState extends CharacterState {
   readonly name = 'Falling';
   readonly animation = 'jump'; // Usar jump como placeholder
   
-  onEnter(context: CharacterStateContext): void {
+  onEnter(_context: CharacterStateContext): void {
     this.timer = 0;
     console.log('🪂 Estado: Falling');
   }
@@ -208,6 +209,7 @@ export class FallingState extends CharacterState {
  * Estado: Landing (Aterrizando)
  * 
  * El personaje acaba de tocar el suelo.
+ * IMPORTANTE: NO permite saltar hasta que termine la animación (igual que sistema actual)
  * Transiciones automáticas según velocidad de impacto y input.
  */
 export class LandingState extends CharacterState {
@@ -220,25 +222,31 @@ export class LandingState extends CharacterState {
     this.timer = 0;
     this.impactVelocity = Math.abs(context.velocity.y);
     
-    // Determinar duración según impacto
+    // Determinar duración según impacto (igual que sistema actual)
     if (this.impactVelocity > 6) {
-      this.animationLength = 1.2; // Roll
-      console.log('💥 Estado: Landing (Roll)');
+      this.animationLength = 1.2; // Roll (dropRollingDuration = 1200ms)
+      console.log('💥 Estado: Landing (Roll - 1.2s bloqueado)');
     } else if (this.impactVelocity > 2) {
-      this.animationLength = 0.8; // Drop running
-      console.log('⚠️ Estado: Landing (Drop)');
+      this.animationLength = 0.8; // Drop running (dropRunningDuration = 800ms)
+      console.log('⚠️ Estado: Landing (Drop - 0.8s bloqueado)');
     } else {
-      this.animationLength = 0.1; // Landing suave
-      console.log('✅ Estado: Landing (Suave)');
+      this.animationLength = 0.3; // Landing suave (300ms mínimo para que se vea)
+      console.log('✅ Estado: Landing (Suave - 0.3s)');
     }
   }
   
   update(deltaTime: number, context: CharacterStateContext): CharacterState | null {
     this.updateTimer(deltaTime);
     
-    // Esperar a que termine la animación
-    if (!this.animationEnded(deltaTime)) {
-      return null;
+    // BLOQUEAR salto hasta que termine la animación (igual que sistema actual)
+    // El sistema actual NO permite saltar mientras landingAnimationUntilRef > now
+    if (this.animationLength && this.timer < this.animationLength) {
+      return null; // Mantener Landing bloqueado
+    }
+    
+    // Después de la animación, transicionar según input
+    if (context.input.jump) {
+      return new JumpState();
     }
     
     // Transición según input
