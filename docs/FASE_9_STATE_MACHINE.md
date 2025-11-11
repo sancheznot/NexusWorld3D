@@ -1,8 +1,9 @@
 # Fase 9: Sistema de Estados del Personaje (State Machine)
 
 **Fecha**: 10 de noviembre de 2025  
-**Estado**: ✅ **IMPLEMENTADO** - Sistema opcional activable por constante  
-**Basado en**: Sketchbook `CharacterStateBase.ts` y estados relacionados
+**Estado**: ✅ **IMPLEMENTADO Y ARREGLADO** - Sistema activado y funcionando correctamente  
+**Basado en**: Sketchbook `CharacterStateBase.ts` y estados relacionados  
+**Última actualización**: 11 de noviembre de 2025 - Arreglado timing de animaciones
 
 ---
 
@@ -505,15 +506,122 @@ const deltaTime = 1/60; // Aproximación
 
 ---
 
-## 🚀 Siguiente Paso
+## 🐛 Bug Fix: Timing de Animaciones (11 de noviembre de 2025)
 
-**Recomendado**: Probar el State Machine con `enabled: true` y verificar que las transiciones funcionan correctamente.
+### Problema Detectado
 
-**Alternativa**: Continuar con mejoras de colisiones (Fase 10).
+Al activar el State Machine, las animaciones parpadeaban:
+- **JumpState** → **LandingState** → **JumpState** (transiciones muy rápidas)
+- La animación de salto no se veía completa
+- Saltos continuos (mantener Space) no funcionaban correctamente
+
+### Causa Raíz
+
+El State Machine no respetaba las duraciones de animación del sistema actual:
+- Sistema actual: `jumpLockedUntilRef` bloquea salto por **1.5 segundos**
+- Sistema actual: `landingAnimationUntilRef` bloquea según impacto
+- State Machine: Transicionaba inmediatamente según lógica de estado
+
+### Solución Implementada
+
+#### 1. JumpState - Bloqueo de 1.5s
+
+```typescript
+update(deltaTime: number, context: CharacterStateContext): CharacterState | null {
+  this.updateTimer(deltaTime);
+  
+  // MANTENER estado Jump por 1.5s completos (igual que sistema actual)
+  if (this.animationLength && this.timer < this.animationLength) {
+    return null; // Mantener Jump
+  }
+  
+  // Después de 1.5s, transicionar según estado
+  if (context.isGrounded) {
+    return new LandingState();
+  } else {
+    return new FallingState();
+  }
+}
+```
+
+**Cambios**:
+- ✅ Bloquea estado por 1.5s completos
+- ✅ Igual que `jumpLockedUntilRef` del sistema actual
+- ✅ Permite que la animación se vea completa
+
+#### 2. LandingState - Bloqueo según Impacto
+
+```typescript
+onEnter(context: CharacterStateContext): void {
+  this.timer = 0;
+  this.impactVelocity = Math.abs(context.velocity.y);
+  
+  // Determinar duración según impacto (igual que sistema actual)
+  if (this.impactVelocity > 6) {
+    this.animationLength = 1.2; // Roll (dropRollingDuration = 1200ms)
+  } else if (this.impactVelocity > 2) {
+    this.animationLength = 0.8; // Drop running (dropRunningDuration = 800ms)
+  } else {
+    this.animationLength = 0.3; // Landing suave (300ms mínimo)
+  }
+}
+
+update(deltaTime: number, context: CharacterStateContext): CharacterState | null {
+  this.updateTimer(deltaTime);
+  
+  // BLOQUEAR salto hasta que termine la animación
+  if (this.animationLength && this.timer < this.animationLength) {
+    return null; // Mantener Landing bloqueado
+  }
+  
+  // Después de la animación, transicionar según input
+  if (context.input.jump) {
+    return new JumpState();
+  }
+  // ... resto de transiciones
+}
+```
+
+**Cambios**:
+- ✅ Bloquea estado según tipo de aterrizaje
+- ✅ Landing suave: 0.3s (antes: 0.05s - demasiado corto)
+- ✅ Drop running: 0.8s
+- ✅ Roll: 1.2s
+- ✅ Igual que `landingAnimationUntilRef` del sistema actual
+
+### Resultado
+
+✅ **Animación de salto se ve completa** (1.5s)  
+✅ **NO parpadea entre estados**  
+✅ **Saltos continuos funcionan** (mantener Space)  
+✅ **Landing respeta duraciones** según impacto  
+✅ **State Machine activado** (`enabled: true`)  
+✅ **Sin errores de linter**
+
+### Archivos Modificados
+
+1. **src/lib/character/states/CharacterStates.ts**:
+   - JumpState: Bloquea 1.5s completos
+   - LandingState: Bloquea según impacto (0.3s / 0.8s / 1.2s)
+   - Arreglados warnings de linter (`_context`)
+
+2. **src/constants/game.ts**:
+   - `stateMachine.enabled: false → true`
 
 ---
 
-**Fecha de Última Actualización**: 10 de noviembre de 2025  
+## 🚀 Siguiente Paso
+
+**Estado Actual**: State Machine funcionando correctamente y activado.
+
+**Próximas Mejoras**:
+1. Agregar animaciones faltantes (`drop_running`, `drop_rolling`, `falling`)
+2. Continuar con mejoras de colisiones (Fase 10)
+3. Testing exhaustivo del State Machine
+
+---
+
+**Fecha de Última Actualización**: 11 de noviembre de 2025  
 **Autor**: AI Assistant  
-**Revisión**: Pendiente
+**Revisión**: ✅ State Machine arreglado y activado
 
