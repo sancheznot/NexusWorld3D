@@ -549,6 +549,7 @@ export class CannonPhysics {
     console.log(`🚗 Vehicle body created`);
     console.log(`🔵 Vehicle CollisionGroup: Vehicles (${CollisionGroups.Vehicles})`);
     console.log(`🎯 Vehicle CollisionMask: ${CollisionMasks.VehicleBody} (colisiona con Default y Characters)`);
+    console.log(`🔍 DEBUG: Default=${CollisionGroups.Default}, Characters=${CollisionGroups.Characters}, Mask=${CollisionMasks.VehicleBody}`);
 
     const options: {
       chassisBody: CANNON.Body;
