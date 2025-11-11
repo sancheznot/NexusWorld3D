@@ -170,7 +170,7 @@ export class CannonPhysics {
       this.playerMaterial,
       this.groundMaterial,
       {
-        friction: 0.9, // Alta fricción entre jugador y suelo
+        friction: 0.3, // Fricción reducida para movimiento fluido
         restitution: 0.0, // SIN REBOTE - CRÍTICO
         contactEquationStiffness: 1e8, // Muy rígido para evitar penetración
         contactEquationRelaxation: 3, // Relajación para estabilidad
@@ -184,7 +184,7 @@ export class CannonPhysics {
       this.playerMaterial,
       this.staticMaterial,
       {
-        friction: 0.3, // Baja fricción para deslizarse
+        friction: 0.1, // Fricción muy baja para no frenar al correr
         restitution: 0.0, // SIN REBOTE
         contactEquationStiffness: 1e8,
         contactEquationRelaxation: 3,

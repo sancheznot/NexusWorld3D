@@ -145,7 +145,7 @@ export class SprintState extends CharacterState {
  * 
  * El personaje está en el aire por un salto intencional.
  * Transiciones:
- * - A Falling automáticamente después de inicio
+ * - A Falling cuando empieza a caer (velocidad Y negativa)
  * - A Landing cuando toca el suelo
  */
 export class JumpState extends CharacterState {
@@ -154,15 +154,21 @@ export class JumpState extends CharacterState {
   
   onEnter(context: CharacterStateContext): void {
     this.timer = 0;
-    this.animationLength = 0.3; // Duración corta para transición rápida
+    this.animationLength = 1.5; // Duración completa de animación de salto
     console.log('🦘 Estado: Jump');
   }
   
   update(deltaTime: number, context: CharacterStateContext): CharacterState | null {
     this.updateTimer(deltaTime);
     
-    // Transición a falling después de inicio del salto
-    if (this.timer > 0.2) {
+    // Transición a landing si toca el suelo (aterrizaje rápido)
+    if (context.isGrounded && this.timer > 0.2) {
+      return new LandingState();
+    }
+    
+    // Transición a falling solo cuando empieza a caer (velocidad Y negativa)
+    // Y ha pasado suficiente tiempo para la animación de impulso
+    if (context.velocity.y < -1 && this.timer > 0.5) {
       return new FallingState();
     }
     
