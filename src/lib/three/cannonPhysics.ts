@@ -898,6 +898,9 @@ export class CannonPhysics {
           // Fuerza del motor (como Sketchbook)
           const force = (engineForceBase / gearRatio) * Math.pow(powerFactor, 1) * powerCurve;
           engineForce = force * input.throttle;
+          
+          // DEBUG: Log para ver qué está pasando
+          console.log(`🚗 Motor: gear=${state.gear}, speed=${absSpeed.toFixed(2)} m/s, powerFactor=${powerFactor.toFixed(2)}, force=${force.toFixed(2)}, engineForce=${engineForce.toFixed(2)}`);
         }
       }
     }
