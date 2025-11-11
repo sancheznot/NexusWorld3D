@@ -83,8 +83,8 @@ export const GAME_CONFIG = {
     },
     // Sistema de estados (Sketchbook) - EXPERIMENTAL
     stateMachine: {
-      enabled: false,              // Activar/desactivar State Machine (false = usar lógica actual)
-      debugLogs: true,            // Mostrar logs de transiciones de estado
+      enabled: true,               // ✅ ACTIVADO - Usar State Machine de Sketchbook
+      debugLogs: true,             // Mostrar logs de transiciones de estado
     },
   },
   vehicle: {
