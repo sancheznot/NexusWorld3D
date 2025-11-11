@@ -6,6 +6,7 @@
  */
 
 import { CharacterState, CharacterStateContext } from '../CharacterState';
+import { getAnimationDuration } from '@/hooks/useAnimationDurations';
 
 /**
  * Estado: Idle (Parado)
@@ -156,8 +157,9 @@ export class JumpState extends CharacterState {
   
   onEnter(_context: CharacterStateContext): void {
     this.timer = 0;
-    this.animationLength = 1.5; // CRÍTICO: Duración completa de animación (igual que JUMP_ANIM_DURATION_MS)
-    console.log('🦘 Estado: Jump (1.5s bloqueado - NO CANCELABLE)');
+    // Usar duración REAL de la animación del modelo
+    this.animationLength = getAnimationDuration('jump');
+    console.log(`🦘 Estado: Jump (${this.animationLength.toFixed(2)}s bloqueado - NO CANCELABLE)`);
   }
   
   update(deltaTime: number, context: CharacterStateContext): CharacterState | null {
@@ -226,16 +228,19 @@ export class LandingState extends CharacterState {
     this.timer = 0;
     this.impactVelocity = Math.abs(context.velocity.y);
     
-    // Determinar duración según impacto (igual que sistema actual)
+    // Determinar duración según impacto - Usar duraciones REALES de animaciones
     if (this.impactVelocity > 6) {
-      this.animationLength = 1.2; // Roll (dropRollingDuration = 1200ms)
-      console.log('💥 Estado: Landing (Roll - 1.2s bloqueado)');
+      // Roll - usar duración real de la animación
+      this.animationLength = getAnimationDuration('dropRolling');
+      console.log(`💥 Estado: Landing (Roll - ${this.animationLength.toFixed(2)}s bloqueado)`);
     } else if (this.impactVelocity > 2) {
-      this.animationLength = 0.8; // Drop running (dropRunningDuration = 800ms)
-      console.log('⚠️ Estado: Landing (Drop - 0.8s bloqueado)');
+      // Drop running - usar duración real de la animación
+      this.animationLength = getAnimationDuration('dropRunning');
+      console.log(`⚠️ Estado: Landing (Drop - ${this.animationLength.toFixed(2)}s bloqueado)`);
     } else {
-      this.animationLength = 0.3; // Landing suave (300ms mínimo para que se vea)
-      console.log('✅ Estado: Landing (Suave - 0.3s)');
+      // Landing suave - usar duración real o mínimo 0.3s
+      this.animationLength = Math.max(getAnimationDuration('landing'), 0.3);
+      console.log(`✅ Estado: Landing (Suave - ${this.animationLength.toFixed(2)}s)`);
     }
   }
   

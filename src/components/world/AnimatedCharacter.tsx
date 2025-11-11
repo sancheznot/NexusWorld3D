@@ -7,6 +7,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { AnimationAction } from 'three';
 import { GAME_CONFIG } from '@/constants/game';
+import { useAnimationDurations } from '@/hooks/useAnimationDurations';
 
   // Mapeo de animaciones - mapear estados a nombres reales de animaciones
   const getAnimationName = (animationState: string, actions: Record<string, AnimationAction | null>) => {
@@ -71,6 +72,9 @@ export default function AnimatedCharacter({
   const clonedScene = useMemo(() => SkeletonUtils.clone(scene), [scene]);
   const { actions } = useAnimations(animations, groupRef);
   const [modelLoaded, setModelLoaded] = useState(false);
+  
+  // Extraer duraciones reales de animaciones para el State Machine
+  useAnimationDurations(actions, modelLoaded);
   
   // Sistema de inclinación (Sketchbook)
   const lastRotationRef = useRef(rotation[1]); // Guardar última rotación Y
