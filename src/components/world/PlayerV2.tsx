@@ -449,12 +449,22 @@ export default function PlayerV2({
       jumpPressed: jumpPressed,    // Si fue RECIÉN presionado (edge detection)
     };
     
+    // Callback para aplicar salto físico (sincroniza State Machine con física)
+    const applyJump = (force: number) => {
+      if (physicsRef.current && isGrounded) {
+        physicsRef.current.jump(force);
+        wasJumpingRef.current = true; // Marcar que iniciamos un salto intencional
+        console.log(`⚡ Salto físico aplicado: ${force}`);
+      }
+    };
+    
     // Construir contexto actualizado para el State Machine
     const context: CharacterStateContext = {
       input: sketchbookInput,
       isGrounded,
       velocity,
       stamina,
+      applyJump, // Pasar callback para aplicar salto físico
     };
     
     // Actualizar State Machine y obtener animación

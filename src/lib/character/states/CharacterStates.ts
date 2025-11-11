@@ -155,11 +155,18 @@ export class JumpState extends CharacterState {
   readonly name = 'Jump';
   readonly animation = 'jump';
   
-  onEnter(_context: CharacterStateContext): void {
+  onEnter(context: CharacterStateContext): void {
     this.timer = 0;
     // Usar duración REAL de la animación del modelo
     this.animationLength = getAnimationDuration('jump');
     console.log(`🦘 Estado: Jump (${this.animationLength.toFixed(2)}s bloqueado - NO CANCELABLE)`);
+    
+    // APLICAR SALTO FÍSICO (sincronizar animación con física)
+    if (context.applyJump) {
+      const jumpForce = 6; // Fuerza normal de salto
+      context.applyJump(jumpForce);
+      console.log(`⚡ Aplicando salto físico: ${jumpForce}`);
+    }
   }
   
   update(deltaTime: number, context: CharacterStateContext): CharacterState | null {

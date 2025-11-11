@@ -23,6 +23,8 @@ export interface CharacterStateContext {
   isGrounded: boolean;
   velocity: { x: number; y: number; z: number };
   stamina: number;
+  // Callback para aplicar salto físico (sincroniza State Machine con física)
+  applyJump?: (force: number) => void;
 }
 
 /**
