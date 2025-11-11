@@ -14,7 +14,8 @@ export interface CharacterInput {
   left: boolean;
   right: boolean;
   run: boolean;
-  jump: boolean;
+  jump: boolean;          // Si está presionado (puede ser mantenido)
+  jumpPressed?: boolean;  // Si fue RECIÉN presionado (edge detection)
 }
 
 export interface CharacterStateContext {

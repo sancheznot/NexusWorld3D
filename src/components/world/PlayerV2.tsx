@@ -83,6 +83,9 @@ export default function PlayerV2({
   const landingAnimationUntilRef = useRef(0);
   const wasGroundedRef = useRef(true);
   const wasJumpingRef = useRef(false); // Para saber si estamos en un salto intencional
+  
+  // Edge detection para salto (State Machine)
+  const lastJumpInputRef = useRef(false); // Para detectar cuando Space es RECIÉN presionado
 
   // Sistema de Estados (Sketchbook) - OPCIONAL
   const stateMachine = useMemo(() => {
@@ -431,6 +434,10 @@ export default function PlayerV2({
     const isGrounded = physicsRef.current?.isGrounded() || true;
     const stamina = usePlayerStore.getState().stamina;
     
+    // Edge detection: detectar cuando Space es RECIÉN presionado (no mantenido)
+    const jumpPressed = input.isJumping && !lastJumpInputRef.current;
+    lastJumpInputRef.current = input.isJumping;
+    
     // Convertir input de nuestro formato (x, z) a formato Sketchbook (forward, backward, left, right)
     const sketchbookInput = {
       forward: input.z > 0,
@@ -438,7 +445,8 @@ export default function PlayerV2({
       left: input.x < 0,
       right: input.x > 0,
       run: input.isRunning,
-      jump: input.isJumping,
+      jump: input.isJumping,      // Si está presionado (puede ser mantenido)
+      jumpPressed: jumpPressed,    // Si fue RECIÉN presionado (edge detection)
     };
     
     // Construir contexto actualizado para el State Machine

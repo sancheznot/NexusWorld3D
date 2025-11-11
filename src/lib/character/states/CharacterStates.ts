@@ -27,8 +27,8 @@ export class IdleState extends CharacterState {
   update(deltaTime: number, context: CharacterStateContext): CharacterState | null {
     this.updateTimer(deltaTime);
     
-    // Transición a salto
-    if (context.input.jump && context.isGrounded) {
+    // Transición a salto - SOLO si es un NUEVO input (jumpPressed)
+    if (context.input.jumpPressed && context.isGrounded) {
       return new JumpState();
     }
     
@@ -71,8 +71,8 @@ export class WalkState extends CharacterState {
   update(deltaTime: number, context: CharacterStateContext): CharacterState | null {
     this.updateTimer(deltaTime);
     
-    // Transición a salto
-    if (context.input.jump && context.isGrounded) {
+    // Transición a salto - SOLO si es un NUEVO input (jumpPressed)
+    if (context.input.jumpPressed && context.isGrounded) {
       return new JumpState();
     }
     
@@ -116,8 +116,8 @@ export class SprintState extends CharacterState {
   update(deltaTime: number, context: CharacterStateContext): CharacterState | null {
     this.updateTimer(deltaTime);
     
-    // Transición a salto
-    if (context.input.jump && context.isGrounded) {
+    // Transición a salto - SOLO si es un NUEVO input (jumpPressed)
+    if (context.input.jumpPressed && context.isGrounded) {
       return new JumpState();
     }
     
@@ -145,8 +145,9 @@ export class SprintState extends CharacterState {
  * 
  * El personaje está en el aire por un salto intencional.
  * IMPORTANTE: Este estado dura 1.5s completos para que la animación se vea
+ * NO SE CANCELA aunque sueltes Space - la animación debe completarse
  * Transiciones:
- * - Mantiene 'jump' por 1.5s (igual que sistema actual)
+ * - Mantiene 'jump' por 1.5s COMPLETOS (ignora input)
  * - Luego transiciona según si está en suelo o aire
  */
 export class JumpState extends CharacterState {
@@ -156,16 +157,19 @@ export class JumpState extends CharacterState {
   onEnter(_context: CharacterStateContext): void {
     this.timer = 0;
     this.animationLength = 1.5; // CRÍTICO: Duración completa de animación (igual que JUMP_ANIM_DURATION_MS)
-    console.log('🦘 Estado: Jump (1.5s bloqueado)');
+    console.log('🦘 Estado: Jump (1.5s bloqueado - NO CANCELABLE)');
   }
   
   update(deltaTime: number, context: CharacterStateContext): CharacterState | null {
     this.updateTimer(deltaTime);
     
     // MANTENER estado Jump por 1.5s completos (igual que sistema actual)
-    // Esto permite que la animación se vea completa sin parpadeos
+    // IGNORA completamente el input - la animación DEBE completarse
+    // Esto previene:
+    // 1. Cancelación prematura si sueltas Space
+    // 2. Repetición de animación si mantienes Space
     if (this.animationLength && this.timer < this.animationLength) {
-      return null; // Mantener Jump
+      return null; // Mantener Jump - NO CANCELABLE
     }
     
     // Después de 1.5s, transicionar según estado
@@ -245,7 +249,8 @@ export class LandingState extends CharacterState {
     }
     
     // Después de la animación, transicionar según input
-    if (context.input.jump) {
+    // IMPORTANTE: Usar jumpPressed (no jump) para evitar saltos repetidos al mantener Space
+    if (context.input.jumpPressed) {
       return new JumpState();
     }
     
