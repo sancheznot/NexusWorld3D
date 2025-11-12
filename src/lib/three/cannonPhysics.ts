@@ -521,12 +521,14 @@ export class CannonPhysics {
     if (this.bodies.has(id)) return this.bodies.get(id)!;
     const chassisBody = new CANNON.Body({ 
       mass: 600,
+      // IMPORTANTE: Cannon.js usa los CollisionGroups del BODY cuando tiene shapes
+      collisionFilterGroup: CollisionGroups.Vehicles,
+      collisionFilterMask: CollisionMasks.VehicleBody,
     });
     // Chasis con dimensiones ORIGINALES pero ELEVADO para evitar arrastre
     // Dimensiones originales: ancho 1.6m, alto 1.0m, largo 3.8m
     const chassisShape = new CANNON.Box(new CANNON.Vec3(0.8, 0.5, 1.9));
-    // Aplicar CollisionGroups al shape del chasis (Sketchbook style)
-    // ~TrimeshColliders = colisiona con TODO excepto objetos internos (grupo 4)
+    // TAMBIÉN aplicar al shape (por si acaso, aunque el body es lo que cuenta)
     chassisShape.collisionFilterGroup = CollisionGroups.Vehicles;
     chassisShape.collisionFilterMask = CollisionMasks.VehicleBody;
     // SUBIR el shape para que NO toque el suelo (offset Y=0.4 - ESTO ES LO QUE ARREGLÓ EL PROBLEMA)
@@ -544,9 +546,7 @@ export class CannonPhysics {
     // ruedas/suspensión; agregar shapes extra al chasis introduce fricción indeseada.
     this.bodies.set(id, chassisBody);
     
-    console.log(`🚗 Vehicle body created`);
-    console.log(`🔵 Vehicle CollisionGroup: Vehicles (${CollisionGroups.Vehicles})`);
-    console.log(`🎯 Vehicle CollisionMask: ${CollisionMasks.VehicleBody} (colisiona con Default y Characters)`);
+    console.log(`🚗 Vehicle ${id} created: body.group=${chassisBody.collisionFilterGroup}, body.mask=${chassisBody.collisionFilterMask}`);
 
     const options: {
       chassisBody: CANNON.Body;
