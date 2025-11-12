@@ -92,7 +92,7 @@ export const GAME_CONFIG = {
     physics: {
       engineForce: 10000,        // Fuerza del motor (mayor = más potencia)
       brakeForce: 260,            // Fuerza de frenado
-      maxSteer: 0.72,             // Ángulo máximo de dirección - Aumentado 20% (0.6 → 0.72 rad / ~41°)
+      maxSteer: 0.85,             // Ángulo máximo de dirección - Aumentado ~42% (0.6 → 0.85 rad / ~49°)
     },
     // Sistema de transmisión
     transmission: {

@@ -534,17 +534,19 @@ export class CannonPhysics {
     // SUBIR el shape para que NO toque el suelo (offset Y=0.4 - ESTO ES LO QUE ARREGLÓ EL PROBLEMA)
     chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0.4, 0));
     
-    // 🎯 SKETCHBOOK: Agregar esferas en las esquinas para detectar colisiones a nivel del suelo
-    // Esto permite que el vehículo colisione con objetos bajos (árboles, rocas, etc.)
-    const sphereRadius = 0.4; // Radio de las esferas de colisión
-    const sphereOffsetY = -0.3; // Bajar las esferas para que estén cerca del suelo
+    // 🎯 SKETCHBOOK: Agregar esferas en las esquinas para detectar colisiones laterales
+    // IMPORTANTE: Las esferas deben estar ARRIBA del nivel del suelo para NO frenar el vehículo
+    const sphereRadius = 0.5; // Radio de las esferas de colisión
+    const sphereOffsetY = 0.5; // SUBIR las esferas para evitar vibración con el suelo
     const sphereOffsetX = 0.7; // Separación horizontal (ancho del carro)
-    const sphereOffsetZ = 1.5; // Separación longitudinal (largo del carro)
+    const sphereOffsetZ = 1.6; // Separación longitudinal (largo del carro)
     
-    // 4 esferas en las esquinas (donde estarían las ruedas)
+    // 4 esferas en las esquinas delanteras y traseras
     const cornerSphere = new CANNON.Sphere(sphereRadius);
     cornerSphere.collisionFilterGroup = CollisionGroups.Vehicles;
     cornerSphere.collisionFilterMask = CollisionMasks.VehicleBody;
+    // IMPORTANTE: Aplicar el material del vehículo para baja fricción
+    cornerSphere.material = this.vehicleMaterial;
     
     // Delante izquierda
     chassisBody.addShape(cornerSphere, new CANNON.Vec3(-sphereOffsetX, sphereOffsetY, sphereOffsetZ));
@@ -563,11 +565,19 @@ export class CannonPhysics {
     chassisBody.linearDamping = 0.02; // resistencia moderada
     chassisBody.material = this.vehicleMaterial;
     
-    // DEBUG: Escuchar eventos de colisión del vehículo
+    // DEBUG: Escuchar eventos de colisión del vehículo (solo objetos importantes)
+    let lastLogTime = 0;
     chassisBody.addEventListener('collide', (event: any) => {
       const otherBody = event.body as CANNON.Body;
       const bodyId = Array.from(this.bodies.entries()).find(([_, b]) => b === otherBody)?.[0] || 'unknown';
-      console.log(`🚗💥 Vehicle collided with: ${bodyId} (group=${otherBody.collisionFilterGroup}, mask=${otherBody.collisionFilterMask})`);
+      // Solo loguear colisiones con árboles, edificios, rocas (no terreno/ground)
+      if (bodyId.includes('Tree_') || bodyId.includes('Building') || bodyId.includes('Rock') || bodyId.includes('SM_') || bodyId.includes('UCX_')) {
+        const now = Date.now();
+        if (now - lastLogTime > 500) { // Throttle: 1 log cada 500ms
+          console.log(`🚗💥 Vehicle collided with: ${bodyId} (group=${otherBody.collisionFilterGroup}, mask=${otherBody.collisionFilterMask})`);
+          lastLogTime = now;
+        }
+      }
     });
     
     this.world.addBody(chassisBody);
