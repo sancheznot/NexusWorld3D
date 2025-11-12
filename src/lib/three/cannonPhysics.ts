@@ -533,6 +533,28 @@ export class CannonPhysics {
     chassisShape.collisionFilterMask = CollisionMasks.VehicleBody;
     // SUBIR el shape para que NO toque el suelo (offset Y=0.4 - ESTO ES LO QUE ARREGLÓ EL PROBLEMA)
     chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0.4, 0));
+    
+    // 🎯 SKETCHBOOK: Agregar esferas en las esquinas para detectar colisiones a nivel del suelo
+    // Esto permite que el vehículo colisione con objetos bajos (árboles, rocas, etc.)
+    const sphereRadius = 0.4; // Radio de las esferas de colisión
+    const sphereOffsetY = -0.3; // Bajar las esferas para que estén cerca del suelo
+    const sphereOffsetX = 0.7; // Separación horizontal (ancho del carro)
+    const sphereOffsetZ = 1.5; // Separación longitudinal (largo del carro)
+    
+    // 4 esferas en las esquinas (donde estarían las ruedas)
+    const cornerSphere = new CANNON.Sphere(sphereRadius);
+    cornerSphere.collisionFilterGroup = CollisionGroups.Vehicles;
+    cornerSphere.collisionFilterMask = CollisionMasks.VehicleBody;
+    
+    // Delante izquierda
+    chassisBody.addShape(cornerSphere, new CANNON.Vec3(-sphereOffsetX, sphereOffsetY, sphereOffsetZ));
+    // Delante derecha
+    chassisBody.addShape(cornerSphere, new CANNON.Vec3(sphereOffsetX, sphereOffsetY, sphereOffsetZ));
+    // Atrás izquierda
+    chassisBody.addShape(cornerSphere, new CANNON.Vec3(-sphereOffsetX, sphereOffsetY, -sphereOffsetZ));
+    // Atrás derecha
+    chassisBody.addShape(cornerSphere, new CANNON.Vec3(sphereOffsetX, sphereOffsetY, -sphereOffsetZ));
+    
     // Posicionar chasis elevado para que las ruedas toquen el suelo correctamente
     // Cálculo: suspensionRestLength (0.35) + radius (0.38) + clearance (0.3) = ~1.0
     chassisBody.position.set(position.x, position.y + 1.0, position.z);
@@ -540,10 +562,18 @@ export class CannonPhysics {
     chassisBody.angularDamping = 0.5;
     chassisBody.linearDamping = 0.02; // resistencia moderada
     chassisBody.material = this.vehicleMaterial;
+    
+    // DEBUG: Escuchar eventos de colisión del vehículo
+    chassisBody.addEventListener('collide', (event: any) => {
+      const otherBody = event.body as CANNON.Body;
+      const bodyId = Array.from(this.bodies.entries()).find(([_, b]) => b === otherBody)?.[0] || 'unknown';
+      console.log(`🚗💥 Vehicle collided with: ${bodyId} (group=${otherBody.collisionFilterGroup}, mask=${otherBody.collisionFilterMask})`);
+    });
+    
     this.world.addBody(chassisBody);
 
-    // Nota: no usamos esferas físicas como ruedas. RaycastVehicle ya maneja
-    // ruedas/suspensión; agregar shapes extra al chasis introduce fricción indeseada.
+    // Nota: Las esferas en las esquinas NO son ruedas físicas. RaycastVehicle maneja
+    // la suspensión y tracción. Las esferas solo detectan colisiones a nivel del suelo.
     this.bodies.set(id, chassisBody);
     
     console.log(`🚗 Vehicle ${id} created: body.group=${chassisBody.collisionFilterGroup}, body.mask=${chassisBody.collisionFilterMask}`);
@@ -1548,6 +1578,11 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
     });
     body.addShape(trimesh);
     body.material = this.staticMaterial; body.allowSleep = false; body.collisionResponse = true;
+    
+    // DEBUG: Log TODOS los Trimesh de árboles y edificios
+    if (id.includes('Tree_') || id.includes('Building') || id.includes('SM_')) {
+      console.log(`🌳 Trimesh ${id}: pos=(${body.position.x.toFixed(1)}, ${body.position.y.toFixed(1)}, ${body.position.z.toFixed(1)}), group=${body.collisionFilterGroup}, mask=${body.collisionFilterMask}, vertices=${vertices.length/3}, triangles=${filtered.length/3}`);
+    }
     
     this.world.addBody(body); this.bodies.set(id, body);
     return true;
