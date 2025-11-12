@@ -521,14 +521,12 @@ export class CannonPhysics {
     if (this.bodies.has(id)) return this.bodies.get(id)!;
     const chassisBody = new CANNON.Body({ 
       mass: 600,
-      // CollisionGroups (Sketchbook): Vehículo pertenece al grupo Vehicles
-      collisionFilterGroup: CollisionGroups.Vehicles,
-      collisionFilterMask: CollisionMasks.VehicleBody,
     });
     // Chasis con dimensiones ORIGINALES pero ELEVADO para evitar arrastre
     // Dimensiones originales: ancho 1.6m, alto 1.0m, largo 3.8m
     const chassisShape = new CANNON.Box(new CANNON.Vec3(0.8, 0.5, 1.9));
-    // Aplicar CollisionGroups al shape del chasis
+    // Aplicar CollisionGroups al shape del chasis (Sketchbook style)
+    // ~TrimeshColliders = colisiona con TODO excepto objetos internos (grupo 4)
     chassisShape.collisionFilterGroup = CollisionGroups.Vehicles;
     chassisShape.collisionFilterMask = CollisionMasks.VehicleBody;
     // SUBIR el shape para que NO toque el suelo (offset Y=0.4 - ESTO ES LO QUE ARREGLÓ EL PROBLEMA)
@@ -1545,13 +1543,11 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
     const trimesh = new CANNON.Trimesh(vertices, filtered);
     const body = new CANNON.Body({ 
       mass: 0,
+      collisionFilterGroup: CollisionGroups.Default,
+      collisionFilterMask: -1, // Colisiona con todo
     });
     body.addShape(trimesh);
     body.material = this.staticMaterial; body.allowSleep = false; body.collisionResponse = true;
-    
-    // Aplicar CollisionGroups SOLO al body (no a shapes individuales)
-    body.collisionFilterGroup = CollisionGroups.Default;
-    body.collisionFilterMask = -1; // Colisiona con todo
     
     this.world.addBody(body); this.bodies.set(id, body);
     return true;
