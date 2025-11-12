@@ -532,12 +532,12 @@ export class CannonPhysics {
     chassisShape.collisionFilterGroup = CollisionGroups.Vehicles;
     chassisShape.collisionFilterMask = CollisionMasks.VehicleBody;
     // SUBIR el shape para que NO toque el suelo (offset Y=0.4 - ESTO ES LO QUE ARREGLÓ EL PROBLEMA)
-    chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0.4, 0));
+    chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0.7, 0));
     
     // 🎯 SKETCHBOOK: Agregar esferas en las esquinas para detectar colisiones laterales
     // IMPORTANTE: Las esferas deben estar ARRIBA del nivel del suelo para NO frenar el vehículo
-    const sphereRadius = 0.5; // Radio de las esferas de colisión
-    const sphereOffsetY = 0.5; // SUBIR las esferas para evitar vibración con el suelo
+    const sphereRadius = 0.7; // Radio GRANDE para cubrir más área lateral (sin dejar huecos)
+    const sphereOffsetY = 0.7; // Altura aumentada para NO golpear el piso
     const sphereOffsetX = 0.7; // Separación horizontal (ancho del carro)
     const sphereOffsetZ = 1.6; // Separación longitudinal (largo del carro)
     
@@ -556,6 +556,22 @@ export class CannonPhysics {
     chassisBody.addShape(cornerSphere, new CANNON.Vec3(-sphereOffsetX, sphereOffsetY, -sphereOffsetZ));
     // Atrás derecha
     chassisBody.addShape(cornerSphere, new CANNON.Vec3(sphereOffsetX, sphereOffsetY, -sphereOffsetZ));
+    
+    // 🎯 Cilindro horizontal en el medio para cubrir el hueco central
+    // El cilindro está orientado en el eje Z (frente-atrás del vehículo)
+    const cylinderRadius = 0.5; // Radio del cilindro
+    const cylinderLength = 3.0; // Longitud del cilindro (cubre todo el largo del vehículo)
+    const cylinderShape = new CANNON.Cylinder(cylinderRadius, cylinderRadius, cylinderLength, 8);
+    cylinderShape.collisionFilterGroup = CollisionGroups.Vehicles;
+    cylinderShape.collisionFilterMask = CollisionMasks.VehicleBody;
+    cylinderShape.material = this.vehicleMaterial;
+    
+    // Rotar el cilindro 90° en X para que quede horizontal (eje Z)
+    const cylinderQuaternion = new CANNON.Quaternion();
+    cylinderQuaternion.setFromEuler(Math.PI / 2, 0, 0); // 90° en X
+    
+    // Posicionar el cilindro en el centro del vehículo, a la misma altura que las esferas
+    chassisBody.addShape(cylinderShape, new CANNON.Vec3(0, sphereOffsetY, 0), cylinderQuaternion);
     
     // Posicionar chasis elevado para que las ruedas toquen el suelo correctamente
     // Cálculo: suspensionRestLength (0.35) + radius (0.38) + clearance (0.3) = ~1.0
