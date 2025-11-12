@@ -18,9 +18,9 @@
  * - 8 = 1000 (bit 3)
  */
 export enum CollisionGroups {
-  Default = 1,           // Terreno, objetos estáticos
+  Default = 1,           // Terreno, objetos estáticos, árboles, edificios
   Characters = 2,        // Personajes (jugadores, NPCs)
-  TrimeshColliders = 4,  // Ruedas de vehículos, objetos internos
+  TrimeshColliders = 4,  // Objetos que NO deben colisionar con vehículos (ruedas internas, efectos)
   Vehicles = 8,          // Cuerpos de vehículos
 }
 
@@ -50,10 +50,11 @@ export const CollisionMasks = {
   
   /**
    * Cuerpo de vehículo
-   * Colisionan con: Default (terreno) y Characters (personajes)
-   * NO colisionan con: TrimeshColliders (sus propias ruedas)
+   * Colisionan con: TODO EXCEPTO TrimeshColliders
+   * Esto permite colisionar con terreno, personajes, árboles, edificios, etc.
+   * Sketchbook usa ~TrimeshColliders para evitar colisiones con objetos internos
    */
-  VehicleBody: CollisionGroups.Default | CollisionGroups.Characters,
+  VehicleBody: ~CollisionGroups.TrimeshColliders,
   
   /**
    * Ruedas de vehículo

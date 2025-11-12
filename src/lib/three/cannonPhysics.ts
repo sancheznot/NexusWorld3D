@@ -525,17 +525,17 @@ export class CannonPhysics {
       collisionFilterGroup: CollisionGroups.Vehicles,
       collisionFilterMask: CollisionMasks.VehicleBody,
     });
-    // Chasis con dimensiones ORIGINALES
-    // Dimensiones: ancho 1.6m, alto 1.0m, largo 3.8m
+    // Chasis con dimensiones ORIGINALES pero ELEVADO para evitar arrastre
+    // Dimensiones originales: ancho 1.6m, alto 1.0m, largo 3.8m
     const chassisShape = new CANNON.Box(new CANNON.Vec3(0.8, 0.5, 1.9));
     // Aplicar CollisionGroups al shape del chasis
     chassisShape.collisionFilterGroup = CollisionGroups.Vehicles;
     chassisShape.collisionFilterMask = CollisionMasks.VehicleBody;
-    // NO aplicar offset al shape - dejarlo centrado en el body
-    chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0, 0));
-    // Posicionar chasis MÁS BAJO para que colisione con árboles y objetos
-    // Altura mínima para que las ruedas toquen el suelo: suspensionRestLength (0.35) + radius (0.38) = 0.73
-    chassisBody.position.set(position.x, position.y + 0.7, position.z);
+    // SUBIR el shape para que NO toque el suelo (offset Y=0.4 - ESTO ES LO QUE ARREGLÓ EL PROBLEMA)
+    chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0.4, 0));
+    // Posicionar chasis elevado para que las ruedas toquen el suelo correctamente
+    // Cálculo: suspensionRestLength (0.35) + radius (0.38) + clearance (0.3) = ~1.0
+    chassisBody.position.set(position.x, position.y + 1.0, position.z);
     chassisBody.quaternion.setFromEuler(0, rotationY, 0);
     chassisBody.angularDamping = 0.5;
     chassisBody.linearDamping = 0.02; // resistencia moderada
@@ -1545,17 +1545,13 @@ createBoxCollider(position: [number, number, number], size: [number, number, num
     const trimesh = new CANNON.Trimesh(vertices, filtered);
     const body = new CANNON.Body({ 
       mass: 0,
-      collisionFilterGroup: CollisionGroups.Default,
-      collisionFilterMask: -1, // Colisiona con todo
     });
     body.addShape(trimesh);
     body.material = this.staticMaterial; body.allowSleep = false; body.collisionResponse = true;
     
-    // Aplicar CollisionGroups a todas las shapes
-    body.shapes.forEach((shape) => {
-      shape.collisionFilterGroup = CollisionGroups.Default;
-      shape.collisionFilterMask = -1;
-    });
+    // Aplicar CollisionGroups SOLO al body (no a shapes individuales)
+    body.collisionFilterGroup = CollisionGroups.Default;
+    body.collisionFilterMask = -1; // Colisiona con todo
     
     this.world.addBody(body); this.bodies.set(id, body);
     return true;
