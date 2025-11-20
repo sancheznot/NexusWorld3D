@@ -33,6 +33,7 @@ import { Vector3 } from 'three';
 import PortalTrigger from '@/components/world/PortalTrigger';
 import PortalUI from '@/components/ui/PortalUI';
 import HotelInterior from '@/components/world/HotelInterior';
+import Supermarket from '@/components/world/Supermarket';
 import { usePortalSystem } from '@/hooks/usePortalSystem';
 import ServerClock from '@/components/ui/ServerClock';
 import timeClient from '@/lib/colyseus/TimeClient';
@@ -45,6 +46,8 @@ import JobWaypointsLayer from '@/components/world/JobWaypointsLayer';
 import { NPCS } from '@/constants/npcs';
 import CannonCar from '@/components/vehicles/CannonCar';
 import CannonStepper from '@/components/physics/CannonStepper';
+import Minimap from '@/components/ui/Minimap';
+import LiveCameraCapture from '@/components/cameras/LiveCameraCapture';
 
 export default function GameCanvas() {
   const { isConnected, connectionError, connect, joinGame } = useSocket();
@@ -366,6 +369,9 @@ export default function GameCanvas() {
             {/* Skybox */}
             <Skybox />
             
+            {/* Live Camera Capture System - Cámaras reales en tiempo real */}
+            <LiveCameraCapture />
+            
             {/* Uniform Terrain - Solo Terrain_01 */}
             {/* <UniformTerrain 
               worldSize={THREE_CONFIG.world.size} 
@@ -417,6 +423,10 @@ export default function GameCanvas() {
               <HotelInterior {...hotelInteriorProps} />
             )}
 
+            {currentMap === 'supermarket' && (
+              <Supermarket position={[0, 0, 0]} />
+            )}
+
             {/* Portales del mapa actual */}
             {currentMapData?.portals.map((portal) => (
               <PortalTrigger
@@ -435,7 +445,7 @@ export default function GameCanvas() {
             />
 
             {/* Capa de Waypoints de trabajos activos */}
-            <JobWaypointsLayer currentMap={currentMap} playerPosition={playerVec3} />
+            <JobWaypointsLayer currentMap={currentMap} playerPosition={playerVec3} playerRoleId={player?.roleId ?? null} isDriving={isDriving} />
 
             {/* NPC Shops por mapa (del config) */}
             {Object.values(NPCS).filter(n => n.mapId === currentMap && n.opensShopId).map(npc => (
@@ -448,12 +458,13 @@ export default function GameCanvas() {
             ))}
 
             {/* NPC Jobs por mapa (del config) */}
-            {Object.values(NPCS).filter(n => n.mapId === currentMap && n.opensJobs).map(npc => (
+            {Object.values(NPCS).filter(n => n.mapId === currentMap && n.jobId).map(npc => (
               <NPCJobTrigger
                 key={`job_${npc.id}`}
-                zone={{ id: `job_${npc.id}`, kind: 'job', name: `${npc.name} (Trabajos)`, position: npc.zone.position, radius: npc.zone.radius }}
+                zone={{ id: `job_${npc.id}`, kind: 'job', name: npc.name, position: npc.zone.position, radius: npc.zone.radius }}
                 visual={npc.visual as { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] }}
                 playerPosition={playerVec3}
+                jobId={npc.jobId!}
               />
             ))}
           
@@ -613,6 +624,7 @@ export default function GameCanvas() {
             <div><kbd className="bg-gray-700 px-2 py-1 rounded">Shift</kbd> Correr</div>
             <div><kbd className="bg-gray-700 px-2 py-1 rounded">I</kbd> Inventario</div>
             <div><kbd className="bg-gray-700 px-2 py-1 rounded">M</kbd> Mapa</div>
+            <div><kbd className="bg-gray-700 px-2 py-1 rounded">N</kbd> Minimapa</div>
             <div><kbd className="bg-gray-700 px-2 py-1 rounded">Enter</kbd> Chat</div>
             <div><kbd className="bg-gray-700 px-2 py-1 rounded">ESC</kbd> Cerrar</div>
           </div>
@@ -635,7 +647,7 @@ export default function GameCanvas() {
 
       {/* Hint para conducir */}
       {!isDriving && canEnterVehicle && (
-        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-20">
+        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-50">
           <div className="px-3 py-1 rounded bg-black/70 text-white text-sm">
             Presiona <span className="font-bold">F</span> para conducir
           </div>
@@ -700,6 +712,9 @@ export default function GameCanvas() {
 
       {/* Admin Teleport UI */}
       <AdminTeleportUI />
+
+      {/* Minimap */}
+      {isGameStarted && <Minimap />}
 
       {/* Login Modal */}
       <LoginModal

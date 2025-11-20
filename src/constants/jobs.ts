@@ -16,6 +16,14 @@ export interface JobConfig {
   basePay: number; // Pago base por unidad de progreso
   rewardItem?: JobRewardItem; // Item opcional como recompensa adicional
   maxProgress?: number; // Progreso máximo esperado (default 1)
+  start?: {
+    id: string;
+    mapId: string;
+    position: { x: number; y: number; z: number };
+    radius: number;
+    requiresVehicle?: boolean;
+    label?: string;
+  };
   // Configuración opcional para rutas (A->B->C) con esperas por punto
   route?: {
     waypoints: Waypoint[];
@@ -69,10 +77,17 @@ export const JOBS: Record<ExtendedJobId, JobConfig> = {
     description: 'Entrega paquetes por la ciudad.',
     mapId: 'exterior',
     basePay: 35,
-    maxProgress: 4,
+    maxProgress: 3,
+    start: {
+      id: 'delivery_start',
+      mapId: 'exterior',
+      position: { x: -5, y: 1, z: 20 },
+      radius: 3,
+      requiresVehicle: true,
+      label: 'Inicio de Ruta',
+    },
     route: {
       waypoints: [
-        { id: 'hub_pickup', mapId: 'exterior', position: { x: -5, y: 1, z: 20 }, radius: 2, waitSeconds: 20, label: 'Recoger Paquetes' },
         { id: 'stop_1', mapId: 'exterior', position: { x: 10, y: 1, z: 15 }, radius: 2, waitSeconds: 10, label: 'Entrega 1' },
         { id: 'stop_2', mapId: 'exterior', position: { x: 18, y: 1, z: -5 }, radius: 2, waitSeconds: 10, label: 'Entrega 2' },
         { id: 'return_hub', mapId: 'exterior', position: { x: -5, y: 1, z: 20 }, radius: 2, waitSeconds: 15, label: 'Retorno al Hub' },

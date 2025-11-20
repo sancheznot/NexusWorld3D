@@ -20,6 +20,8 @@ export class JobsEvents {
   private active = new Map<string, ActiveJobState>();
   private grantItemToPlayer: (playerId: string, item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) => void;
   private getPlayerMapId: (playerId: string) => string | null;
+  private getPlayerRole: (playerId: string) => ExtendedJobId | null;
+  private setPlayerRole: (playerId: string, roleId: ExtendedJobId | null) => void;
   private economy: { creditWalletMajor: (userId: string, amount: number, reason?: string) => void };
 
   constructor(
@@ -27,12 +29,16 @@ export class JobsEvents {
     opts: {
       grantItemToPlayer: (playerId: string, item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) => void;
       getPlayerMapId: (playerId: string) => string | null;
+      getPlayerRole: (playerId: string) => ExtendedJobId | null;
+      setPlayerRole: (playerId: string, roleId: ExtendedJobId | null) => void;
       economy: { creditWalletMajor: (userId: string, amount: number, reason?: string) => void };
     }
   ) {
     this.room = room;
     this.grantItemToPlayer = opts.grantItemToPlayer;
     this.getPlayerMapId = opts.getPlayerMapId;
+    this.getPlayerRole = opts.getPlayerRole;
+    this.setPlayerRole = opts.setPlayerRole;
     this.economy = opts.economy;
     this.setupHandlers();
   }
@@ -61,12 +67,32 @@ export class JobsEvents {
       });
     });
 
+    // Assign role without starting job
+    this.room.onMessage('jobs:role:assign', (client: Client, data: { jobId: ExtendedJobId }) => {
+      const cfg = JOBS[data.jobId];
+      if (!cfg) { client.send('jobs:error', { message: 'Trabajo no encontrado' }); return; }
+      const mapId = this.getPlayerMapId(client.sessionId) || 'exterior';
+      if (cfg.mapId !== mapId) { client.send('jobs:error', { message: 'Trabajo no disponible en este mapa' }); return; }
+      this.active.delete(client.sessionId);
+      this.setPlayerRole(client.sessionId, cfg.id);
+      client.send('jobs:role:assigned', { jobId: cfg.id });
+    });
+
     // Start a job
     this.room.onMessage('jobs:start', (client: Client, data: { jobId: ExtendedJobId }) => {
       const cfg = JOBS[data.jobId];
       if (!cfg) { client.send('jobs:error', { message: 'Trabajo no encontrado' }); return; }
       const mapId = this.getPlayerMapId(client.sessionId) || 'exterior';
       if (cfg.mapId !== mapId) { client.send('jobs:error', { message: 'Trabajo no disponible en este mapa' }); return; }
+      const currentRole = this.getPlayerRole(client.sessionId);
+      if (currentRole !== cfg.id) {
+        client.send('jobs:error', { message: `Debes tener el rol de ${cfg.name} para iniciar este trabajo` });
+        return;
+      }
+      if (this.active.has(client.sessionId)) {
+        client.send('jobs:error', { message: 'Ya tienes un trabajo activo' });
+        return;
+      }
       const now = Date.now();
       const state: ActiveJobState = { userId: client.sessionId, jobId: cfg.id, startedAt: now, progress: 0 };
       if (cfg.route?.waypoints?.length) {
@@ -149,17 +175,17 @@ export class JobsEvents {
       const state = this.active.get(client.sessionId);
       if (!state) { client.send('jobs:error', { message: 'No tienes un trabajo activo' }); return; }
       const cfg = JOBS[state.jobId];
-      let payout = 0;
-      // Si es ruta, el payout base puede ser por progreso
       if (cfg.route?.waypoints?.length) {
-        const max = cfg.route.waypoints.length;
-        const progress = Math.min(max, Math.max(0, state.progress));
-        payout += cfg.basePay * (progress > 0 ? progress : 1);
-      } else {
-        const max = Math.max(1, cfg.maxProgress ?? 1);
-        const progress = Math.min(max, Math.max(0, state.progress));
-        payout += cfg.basePay * (progress > 0 ? progress : 1);
+        client.send('jobs:error', { message: 'Completa la ruta para cobrar automáticamente' });
+        return;
       }
+      const max = Math.max(1, cfg.maxProgress ?? 1);
+      const progress = Math.min(max, Math.max(0, state.progress));
+      if (progress <= 0) {
+        client.send('jobs:error', { message: 'Aún no has avanzado en este trabajo' });
+        return;
+      }
+      let payout = cfg.basePay * progress;
       // Timed accrual
       if (cfg.timed) {
         const now = Date.now();
