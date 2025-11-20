@@ -4,93 +4,147 @@ import { useEffect, useState } from 'react';
 import jobsClient from '@/lib/colyseus/JobsClient';
 import { useUIStore } from '@/store/uiStore';
 import { economy } from '@/lib/services/economy';
+import { usePlayerStore } from '@/store/playerStore';
+import { JOBS } from '@/constants/jobs';
+import type { ExtendedJobId } from '@/constants/jobs';
 
-type JobsList = { jobs: { id: string; name: string; basePay: number }[] };
-type JobData = { id: string; name: string; description: string; basePay: number; maxProgress: number; rewardItem?: { itemId: string; quantity?: number } | null };
+type JobData = { id: ExtendedJobId; name: string; description: string; basePay: number; maxProgress: number; rewardItem?: { itemId: string; quantity?: number } | null };
 
 export default function JobsUI() {
-  const { isJobsOpen, toggleJobs } = useUIStore();
-  const [list, setList] = useState<JobsList | null>(null);
+  const { isJobsOpen, closeJobs, selectedJobId } = useUIStore();
   const [job, setJob] = useState<JobData | null>(null);
-  const [progress, setProgress] = useState<number>(0);
   const [message, setMessage] = useState<string | null>(null);
+  const [isAssigning, setIsAssigning] = useState(false);
+  const currentRoleId = usePlayerStore(state => state.player?.roleId ?? null);
+  const currentRoleName = currentRoleId ? (JOBS[currentRoleId]?.name ?? currentRoleId) : 'Ninguno';
 
   useEffect(() => {
-    const onList = (data: unknown) => setList(data as JobsList);
-    const onData = (data: unknown) => { setJob(data as JobData); setProgress(0); };
-    const onError = (data: unknown) => setMessage((data as { message: string }).message);
+    const onData = (data: unknown) => {
+      const jobData = data as JobData;
+      setJob(jobData);
+      setIsAssigning(false);
+      setMessage(null);
+    };
+    const onError = (data: unknown) => {
+      setIsAssigning(false);
+      setMessage((data as { message: string }).message);
+    };
+    const onRoleAssigned = (data: unknown) => {
+      setIsAssigning(false);
+      const payload = data as { jobId: string };
+      const roleId = payload.jobId as ExtendedJobId;
+      const roleName = JOBS[roleId]?.name ?? payload.jobId;
+      setMessage(`Rol asignado: ${roleName}`);
+    };
     const onStarted = () => setMessage('Trabajo iniciado');
-    const onProgress = (data: unknown) => setProgress((data as { progress: number }).progress);
     const onCompleted = (data: unknown) => setMessage(`Completado. Pago: ${economy.format((data as { payout: number }).payout)}`);
     const onCancelled = () => setMessage('Trabajo cancelado');
-    jobsClient.on('jobs:list', onList);
+
     jobsClient.on('jobs:data', onData);
     jobsClient.on('jobs:error', onError);
+    jobsClient.on('jobs:role:assigned', onRoleAssigned);
     jobsClient.on('jobs:started', onStarted);
-    jobsClient.on('jobs:progress', onProgress);
     jobsClient.on('jobs:completed', onCompleted);
     jobsClient.on('jobs:cancelled', onCancelled);
-    const onWait = (data: unknown) => setMessage(`Espera ${Math.ceil((data as { seconds: number }).seconds)}s...`);
-    const onNext = (data: unknown) => setMessage(`Siguiente: ${(data as { label?: string }).label ?? 'punto siguiente'}`);
-    jobsClient.on('jobs:wait', onWait);
-    jobsClient.on('jobs:next', onNext);
-    jobsClient.requestJobs();
+
     return () => {
-      jobsClient.off('jobs:list', onList);
       jobsClient.off('jobs:data', onData);
       jobsClient.off('jobs:error', onError);
+      jobsClient.off('jobs:role:assigned', onRoleAssigned);
       jobsClient.off('jobs:started', onStarted);
-      jobsClient.off('jobs:progress', onProgress);
       jobsClient.off('jobs:completed', onCompleted);
       jobsClient.off('jobs:cancelled', onCancelled);
-      jobsClient.off('jobs:wait', onWait);
-      jobsClient.off('jobs:next', onNext);
     };
   }, []);
 
+  useEffect(() => {
+    if (!isJobsOpen) {
+      setJob(null);
+      setMessage(null);
+      setIsAssigning(false);
+      return;
+    }
+    if (!selectedJobId) {
+      setJob(null);
+      return;
+    }
+    setMessage('Cargando información del trabajo...');
+    setJob(null);
+    setIsAssigning(false);
+    jobsClient.openJob(selectedJobId);
+  }, [isJobsOpen, selectedJobId]);
+
   if (!isJobsOpen) return null;
+
+  const handleAssignRole = () => {
+    if (!job || (currentRoleId && currentRoleId === job.id)) return;
+    setIsAssigning(true);
+    jobsClient.assignRole(job.id);
+  };
+
+  const handleClose = () => {
+    closeJobs();
+    setJob(null);
+    setMessage(null);
+    setIsAssigning(false);
+  };
+
+  const alreadyAssigned = !!job && currentRoleId === job.id;
 
   return (
     <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center">
       <div className="bg-gray-900 border border-gray-700 rounded-lg w-full max-w-3xl p-4">
         <div className="flex justify-between items-center mb-3">
           <h2 className="text-white text-xl font-bold">Trabajos</h2>
-          <button onClick={toggleJobs} className="text-gray-400 hover:text-white text-2xl">×</button>
+          <button onClick={handleClose} className="text-gray-400 hover:text-white text-2xl">×</button>
         </div>
         {message && (
           <div className="mb-2 text-sm text-yellow-300">{message}</div>
         )}
-        {!job ? (
-          <div className="grid grid-cols-2 gap-2">
-            {list?.jobs.map(j => (
-              <button key={j.id} onClick={() => jobsClient.openJob(j.id)} className="bg-gray-800 hover:bg-gray-700 text-white rounded p-3 text-left">
-                <div className="font-semibold">{j.name}</div>
-                <div className="text-xs text-gray-400">Pago base: {economy.format(j.basePay)}</div>
-              </button>
-            ))}
+        <div className="text-sm text-gray-400 mb-3">
+          Rol actual: <span className="text-gray-200">{currentRoleName}</span>
+        </div>
+        {!selectedJobId ? (
+          <div className="text-gray-300 text-sm">
+            Habla con un NPC de trabajo para ver los detalles y asignarte un rol.
+          </div>
+        ) : !job ? (
+          <div className="text-gray-400 text-sm">
+            Cargando información del trabajo...
           </div>
         ) : (
-          <div>
-            <div className="flex items-center justify-between mb-2">
+          <div className="space-y-4">
+            <div>
               <div className="text-white text-lg font-semibold">{job.name}</div>
-              <button onClick={() => setJob(null)} className="text-sm text-gray-300 hover:text-white">← Volver</button>
+              <div className="text-gray-300 text-sm">{job.description}</div>
             </div>
-            <div className="text-gray-300 text-sm mb-3">{job.description}</div>
-            <div className="flex items-center gap-3 mb-3">
-              <div className="text-white">Progreso: {progress}/{job.maxProgress}</div>
-              <button onClick={() => { const next = Math.min(job.maxProgress, progress + 1); setProgress(next); jobsClient.updateProgress(next); }} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">+1</button>
+            <div className="text-gray-400 text-sm">
+              Pago base: {economy.format(job.basePay)}
+              {job.rewardItem && (
+                <span> • Recompensa: {job.rewardItem.itemId}{job.rewardItem.quantity ? ` x${job.rewardItem.quantity}` : ''}</span>
+              )}
+            </div>
+            <div className="text-gray-500 text-xs">
+              Máximo progreso estimado: {job.maxProgress}. El rol desbloqueará checkpoints específicos en el mundo.
             </div>
             <div className="flex items-center gap-3">
-              <button onClick={() => jobsClient.start(job.id)} className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded">Iniciar</button>
-              <button onClick={() => jobsClient.complete()} className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1 rounded">Completar</button>
-              <button onClick={() => jobsClient.cancel()} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded">Cancelar</button>
+              <button
+                onClick={handleAssignRole}
+                disabled={isAssigning || alreadyAssigned}
+                className="bg-green-600 hover:bg-green-700 disabled:bg-green-700/60 text-white px-3 py-1 rounded"
+              >
+                {alreadyAssigned ? 'Rol activo' : isAssigning ? 'Asignando...' : 'Asignar rol'}
+              </button>
+              <button onClick={handleClose} className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded">
+                Cerrar
+              </button>
             </div>
-            <div className="mt-2 text-xs text-gray-400">Tip: Acércate a los puntos de entrega para marcar el progreso.</div>
+            <div className="text-xs text-gray-500">
+              Después de asignarte este rol, busca el checkpoint principal para iniciar la ruta correspondiente.
+            </div>
           </div>
         )}
       </div>
     </div>
   );
 }
-
-

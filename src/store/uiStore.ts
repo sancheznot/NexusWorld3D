@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
+import type { ExtendedJobId } from '@/constants/jobs';
 
 interface UIState {
   // Modal states
@@ -8,6 +9,7 @@ interface UIState {
   isChatOpen: boolean;
   isShopOpen: boolean;
   isJobsOpen: boolean;
+  selectedJobId: ExtendedJobId | null;
   isBankOpen: boolean;
   isSettingsOpen: boolean;
   showCharacterCreator: boolean;
@@ -34,6 +36,8 @@ interface UIState {
   toggleChat: () => void;
   toggleShop: () => void;
   toggleJobs: () => void;
+  openJobsPanel: (jobId: ExtendedJobId) => void;
+  closeJobs: () => void;
   toggleBank: () => void;
   toggleSettings: () => void;
   setInventoryOpen: (isOpen: boolean) => void;
@@ -55,6 +59,7 @@ interface UIState {
   setChatChannel: (channel: string) => void;
   clearChat: () => void;
   closeAllModals: () => void;
+  setSelectedJobId: (jobId: ExtendedJobId | null) => void;
 }
 
 interface Notification {
@@ -85,6 +90,7 @@ export const useUIStore = create<UIState>()(
       isChatOpen: false,
       isShopOpen: false,
       isJobsOpen: false,
+      selectedJobId: null,
       isBankOpen: false,
       isSettingsOpen: false,
       showCharacterCreator: false,
@@ -135,13 +141,35 @@ export const useUIStore = create<UIState>()(
       },
 
       toggleJobs: () => {
-        set((state) => ({
-          isJobsOpen: !state.isJobsOpen,
-          // Close other modals when opening jobs
-          isInventoryOpen: state.isJobsOpen ? state.isInventoryOpen : false,
-          isMapOpen: state.isJobsOpen ? state.isMapOpen : false,
-          isSettingsOpen: state.isJobsOpen ? state.isSettingsOpen : false,
-          isShopOpen: state.isJobsOpen ? state.isShopOpen : false,
+        set((state) => {
+          const willOpen = !state.isJobsOpen;
+          return {
+            isJobsOpen: willOpen,
+            selectedJobId: willOpen ? state.selectedJobId : null,
+            // Close other modals when opening jobs
+            isInventoryOpen: willOpen ? false : state.isInventoryOpen,
+            isMapOpen: willOpen ? false : state.isMapOpen,
+            isSettingsOpen: willOpen ? false : state.isSettingsOpen,
+            isShopOpen: willOpen ? false : state.isShopOpen,
+          };
+        });
+      },
+
+      openJobsPanel: (jobId) => {
+        set(() => ({
+          isJobsOpen: true,
+          selectedJobId: jobId,
+          isInventoryOpen: false,
+          isMapOpen: false,
+          isSettingsOpen: false,
+          isShopOpen: false,
+        }));
+      },
+
+      closeJobs: () => {
+        set(() => ({
+          isJobsOpen: false,
+          selectedJobId: null,
         }));
       },
 
@@ -186,7 +214,10 @@ export const useUIStore = create<UIState>()(
       },
 
       setJobsOpen: (isOpen) => {
-        set({ isJobsOpen: isOpen });
+        set((state) => ({
+          isJobsOpen: isOpen,
+          selectedJobId: isOpen ? state.selectedJobId : null,
+        }));
       },
 
       setBankOpen: (isOpen) => {
@@ -246,6 +277,10 @@ export const useUIStore = create<UIState>()(
         set({ chatChannel: channel });
       },
 
+      setSelectedJobId: (jobId) => {
+        set({ selectedJobId: jobId });
+      },
+
       clearChat: () => {
         set({ chatMessages: [] });
       },
@@ -257,6 +292,7 @@ export const useUIStore = create<UIState>()(
           isChatOpen: false,
           isShopOpen: false,
           isJobsOpen: false,
+          selectedJobId: null,
           isBankOpen: false,
           isSettingsOpen: false,
           showCharacterCreator: false,

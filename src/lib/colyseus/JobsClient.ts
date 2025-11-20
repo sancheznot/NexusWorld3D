@@ -31,17 +31,19 @@ export class JobsClient {
     room.onMessage('jobs:cancelled', (data: Record<string, never>) => this.emit('jobs:cancelled', data));
     room.onMessage('jobs:wait', (data: JobWait) => this.emit('jobs:wait', data));
     room.onMessage('jobs:next', (data: JobNext) => this.emit('jobs:next', data));
+    room.onMessage('jobs:role:assigned', (data: { jobId: string }) => this.emit('jobs:role:assigned', data));
   }
 
   requestJobs() { colyseusClient.getSocket()?.send('jobs:list'); }
   openJob(jobId: string) { colyseusClient.getSocket()?.send('jobs:request', { jobId }); }
+  assignRole(jobId: string) { colyseusClient.getSocket()?.send('jobs:role:assign', { jobId }); }
   start(jobId: string) { colyseusClient.getSocket()?.send('jobs:start', { jobId }); }
   updateProgress(progress: number) { colyseusClient.getSocket()?.send('jobs:progress', { progress }); }
   hitWaypoint(waypointId: string) { colyseusClient.getSocket()?.send('jobs:waypointHit', { waypointId }); }
   cancel() { colyseusClient.getSocket()?.send('jobs:cancel'); }
   complete() { colyseusClient.getSocket()?.send('jobs:complete'); }
 
-  on(event: 'jobs:list' | 'jobs:data' | 'jobs:error' | 'jobs:started' | 'jobs:progress' | 'jobs:completed' | 'jobs:cancelled' | 'jobs:wait' | 'jobs:next', cb: (data: unknown) => void) {
+  on(event: 'jobs:list' | 'jobs:data' | 'jobs:error' | 'jobs:started' | 'jobs:progress' | 'jobs:completed' | 'jobs:cancelled' | 'jobs:wait' | 'jobs:next' | 'jobs:role:assigned', cb: (data: unknown) => void) {
     if (!this.listeners.has(event)) this.listeners.set(event, []);
     this.listeners.get(event)!.push(cb);
   }

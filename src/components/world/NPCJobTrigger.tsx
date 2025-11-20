@@ -8,15 +8,17 @@ import type { Object3D } from 'three';
 import type { TriggerZoneData } from '@/types/trigger.types';
 import { useUIStore } from '@/store/uiStore';
 import jobsClient from '@/lib/colyseus/JobsClient';
+import type { ExtendedJobId } from '@/constants/jobs';
 
 interface NPCJobTriggerProps {
   zone: TriggerZoneData;
   playerPosition: Vector3;
   visual?: { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] };
+  jobId: ExtendedJobId;
 }
 
-export default function NPCJobTrigger({ zone, playerPosition, visual }: NPCJobTriggerProps) {
-  const { toggleJobs } = useUIStore();
+export default function NPCJobTrigger({ zone, playerPosition, visual, jobId }: NPCJobTriggerProps) {
+  const { openJobsPanel } = useUIStore();
   const ref = useRef<Object3D | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -45,8 +47,8 @@ export default function NPCJobTrigger({ zone, playerPosition, visual }: NPCJobTr
         data={zone}
         playerPosition={playerPosition}
         onInteract={() => {
-          toggleJobs();
-          jobsClient.requestJobs();
+          openJobsPanel(jobId);
+          jobsClient.openJob(jobId);
         }}
         debug={false}
       />

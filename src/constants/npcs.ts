@@ -1,6 +1,7 @@
 import type { TriggerZoneData } from '@/types/trigger.types';
+import type { ExtendedJobId } from './jobs';
 
-export type NPCId = 'npc_grocer' | 'npc_blacksmith' | 'npc_doctor' | 'npc_bank_clerk' | 'npc_super_grocer';
+export type NPCId = 'npc_grocer' | 'npc_blacksmith' | 'npc_doctor' | 'npc_bank_clerk' | 'npc_super_grocer' | 'npc_delivery_manager';
 
 export interface NPCConfig {
   id: NPCId;
@@ -8,7 +9,7 @@ export interface NPCConfig {
   mapId: string; // 'exterior' | 'hotel-interior' | 'police-station' | ...
   zone: Omit<TriggerZoneData, 'id' | 'kind' | 'name'> & { radius: number };
   opensShopId?: string; // from SHOPS
-  opensJobs?: boolean; // abre Jobs Board UI
+  jobId?: ExtendedJobId;
   visual?: {
     path: string; // /models/... .glb
     type: 'glb' | 'gltf' | 'fbx' | 'obj';
@@ -24,7 +25,6 @@ export const NPCS: Record<NPCId, NPCConfig> = {
     mapId: 'exterior',
     zone: { position: { x: -12, y: 1, z: 28 }, radius: 2 },
     opensShopId: 'general_store',
-    opensJobs: true,
     visual: { path: '/models/characters/men/men_01.glb', type: 'glb', scale: 1 }
   },
   npc_blacksmith: {
@@ -57,6 +57,14 @@ export const NPCS: Record<NPCId, NPCConfig> = {
     zone: { position: { x: 2, y: 1, z: 4 }, radius: 2 },
     opensShopId: 'supermarket_store',
     visual: { path: '/models/characters/men/men_04.glb', type: 'glb', scale: 1 }
+  },
+  npc_delivery_manager: {
+    id: 'npc_delivery_manager',
+    name: 'Coordinador de Entregas',
+    mapId: 'exterior',
+    zone: { position: { x: 45, y: 1.1, z: -38.5 }, radius: 2.5 },
+    jobId: 'delivery',
+    visual: { path: '/models/characters/men/men_02.glb', type: 'glb', scale: 1 }
   },
 };
 
