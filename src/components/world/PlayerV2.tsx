@@ -257,6 +257,13 @@ export default function PlayerV2({
     // Actualizar store (para HUD y networking) y que AnimatedCharacter reciba por props
     updatePosition({ x: cannonPosition.x, y: cannonPosition.y, z: cannonPosition.z });
 
+    // Detectar teleportaciones bruscas (para corrección local)
+    const newPos = new THREE.Vector3(cannonPosition.x, cannonPosition.y, cannonPosition.z);
+    const distSq = newPos.distanceToSquared(lastStorePositionRef.current);
+    if (distSq > 0.000001) {
+       lastStorePositionRef.current.copy(newPos);
+    }
+
     // Stamina: marcar tiempo de última corrida si estás corriendo
     const now = performance.now();
     const isActuallyRunning = sprintActiveRef.current;
