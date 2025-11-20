@@ -61,8 +61,19 @@ export const SHOPS: Record<ShopId, ShopConfig> = {
     name: 'Supermercado Central',
     mapId: 'supermarket',
     items: [
-      { itemId: 'coin_gold', price: 45, stock: 200 },
+      // Comida básica
+      { itemId: 'food_apple', price: 5, stock: 100 },
+      { itemId: 'food_bread', price: 8, stock: 80 },
+      { itemId: 'food_water', price: 3, stock: 150 },
+      { itemId: 'food_cheese', price: 12, stock: 60 },
+      
+      // Comida premium
+      { itemId: 'food_meat', price: 20, stock: 40 },
+      { itemId: 'food_fish', price: 18, stock: 35 },
+      
+      // Pociones y otros
       { itemId: 'potion_health', price: 28, stock: 80 },
+      { itemId: 'coin_gold', price: 45, stock: 200 },
     ],
   },
 };

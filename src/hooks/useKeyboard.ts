@@ -39,11 +39,13 @@ export const useKeyboard = (enabled: boolean = true) => {
     isChatOpen,
     isShopOpen,
     isSettingsOpen,
+    isMinimapVisible,
     toggleInventory,
     toggleMap,
     toggleChat,
     toggleShop,
     toggleSettings,
+    setMinimapVisible,
     closeAllModals,
   } = useUIStore();
 
@@ -96,11 +98,20 @@ export const useKeyboard = (enabled: boolean = true) => {
         case 'm':
           toggleMap();
           break;
+        case 'n':
+          // Toggle minimapa
+          setMinimapVisible(!isMinimapVisible);
+          break;
         case 'enter':
           toggleChat();
           break;
         case 'escape':
-          closeAllModals();
+          // Si hay algún modal abierto, cerrarlo. Si no, abrir menú de pausa
+          if (isInventoryOpen || isMapOpen || isShopOpen || isSettingsOpen) {
+            closeAllModals();
+          } else {
+            toggleSettings();
+          }
           break;
         case 'tab':
           // Handle tab for targeting (future feature)
@@ -118,7 +129,7 @@ export const useKeyboard = (enabled: boolean = true) => {
           break;
       }
     }
-  }, [enabled, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals]);
+  }, [enabled, isChatOpen, isInventoryOpen, isMapOpen, isShopOpen, isSettingsOpen, isMinimapVisible, toggleInventory, toggleMap, toggleChat, toggleSettings, setMinimapVisible, closeAllModals]);
 
   // Handle key up
   const handleKeyUp = useCallback((event: KeyboardEvent) => {

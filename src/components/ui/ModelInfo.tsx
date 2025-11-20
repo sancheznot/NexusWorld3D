@@ -131,6 +131,7 @@ export default function ModelInfo({ isOpen, onClose }: ModelInfoProps) {
                 <br />• <kbd className="bg-gray-700 px-1 rounded">Mouse</kbd> - Rotar cámara (arrastrar)
                 <br />• <kbd className="bg-gray-700 px-1 rounded">I</kbd> - Inventario
                 <br />• <kbd className="bg-gray-700 px-1 rounded">M</kbd> - Mapa
+                <br />• <kbd className="bg-gray-700 px-1 rounded">N</kbd> - Minimapa
                 <br />• <kbd className="bg-gray-700 px-1 rounded">Enter</kbd> - Chat
               </p>
             </div>

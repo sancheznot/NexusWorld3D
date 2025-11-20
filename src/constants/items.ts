@@ -80,6 +80,51 @@ export const ITEMS_CATALOG: Record<
     visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.6 },
     effects: { health: 5 }
   },
+  food_bread: {
+    name: 'Pan',
+    type: 'consumable',
+    rarity: 'common',
+    weight: 0.3,
+    icon: '🍞',
+    visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.5 },
+    effects: { health: 10 }
+  },
+  food_water: {
+    name: 'Botella de Agua',
+    type: 'consumable',
+    rarity: 'common',
+    weight: 0.5,
+    icon: '💧',
+    visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.4 },
+    effects: { health: 5 }
+  },
+  food_meat: {
+    name: 'Carne Cocida',
+    type: 'consumable',
+    rarity: 'uncommon',
+    weight: 0.8,
+    icon: '🍖',
+    visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.6 },
+    effects: { health: 25 }
+  },
+  food_cheese: {
+    name: 'Queso',
+    type: 'consumable',
+    rarity: 'common',
+    weight: 0.4,
+    icon: '🧀',
+    visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.5 },
+    effects: { health: 15 }
+  },
+  food_fish: {
+    name: 'Pescado',
+    type: 'consumable',
+    rarity: 'uncommon',
+    weight: 0.6,
+    icon: '🐟',
+    visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.5 },
+    effects: { health: 20 }
+  },
 };
 
 export const ITEM_SPAWNS: Record<string, ItemSpawnConfig[]> = {
