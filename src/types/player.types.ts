@@ -1,3 +1,5 @@
+import type { ExtendedJobId } from '@/constants/jobs';
+
 export interface PlayerCustomization {
   bodyColor: string;
   headColor: string;
@@ -15,6 +17,7 @@ export interface Player {
   position: Vector3;
   rotation: Vector3;
   mapId?: string; // mapa actual del jugador
+  roleId?: ExtendedJobId | null;
   health: number;
   maxHealth: number;
   stamina: number;
