@@ -3,7 +3,13 @@
 import { useEffect, memo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { useCannonPhysics } from '@/hooks/useCannonPhysics';
-import { NATURAL_MESH_PATTERNS } from '@/constants/physics';
+import { GAME_CONFIG } from '@/constants/game';
+import * as THREE from 'three';
+
+// ...
+
+// Usage example (assuming it's used somewhere)
+// const patterns = GAME_CONFIG.physics.patterns.naturalMesh;
 
 interface HotelInteriorProps {
   modelPath: string;
@@ -40,12 +46,25 @@ const HotelInterior = memo(function HotelInterior({
       name
     );
 
+    // Filtrar solo meshes que coincidan con patrones naturales (rocas, colinas, etc)
+    const naturalMeshes: THREE.Mesh[] = [];
+    
+    scene.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        // Verificar si el nombre coincide con algún patrón
+        const isNatural = GAME_CONFIG.physics.patterns.naturalMesh.some(pattern => child.name.includes(pattern));
+        
+        if (isNatural) {
+          naturalMeshes.push(child);
+        }
+      }
+    });
     // 2) Trimesh colliders para elementos naturales del interior
-    const interiorElements = physicsRef.current.createNamedTrimeshCollidersFromScene(
-      scene,
-      (n) => NATURAL_MESH_PATTERNS.some(pattern => new RegExp(`^${pattern}`, 'i').test(n)),
-      `${name}-interior`
-    );
+    // physicsRef.current.createNamedTrimeshCollidersFromScene(
+    //   scene,
+    //   (n) => NATURAL_MESH_PATTERNS.some(pattern => new RegExp(`^${pattern}`, 'i').test(n)),
+    //   `${name}-interior`
+    // );
   }, [scene, physicsRef, name]);
 
   return (

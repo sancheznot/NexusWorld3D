@@ -9,7 +9,6 @@ import { useAdminTeleport } from '@/hooks/useAdminTeleport';
 import { collisionSystem } from '@/lib/three/collisionSystem';
 import AnimatedCharacter from '@/components/world/AnimatedCharacter';
 import { useCharacterAnimation, type AnimationState } from '@/hooks/useCharacterAnimation';
-import { PHYSICS_CONFIG } from '@/constants/physics';
 import { GAME_CONFIG } from '@/constants/game';
 import * as THREE from 'three';
 import { PlayerCustomization } from '@/types/player.types';
@@ -192,7 +191,7 @@ export default function PlayerV2({
     }
     
     // Limitar delta con timestep fijo de física
-    const clampedDelta = Math.min(delta, PHYSICS_CONFIG.MAX_DELTA_TIME);
+    const clampedDelta = Math.min(delta, GAME_CONFIG.physics.maxDeltaTime);
     
     // Determinar estado de sprint (inicio/fin) y aplicar movimiento
     if (physicsRef.current) {

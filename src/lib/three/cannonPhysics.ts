@@ -1,10 +1,14 @@
 import * as CANNON from "cannon-es";
 import * as THREE from "three";
 import { threeToCannon, ShapeType } from "three-to-cannon";
-import { PHYSICS_CONFIG } from "@/constants/physics";
+
 import { CollisionGroups, CollisionMasks } from "@/constants/collisionGroups";
 import { GAME_CONFIG } from "@/constants/game";
 import { SpringSimulator } from "../physics/SpringSimulator";
+
+interface ICullableBody extends CANNON.Body {
+  isActive?: boolean;
+}
 
 interface IRaycastVehicle {
   wheelInfos: Array<{
@@ -12,6 +16,7 @@ interface IRaycastVehicle {
     rollInfluence: number;
     suspensionRestLength?: number;
     suspensionLength?: number;
+    worldTransform: { position: CANNON.Vec3; quaternion: CANNON.Quaternion };
   }>;
   addWheel: (o: unknown) => void;
   addToWorld: (w: CANNON.World) => void;
@@ -23,6 +28,7 @@ interface IRaycastVehicle {
     worldTransform: { position: CANNON.Vec3 };
   };
   updateVehicle: (delta: number) => void;
+  updateWheelTransform: (i: number) => void;
   numWheelsOnGround?: number;
 }
 
@@ -33,8 +39,8 @@ export class CannonPhysics {
   private playerBaseY: number = 1.05; // Altura base del centro del jugador sobre el suelo
   private currentVelocity = { x: 0, z: 0 };
   private targetVelocity = { x: 0, z: 0 };
-  private acceleration = PHYSICS_CONFIG.ACCELERATION; // Velocidad de aceleración
-  private deceleration = PHYSICS_CONFIG.DECELERATION; // Velocidad de desaceleración
+  private acceleration = GAME_CONFIG.physics.acceleration; // Velocidad de aceleración
+  private deceleration = GAME_CONFIG.physics.deceleration; // Velocidad de desaceleración
   private staticBodiesCreated = false; // Flag para evitar crear colliders estáticos
   private vehicles: IRaycastVehicle[] = []; // Array para almacenar instancias de vehículos
   private vehicleState: Map<
@@ -60,16 +66,16 @@ export class CannonPhysics {
     this.world = new CANNON.World();
 
     // Configurar gravedad desde constantes
-    this.world.gravity.set(0, PHYSICS_CONFIG.GRAVITY, 0);
+    this.world.gravity.set(0, GAME_CONFIG.physics.gravity, 0);
 
     // Configurar solver MEJORADO para mejores colisiones
     this.world.broadphase = new CANNON.SAPBroadphase(this.world);
     const solver = new CANNON.GSSolver();
-    solver.iterations = 10; // Más iteraciones = mejor precisión
+    solver.iterations = 5; // Reducido de 10 a 5 para optimización
     this.world.solver = solver;
 
     // DESACTIVAR sleep temporalmente para debug de colisiones
-    this.world.allowSleep = false;
+    this.world.allowSleep = true; // ACTIVADO para optimización
     this.world.defaultContactMaterial.restitution = 0; // Sin rebote por defecto
     this.world.defaultContactMaterial.friction = 0.6;
 
@@ -175,6 +181,82 @@ export class CannonPhysics {
     });
     if (count > 0) {
       console.log(`⛰️  ${count} Trimesh colliders generados (${idPrefix})`);
+    }
+    return count;
+  }
+
+  // 🚀 NUEVO: Crear colliders Convex Hull (más rápido que Trimesh, ~10x mejor rendimiento)
+  createNamedConvexCollidersFromScene(
+    scene: THREE.Object3D,
+    filter: (name: string) => boolean,
+    idPrefix: string
+  ) {
+    let count = 0;
+    const matchesWithAncestors = (obj: THREE.Object3D): boolean => {
+      let current: THREE.Object3D | null = obj;
+      while (current) {
+        if (filter(current.name)) return true;
+        current = current.parent;
+      }
+      return false;
+    };
+
+    scene.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh && matchesWithAncestors(child)) {
+        const mesh = child as THREE.Mesh;
+        mesh.updateMatrixWorld(true);
+
+        const id = `${idPrefix}-${child.name}-${count}`;
+        if (this.bodies.has(id)) return;
+
+        // Usar Convex Hull de three-to-cannon
+        const result = threeToCannon(mesh, { type: ShapeType.HULL });
+        if (result?.shape) {
+          const body = new CANNON.Body({
+            mass: 0,
+            collisionFilterGroup: CollisionGroups.Default,
+            collisionFilterMask: -1,
+          });
+
+          body.addShape(result.shape, result.offset, result.orientation);
+
+          // Obtener posición y rotación mundial
+          const worldPos = new THREE.Vector3();
+          const worldQuat = new THREE.Quaternion();
+          mesh.getWorldPosition(worldPos);
+          mesh.getWorldQuaternion(worldQuat);
+
+          body.position.set(worldPos.x, worldPos.y, worldPos.z);
+          body.quaternion.set(
+            worldQuat.x,
+            worldQuat.y,
+            worldQuat.z,
+            worldQuat.w
+          );
+          body.material = this.staticMaterial;
+
+          // OPTIMIZACIÓN: Permitir sleep para Convex Hull
+          body.allowSleep = true;
+          body.sleepSpeedLimit = 0.1;
+          body.sleepTimeLimit = 1.0;
+          body.collisionResponse = true;
+
+          // Aplicar CollisionGroups
+          body.shapes.forEach((shape) => {
+            shape.collisionFilterGroup = CollisionGroups.Default;
+            shape.collisionFilterMask = -1;
+          });
+
+          this.world.addBody(body);
+          (body as ICullableBody).isActive = true;
+          this.bodies.set(id, body);
+          count += 1;
+        }
+      }
+    });
+
+    if (count > 0) {
+      console.log(`🔷 ${count} Convex Hull colliders generados (${idPrefix})`);
     }
     return count;
   }
@@ -323,11 +405,17 @@ export class CannonPhysics {
 
   // Optimización: Control de frecuencia para culling de colisiones
   private lastOptimizationTime = 0;
-  private readonly OPTIMIZATION_INTERVAL = 1000; // 1 segundo
+  private readonly OPTIMIZATION_INTERVAL =
+    GAME_CONFIG.physics.performance.optimizationInterval;
 
   update(delta: number) {
+    // Medir tiempo de step de física
+    const stepStart = performance.now();
+
     // Paso de física fijo
-    this.world.step(PHYSICS_CONFIG.MAX_DELTA_TIME, delta, 10);
+    this.world.step(GAME_CONFIG.physics.maxDeltaTime, delta, 10);
+
+    const stepTime = performance.now() - stepStart;
 
     // Optimización: Culling de colisiones estáticas cada segundo
     const now = performance.now();
@@ -341,42 +429,90 @@ export class CannonPhysics {
       vehicle.updateVehicle(delta);
     });
 
-    // Debug: Mostrar cuántos bodies hay en el mundo (cada 3 segundos)
+    // Debug: Mostrar rendimiento de física (cada 3 segundos)
     if (!this.lastDebugTime || Date.now() - this.lastDebugTime > 3000) {
-      // console.log(`🌍 Bodies en el mundo: ${this.world.bodies.length} (player + ground + ${this.bodies.size - 1} colliders)`);
-      // console.log(`📋 Colliders creados:`, Array.from(this.bodies.keys()));
-      // console.log(`🔍 Player body exists:`, !!this.playerBody);
-      // console.log(`🎯 World bodies:`, this.world.bodies.map(b => b.id || 'unnamed'));
+      const activeColliders = Array.from(this.bodies.values()).filter(
+        (b) => (b as ICullableBody).isActive !== false
+      ).length;
+      const inactiveColliders = this.bodies.size - activeColliders;
+
+      console.log(`⚡ Physics Performance:`);
+      console.log(
+        `  📊 Total colliders: ${this.bodies.size} (${activeColliders} active, ${inactiveColliders} culled)`
+      );
+      console.log(`  🌍 Bodies in world: ${this.world.bodies.length}`);
+      console.log(`  ⏱️  Physics step time: ${stepTime.toFixed(2)}ms`);
       this.lastDebugTime = Date.now();
     }
   }
 
+  private currentVehicleId: string | null = null; // Vehículo actual del jugador
+
+  // Setter para el vehículo actual
+  setCurrentVehicle(id: string | null) {
+    this.currentVehicleId = id;
+    console.log(`🚗 Active Vehicle set to: ${id}`);
+  }
+
   /**
-   * Optimización: Activa/Desactiva colisiones estáticas según distancia al jugador
+   * Optimización: Activa/Desactiva colisiones estáticas según distancia al jugador o vehículo
    * "Raycast" optimization requested by user
    */
   private optimizeStaticColliders() {
-    if (!this.playerBody) return;
+    let targetPos: { x: number; y: number; z: number } | null = null;
 
-    const playerPos = this.playerBody.position;
-    const ACTIVATION_DISTANCE = 120; // Metros (Aumentado para evitar popping)
-    const DEACTIVATION_DISTANCE = 140; // Hysteresis para evitar parpadeo
+    // 1. Si hay un vehículo activo, usar su posición
+    if (this.currentVehicleId && this.bodies.has(this.currentVehicleId)) {
+      targetPos = this.bodies.get(this.currentVehicleId)!.position;
+    }
+    // 2. Si no, usar la posición del jugador
+    else if (this.playerBody) {
+      targetPos = this.playerBody.position;
+    }
 
+    if (!targetPos) return;
+
+    // Distancias aumentadas para evitar "frenazos" en curvas o alta velocidad
+    // El coche puede moverse a ~30m/s, así que necesitamos cargar terreno con mucha antelación
+    const ACTIVATION_DISTANCE =
+      GAME_CONFIG.physics.performance.cullingActivationDistance * 1.5; // ~120m
+    const DEACTIVATION_DISTANCE =
+      GAME_CONFIG.physics.performance.cullingDeactivationDistance * 1.5; // ~150m
     this.bodies.forEach((body, key) => {
-      // Solo optimizar objetos estáticos (masa 0) que no sean suelo ni jugador
+      // Solo optimizar objetos estáticos (masa 0) que no sean suelo ni jugador ni vehículo activo
       // Asumimos que los objetos estáticos tienen mass=0
-      if (body.mass === 0 && key !== "ground" && key !== "player") {
-        const distSq =
-          (body.position.x - playerPos.x) ** 2 +
-          (body.position.z - playerPos.z) ** 2;
+      if (
+        body.mass === 0 &&
+        key !== "ground" &&
+        key !== "player" &&
+        key !== this.currentVehicleId
+      ) {
+        // ⚠️ EXCLUDE LARGE MESHES FROM CULLING
+        // Hills, Mountains, Terrain should always be active because their center might be far
+        // but their mesh extends to the player.
+        // Also exclude ROADS to prevent "pull back" when driving fast.
+        if (
+          /hill|mountain|terrain|cliff|montaña|terreno|road|street|calle|via/i.test(
+            key
+          )
+        ) {
+          return;
+        }
 
-        const isActive = this.world.bodies.includes(body);
+        const distSq =
+          (body.position.x - targetPos!.x) ** 2 +
+          (body.position.z - targetPos!.z) ** 2;
+
+        // OPTIMIZACIÓN: Usar propiedad 'isActive' en lugar de buscar en el array (O(1) vs O(N))
+        const isActive = (body as ICullableBody).isActive !== false; // Default true
 
         if (isActive && distSq > DEACTIVATION_DISTANCE ** 2) {
           this.world.removeBody(body);
+          (body as ICullableBody).isActive = false;
           // console.log(`💤 Culling static body: ${key} (dist: ${Math.sqrt(distSq).toFixed(1)}m)`);
         } else if (!isActive && distSq < ACTIVATION_DISTANCE ** 2) {
           this.world.addBody(body);
+          (body as ICullableBody).isActive = true;
           // console.log(`🔔 Activating static body: ${key} (dist: ${Math.sqrt(distSq).toFixed(1)}m)`);
         }
       }
@@ -569,24 +705,31 @@ export class CannonPhysics {
     this.playerBody.velocity.set(0, 0, 0);
     this.playerBody.angularVelocity.set(0, 0, 0);
   }
-
-  // Obtener transform de un body por id
+  /**
+   * Obtiene la transformación (posición/rotación) de un cuerpo
+   * @param id - ID del cuerpo
+   */
   getBodyTransform(id: string): {
     position: { x: number; y: number; z: number };
     rotationY: number;
+    quaternion: { x: number; y: number; z: number; w: number };
   } | null {
     const body = this.bodies.get(id);
     if (!body) return null;
-    const p = body.position;
-    // Extraer yaw aproximado desde quaternion
-    const q = body.quaternion;
-    // Convert quaternion to Euler yaw (y)
-    const ysqr = q.y * q.y;
-    // source: standard conversion
-    const t3 = +2.0 * (q.w * q.y + q.x * q.z);
-    const t4 = +1.0 - 2.0 * (ysqr + q.z * q.z);
-    const yaw = Math.atan2(t3, t4);
-    return { position: { x: p.x, y: p.y, z: p.z }, rotationY: yaw };
+
+    const euler = new CANNON.Vec3();
+    body.quaternion.toEuler(euler);
+
+    return {
+      position: { x: body.position.x, y: body.position.y, z: body.position.z },
+      rotationY: euler.y,
+      quaternion: {
+        x: body.quaternion.x,
+        y: body.quaternion.y,
+        z: body.quaternion.z,
+        w: body.quaternion.w,
+      },
+    };
   }
 
   // Obtener velocidad lineal de un body por id
@@ -704,19 +847,22 @@ export class CannonPhysics {
       collisionFilterGroup: CollisionGroups.Vehicles,
       collisionFilterMask: CollisionMasks.VehicleBody,
     });
-    // Chasis con dimensiones ORIGINALES pero ELEVADO para evitar arrastre
-    // Dimensiones originales: ancho 1.6m, alto 1.0m, largo 3.8m
-    const chassisShape = new CANNON.Box(new CANNON.Vec3(0.8, 0.5, 1.9));
+    // Chasis con dimensiones ESCALADAS para coincidir con el modelo visual (1.6x)
+    // Dimensiones base: ancho 1.6m, alto 1.0m, largo 3.8m
+    // Escaladas 1.6x: ancho 2.56m, alto 1.6m, largo 6.08m
+    // Half-extents: 1.28, 0.8, 2.5 (largo reducido para mejor ajuste)
+    const chassisShape = new CANNON.Box(new CANNON.Vec3(1.28, 0.8, 2.5));
     // TAMBIÉN aplicar al shape (por si acaso, aunque el body es lo que cuenta)
     chassisShape.collisionFilterGroup = CollisionGroups.Vehicles;
     chassisShape.collisionFilterMask = CollisionMasks.VehicleBody;
-    // SUBIR el shape para que NO toque el suelo (offset Y=0.4 - ESTO ES LO QUE ARREGLÓ EL PROBLEMA)
-    chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 0.7, 0));
+    // SUBIR el shape para que NO toque el suelo
+    chassisBody.addShape(chassisShape, new CANNON.Vec3(0, 1.1, 0));
 
     // 🎯 SKETCHBOOK: Agregar esferas en las esquinas para detectar colisiones laterales
     // IMPORTANTE: Las esferas deben estar ARRIBA del nivel del suelo para NO frenar el vehículo
+    // MANTENER TAMAÑO ORIGINAL (no escalar con el modelo visual)
     const sphereRadius = 0.7; // Radio GRANDE para cubrir más área lateral (sin dejar huecos)
-    const sphereOffsetY = 0.7; // Altura aumentada para NO golpear el piso
+    const sphereOffsetY = 1.1; // Altura aumentada para NO golpear el piso
     const sphereOffsetX = 0.7; // Separación horizontal (ancho del carro)
     const sphereOffsetZ = 1.6; // Separación longitudinal (largo del carro)
 
@@ -750,6 +896,7 @@ export class CannonPhysics {
 
     // 🎯 Cilindro horizontal en el medio para cubrir el hueco central
     // El cilindro está orientado en el eje Z (frente-atrás del vehículo)
+    // MANTENER TAMAÑO ORIGINAL (no escalar con el modelo visual)
     const cylinderRadius = 0.5; // Radio del cilindro
     const cylinderLength = 3.0; // Longitud del cilindro (cubre todo el largo del vehículo)
     const cylinderShape = new CANNON.Cylinder(
@@ -845,14 +992,21 @@ export class CannonPhysics {
       useCustomSlidingRotationalSpeed: true,
     };
 
-    const halfWidth = 0.85,
-      wheelBase = 1.6;
+    const halfWidth = 1.15; // Aumentado de 0.85 a 1.15 para separar más las ruedas
+
+    // Configuración independiente de ejes
+    const rearWheelZ = 1.8; // Eje trasero (sin cambios)
+    const frontWheelZ = -1.5; // Eje delantero (movido hacia atrás desde -1.8 para centrar en guardafango)
+
     // FL, FR, RL, RR
+    // CAMBIO: Orden corregido para coincidir con CannonCar.tsx (0=FL, 1=FR, 2=RL, 3=RR)
+    // +X = Right, -X = Left
+    // -Z = Front, +Z = Rear
     const points = [
-      new CANNON.Vec3(halfWidth, 0, wheelBase),
-      new CANNON.Vec3(-halfWidth, 0, wheelBase),
-      new CANNON.Vec3(halfWidth, 0, -wheelBase),
-      new CANNON.Vec3(-halfWidth, 0, -wheelBase),
+      new CANNON.Vec3(-halfWidth, 0, frontWheelZ), // FL (Left, Front)
+      new CANNON.Vec3(halfWidth, 0, frontWheelZ), // FR (Right, Front)
+      new CANNON.Vec3(-halfWidth, 0, rearWheelZ), // RL (Left, Rear)
+      new CANNON.Vec3(halfWidth, 0, rearWheelZ), // RR (Right, Rear)
     ];
     points.forEach((p) => {
       const opt = { ...wheelOptions, chassisConnectionPointLocal: p };
@@ -865,6 +1019,7 @@ export class CannonPhysics {
     }>;
     if (wi && wi.length === 4) {
       // Ajustes por eje: más agarre atrás, muy poco roll
+      // 0,1 son Frente (-Z), 2,3 son Atrás (+Z)
       wi[0].frictionSlip = 12;
       wi[1].frictionSlip = 12;
       wi[2].frictionSlip = 14;
@@ -981,10 +1136,10 @@ export class CannonPhysics {
     // Reset brakes each frame
     for (let i = 0; i < 4; i++) vehicle.setBrake(0, i);
 
-    // Estimate forward speed along chassis forward axis (Z)
+    // Estimate forward speed along chassis forward axis (-Z ahora)
     let forwardSpeed = 0;
     if (chassis) {
-      const forwardLocal = new CANNON.Vec3(0, 0, 1);
+      const forwardLocal = new CANNON.Vec3(0, 0, -1); // CAMBIO: -Z es forward
       const forwardWorld = chassis.quaternion.vmult(forwardLocal);
       forwardSpeed = chassis.velocity.dot(forwardWorld);
     }
@@ -1001,8 +1156,8 @@ export class CannonPhysics {
         // Solo aplicar si hay movimiento significativo
         velocity.normalize();
 
-        // Vector forward del vehículo
-        const forward = chassis.quaternion.vmult(new CANNON.Vec3(0, 0, 1));
+        // Vector forward del vehículo (-Z)
+        const forward = chassis.quaternion.vmult(new CANNON.Vec3(0, 0, -1));
 
         // Calcular ángulo entre velocidad y dirección (drift)
         // Usando producto cruz para determinar el signo
@@ -1041,8 +1196,8 @@ export class CannonPhysics {
       // Simular física del resorte
       steeringSimulator.simulate(deltaTime);
 
-      // Aplicar dirección suavizada (INVERTIDA porque Cannon.js tiene steering al revés)
-      const steerVal = -steeringSimulator.position;
+      // Aplicar dirección suavizada (NORMAL porque ahora Physics Front = Visual Front)
+      const steerVal = steeringSimulator.position;
 
       vehicle.setSteeringValue(steerVal, 0);
       vehicle.setSteeringValue(steerVal, 1);
@@ -1051,8 +1206,49 @@ export class CannonPhysics {
       const speedNorm = Math.min(Math.abs(forwardSpeed) / 25, 1);
       const speedAtt = 1 - 0.5 * speedNorm;
       const steerVal = maxSteer * speedAtt * input.steer;
-      vehicle.setSteeringValue(steerVal, 0);
-      vehicle.setSteeringValue(steerVal, 1);
+      // Invertir steerVal si es necesario? No, ahora estamos alineados.
+      // Pero input.steer: Left (-1), Right (1).
+      // Cannon steering: Positive = Left? Negative = Right?
+      // Standard Cannon: Positive steer = Left turn.
+      // So input.steer (-1 Left) -> Negative -> Right?
+      // Wait.
+      // If steerVal is positive, wheels turn Left.
+      // If input.steer is -1 (Left), we want Positive steerVal.
+      // So steerVal = -input.steer * ...
+      // Let's check previous logic.
+      // Previous: `const steerVal = -steeringSimulator.position;` (Inverted)
+      // Now we are aligned.
+      // If input.steer is Left (-1).
+      // steeringSimulator target should be Positive?
+      // Let's check steeringSimulator logic above.
+      // `if (input.steer < -0.01) ... steering = Math.max(...)` -> Positive?
+      // Yes, `maxSteer` is positive.
+      // So target is positive for Left input.
+      // So `steeringSimulator.position` is positive.
+      // So `steerVal` is positive.
+      // So wheels turn Left.
+      // Correct.
+
+      vehicle.setSteeringValue(-steerVal, 0); // Invertir signo para coincidir con lógica estándar?
+      vehicle.setSteeringValue(-steerVal, 1);
+      // Espera, si steerVal es positivo (Left), y setSteeringValue(pos) es Left...
+      // Por qué invertí antes? Porque el chasis estaba rotado 180.
+      // Ahora el chasis NO está rotado (en teoría, lo voy a quitar).
+      // Pero he cambiado Physics Front a -Z.
+      // Si Physics Front es -Z, y giro ruedas "Left" (rotación +Y local?),
+      // +Y local en -Z forward...
+      // Si miro desde arriba, -Z es "Arriba".
+      // +Y es eje vertical.
+      // Rotación positiva en Y es anti-horaria.
+      // Si el coche mira a -Z, rotación anti-horaria apunta a la IZQUIERDA del coche.
+      // Entonces Positive Steer = Left.
+      // input.steer = -1 (Left).
+      // target = Positive.
+      // steerVal = Positive.
+      // setSteeringValue(Positive) = Left.
+      // Correcto.
+      // Entonces NO debo invertir steerVal.
+      // `vehicle.setSteeringValue(steerVal, 0);`
     }
     // ========== FIN NUEVO ==========
 
@@ -1086,8 +1282,8 @@ export class CannonPhysics {
         const maxAirSpinMagnitude = 2.0;
         const airSpinAcceleration = 0.15;
 
-        // Vectores de dirección del vehículo
-        const forward = chassis.quaternion.vmult(new CANNON.Vec3(0, 0, 1));
+        // Vectores de dirección del vehículo (-Z forward)
+        const forward = chassis.quaternion.vmult(new CANNON.Vec3(0, 0, -1));
         const right = chassis.quaternion.vmult(new CANNON.Vec3(1, 0, 0));
 
         // Vectores de spin efectivos
@@ -1342,7 +1538,58 @@ export class CannonPhysics {
     if (!state?.steeringSimulator) return 0;
 
     // Normalizar a rango -1 a 1 (maxSteer es 0.6)
+    // Normalizar a rango -1 a 1 (maxSteer es 0.6)
     return state.steeringSimulator.position / 0.6;
+  }
+
+  /**
+   * Obtiene la transformación (posición/rotación) de una rueda específica
+   * @param id - ID del vehículo
+   * @param wheelIndex - Índice de la rueda (0-3)
+   */
+  getVehicleWheelTransform(
+    id: string,
+    wheelIndex: number
+  ): {
+    position: { x: number; y: number; z: number };
+    rotation: { x: number; y: number; z: number; w: number };
+  } | null {
+    const vehicle = (this as unknown as Record<string, unknown>)[
+      `${id}:vehicle`
+    ] as IRaycastVehicle;
+    if (!vehicle || !vehicle.wheelInfos[wheelIndex]) return null;
+
+    // Actualizar transformación de la rueda
+    vehicle.updateWheelTransform(wheelIndex);
+
+    const t = vehicle.wheelInfos[wheelIndex].worldTransform;
+    const info = vehicle.wheelInfos[wheelIndex];
+    return {
+      position: { x: t.position.x, y: t.position.y, z: t.position.z },
+      rotation: {
+        x: t.quaternion.x,
+        y: t.quaternion.y,
+        z: t.quaternion.z,
+        w: t.quaternion.w,
+      },
+      // Datos para sincronización visual interpolada
+      suspensionLength: info.suspensionLength,
+      chassisConnectionPointLocal: {
+        x: info.chassisConnectionPointLocal.x,
+        y: info.chassisConnectionPointLocal.y,
+        z: info.chassisConnectionPointLocal.z,
+      },
+      directionLocal: {
+        x: info.directionLocal.x,
+        y: info.directionLocal.y,
+        z: info.directionLocal.z,
+      },
+      axleLocal: {
+        x: info.axleLocal.x,
+        y: info.axleLocal.y,
+        z: info.axleLocal.z,
+      },
+    };
   }
 
   /**
@@ -1532,7 +1779,9 @@ export class CannonPhysics {
     body.addShape(shape);
     body.position.set(position[0], position[1] + sy / 2, position[2]);
     body.material = this.staticMaterial;
-    body.allowSleep = false;
+    body.allowSleep = true; // Optimización
+    body.sleepSpeedLimit = 0.1;
+    body.sleepTimeLimit = 1.0;
     body.collisionResponse = true;
 
     // Aplicar CollisionGroups a todas las shapes
@@ -1542,6 +1791,7 @@ export class CannonPhysics {
     });
 
     this.world.addBody(body);
+    (body as ICullableBody).isActive = true; // Inicializar tag
     this.bodies.set(id, body);
     console.log(
       `🏢 Box collider creado: ${id} → size=(${sx.toFixed(1)}, ${sy.toFixed(
@@ -1573,7 +1823,9 @@ export class CannonPhysics {
     body.material = this.staticMaterial;
 
     // IMPORTANTE: Asegurar que el body no se duerma y responda a colisiones
-    body.allowSleep = false;
+    body.allowSleep = true; // Optimización
+    body.sleepSpeedLimit = 0.1;
+    body.sleepTimeLimit = 1.0;
     body.collisionResponse = true;
 
     // Aplicar CollisionGroups a todas las shapes
@@ -1583,6 +1835,7 @@ export class CannonPhysics {
     });
 
     this.world.addBody(body);
+    (body as ICullableBody).isActive = true; // Inicializar tag
     this.bodies.set(id, body);
     console.log(
       `🚀 Automatic collider created: ${id} at (${position.x.toFixed(
@@ -1731,15 +1984,21 @@ export class CannonPhysics {
     return count;
   }
 
-  // 🎯 NUEVO: Crear colliders precisos según tipo de objeto (Sketchbook-inspired)
-  // OPTIMIZADO: Solo crea colliders si NO existe UCX_ para ese objeto
-  createPreciseCollidersFromScene(scene: THREE.Object3D, idPrefix: string) {
-    let treeCount = 0;
-    let rockCount = 0;
-    let poleCount = 0;
-    let skippedUCX = 0;
+  // 🎯 OPTIMIZED: Crear colliders inteligentes según tipo de objeto
+  // Consolida la lógica de Trimesh, Convex Hull y Primitivas en un solo pase
+  createOptimizedColliders(scene: THREE.Object3D, idPrefix: string) {
+    const stats = {
+      trees: 0,
+      rocks: 0,
+      poles: 0,
+      stairs: 0, // Convex Hull (Rampas suaves)
+      terrain: 0, // Heightfield (Montañas/Terreno complejo)
+      floors: 0, // Box (Suelo plano)
+      walls: 0, // Box/Trimesh
+      skipped: 0,
+    };
 
-    // Primero, recolectar todos los objetos con UCX_ para evitar duplicados
+    // 1. Identificar objetos que YA tienen collider manual (UCX_)
     const ucxObjects = new Set<string>();
     scene.traverse((child) => {
       if (child.name.startsWith("UCX_")) {
@@ -1754,176 +2013,287 @@ export class CannonPhysics {
       const mesh = child as THREE.Mesh;
       const name = child.name.toLowerCase();
 
-      // ⚠️ SKIP: Si este objeto ya tiene UCX_, no crear collider duplicado
+      // ⚠️ SKIP: Si es un UCX o collider manual, ignorar (ya se procesó en createUCXBoxCollidersFromScene)
+      if (name.startsWith("ucx_") || name.includes("collision")) return;
+
+      // ⚠️ SKIP: Si este objeto ya tiene UCX_ asociado, no crear collider duplicado
       const baseName = child.name.replace(/_\d+$/, "");
       if (ucxObjects.has(baseName.toLowerCase())) {
-        skippedUCX++;
+        stats.skipped++;
         return;
       }
 
-      // 🌳 ÁRBOLES: Cilindro (tronco) + Esfera (copa)
+      const id = `${idPrefix}-${child.name}-${mesh.id}`;
+      if (this.bodies.has(id)) return;
+
+      mesh.updateMatrixWorld(true);
+      const bbox = new THREE.Box3().setFromObject(mesh);
+      const size = bbox.getSize(new THREE.Vector3());
+
+      // --- LÓGICA DE SELECCIÓN DE COLLIDER ---
+
+      // 1. 🪜 ESCALERAS / RAMPAS -> Convex Hull (Para suavizar pasos)
+      if (/stair|ramp|step|escalera|rampa/i.test(name)) {
+        // Convex Hull crea una "envoltura" que tapa los huecos de los escalones -> Rampa lisa
+        const result = threeToCannon(mesh, { type: ShapeType.HULL });
+        if (result?.shape) {
+          this.createBodyFromShape(
+            result.shape,
+            this.getVec3(mesh.position), // Usar posición local si es hijo directo, o world si threeToCannon lo maneja
+            this.getEuler(mesh.quaternion),
+            this.getVec3(mesh.scale), // Nota: threeToCannon suele aplicar escala al shape
+            id
+          );
+          // Corrección: threeToCannon devuelve offset/orientation relativos al mesh.
+          // createBodyFromShape asume posición del mesh.
+          // Mejor usar la implementación directa aquí para asegurar world coords correctas:
+          this.createColliderFromResult(mesh, result, id);
+          stats.stairs++;
+          return;
+        }
+      }
+
+      // 2. ⛰️ TERRENO / MONTAÑAS -> Heightfield (Súper optimizado)
+      if (/hill|mountain|terrain|cliff|slope|montaña|terreno/i.test(name)) {
+        // 🎯 SMART OPTIMIZATION: Si el "terreno" es plano (altura baja), usar Box
+        // Esto arregla el lag si el usuario llama "Terrain" a un piso plano.
+        if (size.y < 2.0) {
+          const result = threeToCannon(mesh, { type: ShapeType.BOX });
+          if (result?.shape) {
+            this.createColliderFromResult(mesh, result, id);
+            stats.floors++; // Contarlo como piso optimizado
+            console.log(
+              `🛣️ Smart Optimization: Flat Terrain '${name}' -> Box Collider`
+            );
+            return;
+          }
+        }
+
+        // Si es alto (> 2m), usar Heightfield real
+        // Usar Heightfield en lugar de Trimesh
+        // Resolution 1.0 = 1 metro por punto. Ajustar según necesidad.
+        if (this.createHeightfieldFromMesh(mesh, id, 1.0)) {
+          stats.terrain++;
+          return;
+        }
+      }
+
+      // 3. 🌳 ÁRBOLES -> Cilindro (Tronco) + Esfera (Copa)
+      // USAR WORLD AABB para evitar problemas de rotación (Z-up vs Y-up)
       if (/tree|arbol|palm|pine|oak/i.test(name)) {
-        const id = `${idPrefix}-tree-${treeCount}`;
-        if (this.bodies.has(id)) return;
+        const trunkRadius = Math.min(size.x, size.z) * 0.2;
+        const trunkHeight = size.y * 0.6;
+        const crownRadius = Math.max(size.x, size.z) * 0.4;
 
-        mesh.updateMatrixWorld(true);
-        const worldPos = new THREE.Vector3();
-        mesh.getWorldPosition(worldPos);
-
-        const bbox = new THREE.Box3().setFromObject(mesh);
-        const size = bbox.getSize(new THREE.Vector3());
-
-        // Estimaciones basadas en tamaño
-        const trunkRadius = Math.min(size.x, size.z) * 0.2; // 20% del ancho
-        const trunkHeight = size.y * 0.6; // 60% de la altura
-        const crownRadius = Math.max(size.x, size.z) * 0.4; // 40% del ancho
-
-        const body = new CANNON.Body({
-          mass: 0,
-          collisionFilterGroup: CollisionGroups.Default,
-          collisionFilterMask: -1,
-        });
-
-        // Tronco: Cilindro
+        const body = new CANNON.Body({ mass: 0 });
+        // Tronco (Cylinder es Y-up por defecto)
         const trunkShape = new CANNON.Cylinder(
           trunkRadius,
           trunkRadius,
           trunkHeight,
           8
         );
-        body.addShape(trunkShape, new CANNON.Vec3(0, trunkHeight / 2, 0));
+        // Offset del tronco relativo al centro del AABB (que será el centro del body)
+        // El AABB center está en size.y/2. El tronco mide trunkHeight.
+        // Queremos que la base del tronco esté en bbox.min.y.
+        // Body pos = bbox.center.
+        // Trunk local pos: y = -size.y/2 + trunkHeight/2
+        const trunkOffset = -size.y / 2 + trunkHeight / 2;
+        body.addShape(trunkShape, new CANNON.Vec3(0, trunkOffset, 0));
 
-        // Copa: Esfera
+        // Copa
         const crownShape = new CANNON.Sphere(crownRadius);
-        body.addShape(
-          crownShape,
-          new CANNON.Vec3(0, trunkHeight + crownRadius * 0.5, 0)
-        );
+        const crownOffset = -size.y / 2 + trunkHeight + crownRadius * 0.5;
+        body.addShape(crownShape, new CANNON.Vec3(0, crownOffset, 0));
 
-        body.position.set(worldPos.x, worldPos.y, worldPos.z);
-        body.material = this.staticMaterial;
-        body.allowSleep = false;
-        body.collisionResponse = true;
+        // Usar posición del AABB Center y Rotación Identity (Vertical)
+        const center = bbox.getCenter(new THREE.Vector3());
+        body.position.set(center.x, center.y, center.z);
+        body.quaternion.set(0, 0, 0, 1); // Identity -> Siempre vertical
 
-        // Aplicar CollisionGroups a shapes
-        body.shapes.forEach((shape) => {
-          shape.collisionFilterGroup = CollisionGroups.Default;
-          shape.collisionFilterMask = -1;
-        });
-
-        this.world.addBody(body);
-        this.bodies.set(id, body);
-        treeCount++;
-
-        // Ocultar mesh original (opcional)
-        // mesh.visible = false;
+        this.addStaticBody(body, id);
+        stats.trees++;
+        return;
       }
 
-      // 🪨 ROCAS: Convex Hull
-      else if (/rock|roca|stone|piedra|boulder/i.test(name)) {
-        const id = `${idPrefix}-rock-${rockCount}`;
-        if (this.bodies.has(id)) return;
-
-        mesh.updateMatrixWorld(true);
-
+      // 4. 🪨 ROCAS -> Convex Hull (Mejor ajuste que esfera)
+      if (/rock|stone|piedra|boulder/i.test(name)) {
         const result = threeToCannon(mesh, { type: ShapeType.HULL });
         if (result?.shape) {
-          const body = new CANNON.Body({
-            mass: 0,
-            collisionFilterGroup: CollisionGroups.Default,
-            collisionFilterMask: -1,
-          });
-
-          body.addShape(result.shape, result.offset, result.orientation);
-
-          const worldPos = new THREE.Vector3();
-          const worldQuat = new THREE.Quaternion();
-          mesh.getWorldPosition(worldPos);
-          mesh.getWorldQuaternion(worldQuat);
-
-          body.position.set(worldPos.x, worldPos.y, worldPos.z);
-          body.quaternion.set(
-            worldQuat.x,
-            worldQuat.y,
-            worldQuat.z,
-            worldQuat.w
-          );
-          body.material = this.staticMaterial;
-          body.allowSleep = false;
-          body.collisionResponse = true;
-
-          // Aplicar CollisionGroups
-          body.shapes.forEach((shape) => {
-            shape.collisionFilterGroup = CollisionGroups.Default;
-            shape.collisionFilterMask = -1;
-          });
-
-          this.world.addBody(body);
-          this.bodies.set(id, body);
-          rockCount++;
-
-          // Ocultar mesh original (opcional)
-          // mesh.visible = false;
+          this.createColliderFromResult(mesh, result, id);
+          stats.rocks++;
+          return;
         }
       }
 
-      // 🚦 POSTES/FAROLAS: Cilindro delgado
-      else if (/pole|post|lamp|farol|light|street.*light/i.test(name)) {
-        const id = `${idPrefix}-pole-${poleCount}`;
-        if (this.bodies.has(id)) return;
+      // 5. �️ SUELO / CALLE / PISO -> Box (Súper eficiente)
+      // Si es plano y simple, usar Box es lo mejor.
+      if (
+        /floor|ground|piso|suelo|road|calle|street|acera|sidewalk/i.test(name)
+      ) {
+        // Usar Box AABB del mundo
+        // Nota: Si el suelo está rotado, AABB puede ser muy grande.
+        // Pero para suelos planos alineados (como calles), Box es perfecto.
+        // Si es muy complejo, quizás Trimesh sea necesario, pero probemos Box primero para FPS.
 
-        mesh.updateMatrixWorld(true);
-        const worldPos = new THREE.Vector3();
-        mesh.getWorldPosition(worldPos);
+        // Si tiene rotación compleja, threeToCannon BOX usa OBB (Oriented Bounding Box)
+        const result = threeToCannon(mesh, { type: ShapeType.BOX });
+        if (result?.shape) {
+          this.createColliderFromResult(mesh, result, id);
+          stats.floors++;
+          console.log(`🛣️ Optimized Floor/Road: ${id}`);
+          return;
+        }
+      }
 
-        const bbox = new THREE.Box3().setFromObject(mesh);
+      // 6. 🚦 SEMÁFOROS -> Box (Alineación perfecta)
+      // Solo aplicamos esto a Semáforos que el usuario reportó como "desfasados".
+      // Los "Stops" ya estaban bien, así que los dejamos tranquilos (probablemente caen en Pole o Floor).
+      if (/traffic|semaforo/i.test(name)) {
+        // FIX: Usar AABB del mundo para forzar orientación vertical
+        // threeToCannon a veces rota el Box si el mesh está rotado, causando que se "acueste".
+        // Al usar AABB, obtenemos una caja alineada con los ejes del mundo (siempre vertical).
         const size = bbox.getSize(new THREE.Vector3());
+        const center = bbox.getCenter(new THREE.Vector3());
 
-        const radius = Math.min(size.x, size.z) * 0.3; // Delgado
+        // 🚨 FORCE VERTICALITY: Si la caja está "acostada" (ancho > alto), intercambiamos dimensiones.
+        // Esto arregla los postes que aparecen tirados en el eje X.
+        let sx = size.x;
+        let sy = size.y;
+        let sz = size.z;
+
+        if (sy < sx || sy < sz) {
+          console.log(
+            `🔄 Auto-Rotating Traffic Light: ${id} (was ${sx.toFixed(
+              2
+            )}x${sy.toFixed(2)}x${sz.toFixed(2)})`
+          );
+          // Encontrar la dimensión más larga y asignarla a Y (altura)
+          const maxDim = Math.max(sx, sy, sz);
+          if (maxDim === sx) {
+            sx = sy;
+            sy = maxDim;
+          } else if (maxDim === sz) {
+            sz = sy;
+            sy = maxDim;
+          }
+        }
+
+        // Crear Box con las dimensiones corregidas
+        const halfExtents = new CANNON.Vec3(sx / 2, sy / 2, sz / 2);
+        const shape = new CANNON.Box(halfExtents);
+        const body = new CANNON.Body({ mass: 0 });
+        body.addShape(shape);
+        body.position.set(center.x, center.y, center.z);
+
+        this.addStaticBody(body, id);
+        stats.poles++;
+        console.log(`🚦 Traffic Light Optimized (AABB+Vertical): ${id}`);
+        return;
+      }
+
+      // 7. 🚦 POSTES (Genéricos) -> Cilindro delgado
+      // USAR WORLD AABB
+      if (/pole|post|lamp|farol|light/i.test(name)) {
+        const radius = Math.min(size.x, size.z) * 0.3;
         const height = size.y;
-
-        const body = new CANNON.Body({
-          mass: 0,
-          collisionFilterGroup: CollisionGroups.Default,
-          collisionFilterMask: -1,
-        });
-
         const shape = new CANNON.Cylinder(radius, radius, height, 8);
+        const body = new CANNON.Body({ mass: 0 });
         body.addShape(shape, new CANNON.Vec3(0, height / 2, 0));
+        this.setBodyTransformFromMesh(body, mesh);
+        this.addStaticBody(body, id);
+        stats.poles++;
+        return;
+      }
 
-        body.position.set(worldPos.x, worldPos.y, worldPos.z);
-        body.material = this.staticMaterial;
-        body.allowSleep = false;
-        body.collisionResponse = true;
+      // 8. 🧱 MUROS / EDIFICIOS -> Box (Si es simple) o Convex Hull (Si es convexo)
+      // EXCLUIMOS edificios especiales (Police, Hospital, etc) porque tienen escaleras/interiores
+      if (/wall|building|house|muro|edificio|casa/i.test(name)) {
+        // 1. Intentar Box primero (Súper rápido)
+        const boxResult = threeToCannon(mesh, { type: ShapeType.BOX });
+        if (boxResult?.shape) {
+          this.createColliderFromResult(mesh, boxResult, id);
+          stats.walls++;
+          return;
+        }
 
-        // Aplicar CollisionGroups
-        body.shapes.forEach((shape) => {
-          shape.collisionFilterGroup = CollisionGroups.Default;
-          shape.collisionFilterMask = -1;
-        });
+        // 2. Intentar Convex Hull (Rápido y mejor forma que Box)
+        const hullResult = threeToCannon(mesh, { type: ShapeType.HULL });
+        if (hullResult?.shape) {
+          this.createColliderFromResult(mesh, hullResult, id);
+          stats.walls++;
+          return;
+        }
 
-        this.world.addBody(body);
-        this.bodies.set(id, body);
-        poleCount++;
+        // 3. Fallback a Trimesh
+        if (this.createTrimeshColliderFromWorldMesh(mesh, id)) {
+          stats.walls++;
+          return;
+        }
+      }
 
-        // Ocultar mesh original (opcional)
-        // mesh.visible = false;
+      // 9. 🏛️ EDIFICIOS ESPECIALES -> Trimesh (Obligatorio para escaleras/interiores)
+      if (/police|hospital|cityhall|firestation|cafe/i.test(name)) {
+        if (this.createTrimeshColliderFromWorldMesh(mesh, id)) {
+          stats.walls++;
+          console.log(`🏛️ Special Building Trimesh: ${id}`);
+          return;
+        }
       }
     });
 
-    if (treeCount > 0 || rockCount > 0 || poleCount > 0 || skippedUCX > 0) {
-      console.log(
-        `🎯 Colliders precisos: ${treeCount} árboles, ${rockCount} rocas, ${poleCount} postes`
-      );
-      console.log(`⏭️  Saltados (ya tienen UCX): ${skippedUCX} objetos`);
-    }
+    console.log(`✨ Optimized Colliders Created (${idPrefix}):`, stats);
+    return stats;
+  }
 
-    return {
-      trees: treeCount,
-      rocks: rockCount,
-      poles: poleCount,
-      skipped: skippedUCX,
-    };
+  // Helper: Configurar body estático común
+  private addStaticBody(body: CANNON.Body, id: string) {
+    body.material = this.staticMaterial;
+    body.allowSleep = true;
+    body.sleepSpeedLimit = 0.1;
+    body.sleepTimeLimit = 1.0;
+    body.collisionResponse = true;
+    body.shapes.forEach((s) => {
+      s.collisionFilterGroup = CollisionGroups.Default;
+      s.collisionFilterMask = -1;
+    });
+    this.world.addBody(body);
+    (body as ICullableBody).isActive = true;
+    this.bodies.set(id, body);
+  }
+
+  // Helper: Setear posición/rotación desde mesh
+  private setBodyTransformFromMesh(body: CANNON.Body, mesh: THREE.Mesh) {
+    const worldPos = new THREE.Vector3();
+    const worldQuat = new THREE.Quaternion();
+    mesh.getWorldPosition(worldPos);
+    mesh.getWorldQuaternion(worldQuat);
+    body.position.set(worldPos.x, worldPos.y, worldPos.z);
+    body.quaternion.set(worldQuat.x, worldQuat.y, worldQuat.z, worldQuat.w);
+  }
+
+  // Helper: Crear collider desde resultado de three-to-cannon
+  private createColliderFromResult(
+    mesh: THREE.Mesh,
+    result: {
+      shape: CANNON.Shape;
+      offset?: CANNON.Vec3;
+      orientation?: CANNON.Quaternion;
+    },
+    id: string
+  ) {
+    const body = new CANNON.Body({ mass: 0 });
+    body.addShape(result.shape, result.offset, result.orientation);
+    this.setBodyTransformFromMesh(body, mesh);
+    this.addStaticBody(body, id);
+  }
+
+  private getVec3(v: THREE.Vector3 | { x: number; y: number; z: number }) {
+    return { x: v.x, y: v.y, z: v.z };
+  }
+  private getEuler(q: THREE.Quaternion) {
+    const e = new THREE.Euler().setFromQuaternion(q);
+    return { x: e.x, y: e.y, z: e.z };
   }
 
   // Construir Trimesh robusto aplicando matrixWorld y limpiando triángulos degenerados
@@ -1932,6 +2302,11 @@ export class CannonPhysics {
     const posAttr = geom?.attributes?.position;
     if (!geom || !posAttr || posAttr.count < 3) return false;
 
+    // 1. Calcular el centro del objeto en el mundo para usarlo como posición del Body
+    mesh.updateMatrixWorld(true);
+    const bbox = new THREE.Box3().setFromObject(mesh);
+    const center = bbox.getCenter(new THREE.Vector3());
+
     const cloned = geom.clone();
     cloned.applyMatrix4(mesh.matrixWorld);
 
@@ -1939,8 +2314,15 @@ export class CannonPhysics {
     const idx = cloned.index;
 
     const vertices: number[] = [];
+    // 2. Guardar vértices RELATIVOS al centro del cuerpo
+    // Esto es CRUCIAL para que el culling funcione bien.
+    // Si los vértices son world-space y el body está en (0,0,0), el culling falla.
     for (let i = 0; i < p.count; i++) {
-      vertices.push(p.getX(i), p.getY(i), p.getZ(i));
+      vertices.push(
+        p.getX(i) - center.x,
+        p.getY(i) - center.y,
+        p.getZ(i) - center.z
+      );
     }
 
     const indices: number[] = [];
@@ -1966,8 +2348,13 @@ export class CannonPhysics {
       collisionFilterMask: -1, // Colisiona con todo
     });
     body.addShape(trimesh);
+    // 3. Posicionar el cuerpo en el centro calculado
+    body.position.set(center.x, center.y, center.z);
+
     body.material = this.staticMaterial;
-    body.allowSleep = false;
+    body.allowSleep = true; // OPTIMIZACIÓN: Permitir sleep para Trimesh
+    body.sleepSpeedLimit = 0.1;
+    body.sleepTimeLimit = 1.0;
     body.collisionResponse = true;
 
     // DEBUG: Log TODOS los Trimesh de árboles y edificios
@@ -1985,6 +2372,92 @@ export class CannonPhysics {
 
     this.world.addBody(body);
     this.bodies.set(id, body);
+    return true;
+  }
+
+  // 🚀 NUEVO: Convertir Mesh a Heightfield (Súper optimizado para terrenos)
+  private createHeightfieldFromMesh(
+    mesh: THREE.Mesh,
+    id: string,
+    resolution: number = 1.0
+  ) {
+    mesh.updateMatrixWorld(true);
+    const bbox = new THREE.Box3().setFromObject(mesh);
+    const size = bbox.getSize(new THREE.Vector3());
+
+    // Calcular dimensiones de la grilla
+    // resolution = metros por punto (ej: 1.0 = 1 metro)
+    const elementSize = resolution;
+    const nx = Math.ceil(size.x / elementSize) + 1;
+    const nz = Math.ceil(size.z / elementSize) + 1;
+
+    // Matriz de alturas
+    const data: number[][] = [];
+
+    // Raycaster para muestrear alturas
+    const raycaster = new THREE.Raycaster();
+    const down = new THREE.Vector3(0, -1, 0);
+
+    // Altura de inicio del rayo (arriba del punto más alto)
+    const rayY = bbox.max.y + 10;
+
+    // Iterar sobre la grilla X/Z
+    for (let i = 0; i < nx; i++) {
+      const row: number[] = [];
+      for (let j = 0; j < nz; j++) {
+        // Calcular posición X/Z en el mundo
+        // Heightfield en Cannon con rotación -90 en X:
+        // Local X+ -> World X+
+        // Local Y+ -> World Z- (Hacia atrás)
+        // Por lo tanto, el origen (0,0) local está en (WorldX_min, WorldZ_max)
+        // y j aumenta hacia WorldZ_min.
+
+        const x = bbox.min.x + i * elementSize;
+        const z = bbox.max.z - j * elementSize; // ⚠️ FIX: Escanear desde MaxZ hacia abajo
+
+        // Lanzar rayo hacia abajo
+        raycaster.set(new THREE.Vector3(x, rayY, z), down);
+        // Intersectar solo con este mesh
+        const intersects = raycaster.intersectObject(mesh, false); // false = no recursive (asumiendo mesh simple)
+
+        if (intersects.length > 0) {
+          // Tomar el punto más alto
+          row.push(intersects[0].point.y);
+        } else {
+          // Si no hay intersección (hueco), usar altura mínima
+          row.push(bbox.min.y - 1);
+        }
+      }
+      data.push(row);
+    }
+
+    // Crear Heightfield Shape
+    // elementSize es la distancia entre puntos
+    const hfShape = new CANNON.Heightfield(data, {
+      elementSize: elementSize,
+    });
+
+    const body = new CANNON.Body({ mass: 0 });
+    body.addShape(hfShape);
+
+    // Rotación standard para Heightfield en Cannon (Z-up local -> Y-up world):
+    // Esto mapea Local Y+ a World Z-
+    body.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+
+    // ⚠️ FIX: Posicionar en la esquina superior izquierda (MinX, 0, MaxZ)
+    // Porque el heightfield crece hacia +X y -Z (en coordenadas mundo)
+    body.position.set(bbox.min.x, 0, bbox.max.z);
+
+    body.material = this.staticMaterial;
+    body.collisionFilterGroup = CollisionGroups.Default;
+    body.collisionFilterMask = -1;
+
+    this.world.addBody(body);
+    this.bodies.set(id, body);
+
+    console.log(
+      `🏔️ Heightfield created for ${id}: ${nx}x${nz} points (Fixed Orientation)`
+    );
     return true;
   }
 
@@ -2034,5 +2507,34 @@ export class CannonPhysics {
       console.log(`🧹 Removed ${removed} bodies by prefix: ${prefix}`);
     }
     return removed;
+  }
+
+  /**
+   * Obtener estadísticas detalladas de física (útil para debugging)
+   * Puedes llamar esto desde la consola del navegador
+   */
+  getPhysicsStats() {
+    const activeColliders = Array.from(this.bodies.values()).filter(
+      (b) => (b as ICullableBody).isActive !== false
+    ).length;
+    const inactiveColliders = this.bodies.size - activeColliders;
+
+    const collidersByType: Record<string, number> = {};
+    this.bodies.forEach((body) => {
+      body.shapes.forEach((shape) => {
+        const type = shape.type;
+        collidersByType[type] = (collidersByType[type] || 0) + 1;
+      });
+    });
+
+    return {
+      totalColliders: this.bodies.size,
+      activeColliders,
+      inactiveColliders,
+      bodiesInWorld: this.world.bodies.length,
+      collidersByType,
+      hasPlayer: !!this.playerBody,
+      vehicleCount: this.vehicles.length,
+    };
   }
 }

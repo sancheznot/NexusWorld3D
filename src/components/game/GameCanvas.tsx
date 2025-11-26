@@ -108,8 +108,18 @@ export default function GameCanvas() {
           try { physics.setPlayerCollisionEnabled(true); } catch {}
           // Anular cualquier velocidad residual del jugador y teleport limpio
           try { physics.setPlayerVelocityZero(); } catch {}
-          physics.setPlayerPosition({ x: vx + 2, y: vy, z: vz });
-          updatePositionStore({ x: vx + 2, y: vy, z: vz });
+          // Calcular posición de salida relativa a la rotación del vehículo
+          const vehYaw = (window as unknown as { _veh_yaw?: number })._veh_yaw || 0;
+          // Salir a la izquierda del vehículo (lado del conductor)
+          // Vector relativo: 2.5m a la izquierda (-2.5 en X)
+          const exitOffset = new Vector3(2.5, 0, 0); 
+          exitOffset.applyAxisAngle(new Vector3(0, 1, 0), vehYaw);
+          
+          const exitX = vx + exitOffset.x;
+          const exitZ = vz + exitOffset.z;
+          
+          physics.setPlayerPosition({ x: exitX, y: vy, z: exitZ });
+          updatePositionStore({ x: exitX, y: vy, z: exitZ });
         }
         return;
       }

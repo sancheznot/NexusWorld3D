@@ -58,8 +58,8 @@ export default function ThirdPersonCamera({ }: ThirdPersonCameraProps) {
     const { horizontal: yaw, vertical: pitch } = getCameraState();
 
     // Ajustar distancia y altura si estamos conduciendo
-    const baseDistance = isDriving ? cameraDistance * 1.5 : cameraDistance;
-    const height = isDriving ? cameraHeight * 1.2 : cameraHeight;
+    const baseDistance = isDriving ? cameraDistance * 2.2 : cameraDistance; // Aumentado de 1.5 a 2.2
+    const height = isDriving ? cameraHeight * 1.3 : cameraHeight; // Aumentado de 1.2 a 1.3
     const smooth = isDriving ? smoothness * 0.8 : smoothness;
 
     let target: THREE.Vector3;
@@ -100,7 +100,8 @@ export default function ThirdPersonCamera({ }: ThirdPersonCameraProps) {
           // Filtrar por userData también
           const isPlayer = obj.userData?.isPlayer || obj.userData?.isRemotePlayer;
           const isPlayerMesh = obj.name.includes('player-mesh') || obj.name.includes('remotePlayer-mesh');
-          if (!isPlayer && !isPlayerMesh) {
+          const isVehicle = obj.userData?.vehicleId; // 🚗 Excluir vehículos
+          if (!isPlayer && !isPlayerMesh && !isVehicle) {
             candidates.push(obj);
           }
         }

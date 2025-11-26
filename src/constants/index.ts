@@ -4,10 +4,7 @@
  */
 
 // Constantes del juego
-export * from './game';
-
-// Constantes de física
-export * from './physics';
+export * from "./game";
 
 // Constantes del inventario
-export * from './inventory';
+export * from "./inventory";

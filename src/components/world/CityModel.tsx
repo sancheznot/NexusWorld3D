@@ -4,10 +4,10 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useGLTF } from '@react-three/drei';
 import { useCannonPhysics } from '@/hooks/useCannonPhysics';
-import { NATURAL_MESH_PATTERNS } from '@/constants/physics';
 import { generateSceneLights } from '@/lib/three/sceneLights';
 import { useTimeStore } from '@/store/timeStore';
 import { scanVehicleSpawns, resolveSpawnSlot } from '@/lib/game/vehicleSpawns';
+
 
 interface CityModelProps {
   modelPath: string;
@@ -40,15 +40,11 @@ export default function CityModel({
       name
     );
 
-    const hills = physicsRef.current.createNamedTrimeshCollidersFromScene(
-      scene,
-      (n) => NATURAL_MESH_PATTERNS.some(pattern => new RegExp(`${pattern}`, 'i').test(n)),
-      `${name}-hills`
-    );
-
-    // 🎯 NUEVO: Colliders precisos para árboles, rocas y postes (Sketchbook-inspired)
-    // DESACTIVADO por ahora - solo crea colliders para objetos SIN UCX
-    // const precise = physicsRef.current.createPreciseCollidersFromScene(scene, `${name}-precise`);
+    // 🎯 OPTIMIZED: Generación inteligente de colliders (Sketchbook-inspired)
+    // - Escaleras -> Convex Hull (Rampas suaves)
+    // - Montañas -> Trimesh (Terreno complejo)
+    // - Árboles/Rocas -> Primitivas (Cilindros/Esferas)
+    const optimized = physicsRef.current.createOptimizedColliders(scene, `${name}-optimized`);
 
     // Fallback rápido para carros y rigs complejos: collider por bounding box del grupo completo
     physicsRef.current.createBBoxCollidersFromScene(
@@ -92,7 +88,8 @@ export default function CityModel({
     });
 
     console.log(`💡 Ciudad (LM_): ${created} luces auto`);
-    console.log(`✅ Ciudad: ${boxes} box colliders, ${hills} trimesh colliders`);
+    console.log(`✅ Ciudad: ${boxes} UCX box colliders`);
+    console.log(`✨ Ciudad Optimized:`, optimized);
 
     // Escanear spawns de vehículos (Spawn_Car_*) y publicar el spawn para CannonCar
     const spawns = scanVehicleSpawns(scene);
