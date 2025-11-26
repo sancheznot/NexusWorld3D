@@ -23,49 +23,211 @@ import GameSettings from '@/components/game/GameSettings';
 import ModelInfo from '@/components/ui/ModelInfo';
 import FPSCounter from '@/components/ui/FPSCounter';
 import PlayerStatsHUD from '@/components/ui/PlayerStatsHUD';
+import VehicleHUD from '@/components/ui/VehicleHUD';
 import AdminTeleportUI from '@/components/ui/AdminTeleportUI';
 import ChatWindow from '@/components/chat/ChatWindow';
 import InventoryUI from '@/components/inventory/InventoryUI';
-import { ItemSpawner, SPAWN_ITEMS } from '@/components/world/ItemCollector';
+import { ItemSpawner } from '@/components/world/ItemCollector';
 import { THREE_CONFIG } from '@/config/three.config';
 import { Vector3 } from 'three';
 import PortalTrigger from '@/components/world/PortalTrigger';
 import PortalUI from '@/components/ui/PortalUI';
 import HotelInterior from '@/components/world/HotelInterior';
+import Supermarket from '@/components/world/Supermarket';
 import { usePortalSystem } from '@/hooks/usePortalSystem';
+import ServerClock from '@/components/ui/ServerClock';
+import timeClient from '@/lib/colyseus/TimeClient';
+import BankUI from '@/components/ui/BankUI';
+import ShopUI from '@/components/ui/ShopUI';
+import NPCShopTrigger from '@/components/world/NPCShopTrigger';
+import JobsUI from '@/components/ui/JobsUI';
+import NPCJobTrigger from '@/components/world/NPCJobTrigger';
+import JobWaypointsLayer from '@/components/world/JobWaypointsLayer';
+import { NPCS } from '@/constants/npcs';
+import CannonCar from '@/components/vehicles/CannonCar';
+import CannonStepper from '@/components/physics/CannonStepper';
+import Minimap from '@/components/ui/Minimap';
+import LiveCameraCapture from '@/components/cameras/LiveCameraCapture';
+import DebugInfo from '@/components/ui/DebugInfo';
 
 export default function GameCanvas() {
   const { isConnected, connectionError, connect, joinGame } = useSocket();
-  const { position, player } = usePlayerStore();
+  const { player } = usePlayerStore();
   const { players } = useWorldStore();
   const { isInventoryOpen, isMapOpen, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals } = useUIStore();
   const { settings, isLoaded } = useGameSettings();
   
   // Game settings state
   const [showSettings, setShowSettings] = useState(false);
-  const { isActive: isTestingCameraActive, height: testingHeight, distance: testingDistance } = useTestingCamera(isChatOpen);
+  const { isActive: isTestingCameraActive, height: testingHeight, distance: testingDistance } = useTestingCamera();
   
   // Game flow state
   const [showLogin, setShowLogin] = useState(true);
   const [showCharacterCreator, setShowCharacterCreator] = useState(false);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentMap, setCurrentMap] = useState('exterior');
-  
-  useKeyboard(isGameStarted && !showSettings);
-  const [isConnecting, setIsConnecting] = useState(false);
+  const [isDriving, setIsDriving] = useState(false);
+  const [hidePlayerWhileDriving, setHidePlayerWhileDriving] = useState(false);
+  const [canEnterVehicle, setCanEnterVehicle] = useState(false);
+  const [vehSpawn, setVehSpawn] = useState<{ x: number; y: number; z: number; yaw: number } | null>(null);
   const [showModelInfo, setShowModelInfo] = useState(false);
   
   // Enable keyboard for movement when game is started (menus can be open)
   const keyboardEnabled = isGameStarted;
   const updatePositionStore = usePlayerStore((s) => s.updatePosition);
   const updateRotationStore = usePlayerStore((s) => s.updateRotation);
-  const playerVec3 = useMemo(() => new Vector3(position.x, position.y, position.z), [position.x, position.y, position.z]);
+  
+  // Deshabilitar controles del jugador cuando está conduciendo
+  useKeyboard(isGameStarted && !showSettings && !isDriving);
+  
+  // Toggle entrar/salir del vehículo (F)
+  useEffect(() => {
+    if (!isGameStarted) return;
+    
+    const onF = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'f') return;
+      e.preventDefault();
+      const w = window as unknown as { _veh_pos?: { x: number; y: number; z: number }; _veh_spawn?: { x: number; y: number; z: number } };
+      const veh = w._veh_pos || w._veh_spawn;
+      
+      const playerPos = usePlayerStore.getState().position;
+      if (!playerPos) return;
+
+      const px = playerPos.x, py = playerPos.y, pz = playerPos.z;
+      const vx = veh?.x ?? px, vy = veh?.y ?? py, vz = veh?.z ?? pz;
+      const dx = vx - px, dy = vy - py, dz = vz - pz;
+      const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+      console.log(`🔑 F pressed. isDriving=${isDriving} dist=${dist.toFixed(2)}m canEnter=${canEnterVehicle}`);
+
+      if (isDriving) {
+        setIsDriving(false);
+        setHidePlayerWhileDriving(false);
+        (window as unknown as { _isDriving?: boolean })._isDriving = false;
+        const physics = getPhysicsInstance();
+        if (physics && veh) {
+          // Detener el vehículo al salir
+          try { physics.stopVehicle('playerCar'); } catch {}
+          // Rehabilitar colisiones del jugador
+          try { physics.setPlayerCollisionEnabled(true); } catch {}
+          // Anular cualquier velocidad residual del jugador y teleport limpio
+          try { physics.setPlayerVelocityZero(); } catch {}
+          // Calcular posición de salida relativa a la rotación del vehículo
+          const vehYaw = (window as unknown as { _veh_yaw?: number })._veh_yaw || 0;
+          // Salir a la izquierda del vehículo (lado del conductor)
+          // Vector relativo: 2.5m a la izquierda (-2.5 en X)
+          const exitOffset = new Vector3(2.5, 0, 0); 
+          exitOffset.applyAxisAngle(new Vector3(0, 1, 0), vehYaw);
+          
+          const exitX = vx + exitOffset.x;
+          const exitZ = vz + exitOffset.z;
+          
+          physics.setPlayerPosition({ x: exitX, y: vy, z: exitZ });
+          updatePositionStore({ x: exitX, y: vy, z: exitZ });
+        }
+        return;
+      }
+
+      if (dist <= 6) {
+        setIsDriving(true);
+        setHidePlayerWhileDriving(true);
+        (window as unknown as { _isDriving?: boolean })._isDriving = true;
+        // Deshabilitar colisiones del jugador mientras conduce
+        const physics = getPhysicsInstance();
+        try { physics?.setPlayerCollisionEnabled(false); } catch {}
+        console.log('✅ Enter vehicle triggered');
+      } else {
+        console.log('⛔ Muy lejos para entrar (requiere <= 6m)');
+      }
+    };
+    
+    window.addEventListener('keydown', onF);
+    return () => window.removeEventListener('keydown', onF);
+  }, [isGameStarted, canEnterVehicle, isDriving, updatePositionStore]);
+
+  // Calcular proximidad al vehículo (cada 200ms)
+  useEffect(() => {
+    if (isDriving) {
+      setCanEnterVehicle(false);
+      return;
+    }
+    
+    const t = setInterval(() => {
+      const w = window as unknown as { 
+        _veh_pos?: { x: number; y: number; z: number }; 
+        _veh_spawn?: { x: number; y: number; z: number } 
+      };
+      const vehPos = w._veh_pos || w._veh_spawn;
+      if (!vehPos) { 
+        setCanEnterVehicle(false); 
+        return; 
+      }
+      
+      const playerPos = usePlayerStore.getState().position;
+      if (!playerPos) return;
+
+      const dx = vehPos.x - playerPos.x;
+      const dy = vehPos.y - playerPos.y;
+      const dz = vehPos.z - playerPos.z;
+      const distSq = dx*dx + dy*dy + dz*dz;
+      
+      // Permitir entrar si está a menos de 5 metros
+      setCanEnterVehicle(distSq < 25);
+    }, 200);
+    
+    return () => clearInterval(t);
+  }, [isDriving]);
+
+  // Obtener spawn publicado por CityModel (con polling para evitar race condition)
+  useEffect(() => {
+    if (currentMap !== 'exterior') {
+      setVehSpawn(null);
+      return;
+    }
+    
+    let attempts = 0;
+    const maxAttempts = 300; // 30 segundos máximo (el modelo de ciudad puede tardar en cargar)
+    
+    const checkSpawn = () => {
+      const s = (window as unknown as { _veh_spawn?: { x: number; y: number; z: number; yaw: number } })._veh_spawn;
+      if (s) {
+        setVehSpawn(s);
+        console.log(`🚗 Vehículo spawneado en: X=${s.x.toFixed(1)}, Y=${s.y.toFixed(1)}, Z=${s.z.toFixed(1)}`);
+        return true;
+      }
+      return false;
+    };
+    
+    // Intentar inmediatamente
+    if (checkSpawn()) return;
+    
+    // Si no está disponible, hacer polling cada 100ms
+    const interval = setInterval(() => {
+      attempts++;
+      if (checkSpawn() || attempts >= maxAttempts) {
+        clearInterval(interval);
+        if (attempts >= maxAttempts) {
+          console.warn('⚠️ No se encontró spawn de vehículo después de 30 segundos');
+        }
+      }
+    }, 100);
+    
+    return () => clearInterval(interval);
+  }, [currentMap]); // ⚡ Optimized: Removed position dependencies to prevent re-running every frame
   
   // Constantes para evitar re-renderizados
   const hotelInteriorProps = useMemo(() => ({
     modelPath: "/models/maps/main_map/main_building/interior-hotel.glb",
     name: "hotel-interior"
   }), []);
+
+  useEffect(() => {
+    const onConnected = () => timeClient.requestTime();
+    colyseusClient.on('room:connected', onConnected);
+    timeClient.requestTime();
+    return () => {
+      colyseusClient.off('room:connected', onConnected as unknown as (...args: unknown[]) => void);
+    };
+  }, []);
 
   const handleMapChange = useCallback((mapId: string, pos: Vector3, rot: Vector3) => {
     console.log(`🔄 Cambiando mapa: ${currentMap} -> ${mapId}`);
@@ -164,9 +326,7 @@ export default function GameCanvas() {
     
     // Connect to server after login
     if (!isConnected) {
-      setIsConnecting(true);
       await connect();
-      setIsConnecting(false);
     }
   };
 
@@ -209,11 +369,16 @@ export default function GameCanvas() {
           className={`w-full h-full cursor-crosshair ${showSettings ? 'pointer-events-none' : 'pointer-events-auto'}`}
         >
         <Suspense fallback={null}>
+            {/* Physics stepper for Cannon.js */}
+            <CannonStepper />
             {/* Lighting */}
             <Lighting />
             
             {/* Skybox */}
             <Skybox />
+            
+            {/* Live Camera Capture System - Cámaras reales en tiempo real */}
+            <LiveCameraCapture />
             
             {/* Uniform Terrain - Solo Terrain_01 */}
             {/* <UniformTerrain 
@@ -266,51 +431,71 @@ export default function GameCanvas() {
               <HotelInterior {...hotelInteriorProps} />
             )}
 
+            {currentMap === 'supermarket' && (
+              <Supermarket position={[0, 0, 0]} />
+            )}
+
             {/* Portales del mapa actual */}
             {currentMapData?.portals.map((portal) => (
               <PortalTrigger
                 key={portal.id}
                 portal={portal}
-                playerPosition={playerVec3}
                 onPlayerEnter={handlePlayerEnterPortal}
                 onPlayerExit={handlePlayerExitPortal}
               />
             ))}
 
-            {/* Items recolectables en el mundo */}
+            {/* Items recolectables en el mundo (sincronizados) */}
             <ItemSpawner 
-              items={SPAWN_ITEMS}
-              playerPosition={[position.x, position.y, position.z]}
+              mapId={currentMap}
             />
+
+            {/* Capa de Waypoints de trabajos activos */}
+            <JobWaypointsLayer currentMap={currentMap} playerRoleId={player?.roleId ?? null} isDriving={isDriving} />
+
+            {/* NPC Shops por mapa (del config) */}
+            {Object.values(NPCS).filter(n => n.mapId === currentMap && n.opensShopId).map(npc => (
+              <NPCShopTrigger
+                key={npc.id}
+                zone={{ id: npc.id, kind: 'shop', name: npc.name, position: npc.zone.position, radius: npc.zone.radius }}
+                visual={npc.visual as { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] }}
+              />
+            ))}
+
+            {/* NPC Jobs por mapa (del config) */}
+            {Object.values(NPCS).filter(n => n.mapId === currentMap && n.jobId).map(npc => (
+              <NPCJobTrigger
+                key={`job_${npc.id}`}
+                zone={{ id: `job_${npc.id}`, kind: 'job', name: npc.name, position: npc.zone.position, radius: npc.zone.radius }}
+                visual={npc.visual as { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] }}
+                jobId={npc.jobId!}
+              />
+            ))}
           
-          {/* Current Player */}
-          <PlayerV2 
-            position={[position.x, position.y, position.z]}
-            isCurrentPlayer={true}
-            keyboardEnabled={keyboardEnabled}
-            customization={player?.customization}
-          />
+          {/* Current Player - Ocultar cuando está conduciendo */}
+          {!hidePlayerWhileDriving && (
+            <PlayerV2 
+              isCurrentPlayer={true}
+              keyboardEnabled={keyboardEnabled}
+              customization={player?.customization}
+            />
+          )}
           
-          {/* Other Players */}
+            {/* Other Players - filtrados por mapa actual */}
+            {(() => {
+              const sessionId = colyseusClient.getSessionId();
+              const sameMap = players.filter(p => p.mapId === currentMap);
+              const otherPlayers = sameMap.filter(p => (sessionId ? p.id !== sessionId : p.id !== player?.id));
+              void otherPlayers; // placeholder until actual rendering of remote players
+              // (Render real de otros jugadores ocurrirá donde corresponda)
+              return null;
+            })()}
           {(() => {
             const sessionId = colyseusClient.getSessionId();
-            // Excluir al local únicamente (sin ocultar por lastUpdate, lo maneja el server)
-            const otherPlayers = players.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
-            // 3) Limitar a los 12 más cercanos al local
-            const origin = { x: position.x, y: position.y, z: position.z };
-            const dist = (p: { position: { x: number; z: number } }) => {
-              const dx = p.position.x - origin.x;
-              const dz = p.position.z - origin.z;
-              return dx*dx + dz*dz;
-            };
-            otherPlayers.sort((a, b) => dist(a) - dist(b));
-            otherPlayers.slice(0, 12);
-            return null;
-          })()}
-          {(() => {
-            const sessionId = colyseusClient.getSessionId();
-            const others = players.filter(p => sessionId ? p.id !== sessionId : p.id !== player?.id);
-            const origin = { x: position.x, y: position.y, z: position.z };
+            const sameMap = players.filter(p => p.mapId === currentMap);
+            const others = sameMap.filter(p => (sessionId ? p.id !== sessionId : p.id !== player?.id));
+            const playerPos = usePlayerStore.getState().position;
+            const origin = playerPos ? { x: playerPos.x, y: playerPos.y, z: playerPos.z } : { x: 0, y: 0, z: 0 };
             const dist = (p: { position: { x: number; z: number } }) => {
               const dx = p.position.x - origin.x;
               const dz = p.position.z - origin.z;
@@ -337,6 +522,34 @@ export default function GameCanvas() {
                     
                     {/* Testing Camera */}
                     <TestingCamera />
+        {/* Vehículo (Cannon RaycastVehicle) - Solo renderizar si hay spawn disponible */}
+        {vehSpawn && (
+          <CannonCar
+            driving={isDriving}
+            spawn={vehSpawn}
+            modelPath="/models/vehicles/cars/Car_07.glb"
+          />
+        )}
+
+        {/* DEBUG 3D: Pilar verde en el spawn del vehículo para verificar render */}
+        {vehSpawn && (
+          <group position={[vehSpawn.x, vehSpawn.y, vehSpawn.z]}> 
+            {/* Pilar */}
+            <mesh position={[0, 1, 0]}>
+              <boxGeometry args={[0.4, 2, 0.4]} />
+              <meshStandardMaterial color="#00ff66" emissive="#003311" emissiveIntensity={1.0} />
+            </mesh>
+            {/* Esfera brillante */}
+            <mesh position={[0, 0.5, 0]}>
+              <sphereGeometry args={[0.35, 16, 16]} />
+              <meshStandardMaterial color="#ffff00" emissive="#666600" emissiveIntensity={1.5} />
+            </mesh>
+            {/* Ejes */}
+            <axesHelper args={[2]} />
+            {/* Luz puntual */}
+            <pointLight color="#ffffff" intensity={2.0} distance={6} position={[0, 2, 0]} />
+          </group>
+        )}
         </Suspense>
         </Canvas>
       )}
@@ -355,10 +568,19 @@ export default function GameCanvas() {
           <FPSCounter className="text-xs" />
         </div>
       )}
+
+      {/* Server Clock - Esquina izquierda superior debajo de FPS */}
+      <ServerClock className="absolute top-4 left-[48%] z-10" />
       
       {/* Player Stats HUD - Reorganizado */}
-      <PlayerStatsHUD className="absolute top-4 right-4 z-10" />
+      <PlayerStatsHUD className="absolute top-4 right-4 z-10" isDriving={isDriving} />
       
+      {/* Vehicle HUD - Mostrar solo cuando está conduciendo */}
+      {isDriving && <VehicleHUD vehicleId="playerCar" visible={isDriving} />}
+      
+      {/* Server Clock HUD */}
+      {/* <ServerClock /> */}
+
       {/* Testing Camera Info Panel */}
       {isTestingCameraActive && (
         <div style={{
@@ -406,6 +628,7 @@ export default function GameCanvas() {
             <div><kbd className="bg-gray-700 px-2 py-1 rounded">Shift</kbd> Correr</div>
             <div><kbd className="bg-gray-700 px-2 py-1 rounded">I</kbd> Inventario</div>
             <div><kbd className="bg-gray-700 px-2 py-1 rounded">M</kbd> Mapa</div>
+            <div><kbd className="bg-gray-700 px-2 py-1 rounded">N</kbd> Minimapa</div>
             <div><kbd className="bg-gray-700 px-2 py-1 rounded">Enter</kbd> Chat</div>
             <div><kbd className="bg-gray-700 px-2 py-1 rounded">ESC</kbd> Cerrar</div>
           </div>
@@ -423,6 +646,35 @@ export default function GameCanvas() {
       {/* UI Modals */}
       {/* Inventory UI */}
       <InventoryUI />
+      {currentMap === 'bank' && <BankUI />}
+      <ShopUI />
+
+      {/* Hint para conducir */}
+      {!isDriving && canEnterVehicle && (
+        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-50">
+          <div className="px-3 py-1 rounded bg-black/70 text-white text-sm">
+            Presiona <span className="font-bold">F</span> para conducir
+          </div>
+          <div className="mt-2 flex justify-center">
+            <button
+              onClick={() => {
+                setIsDriving(true);
+                setHidePlayerWhileDriving(true);
+                (window as unknown as { _isDriving?: boolean })._isDriving = true;
+                console.log('✅ Enter vehicle via button');
+              }}
+              className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
+            >
+              Entrar al vehículo
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {/* Debug: Mostrar ubicación del vehículo y jugador */}
+      <DebugInfo vehSpawn={vehSpawn} />
+
+      <JobsUI />
 
       {isMapOpen && (
         <div className="absolute inset-0 z-20 bg-black bg-opacity-50 flex items-center justify-center">
@@ -449,6 +701,9 @@ export default function GameCanvas() {
       {/* Admin Teleport UI */}
       <AdminTeleportUI />
 
+      {/* Minimap */}
+      {isGameStarted && <Minimap />}
+
       {/* Login Modal */}
       <LoginModal
         isOpen={showLogin}
@@ -461,7 +716,6 @@ export default function GameCanvas() {
         isOpen={showCharacterCreator}
         onClose={handleBackToLogin}
         onComplete={handleCharacterComplete}
-        isConnecting={isConnecting}
       />
 
       {/* Model Info Modal */}

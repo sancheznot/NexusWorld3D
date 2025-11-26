@@ -71,15 +71,16 @@ export class InventoryClient {
    */
   public updateInventory(inventory: Inventory): void {
     const room = colyseusClient.getSocket();
-    room?.send('inventory:update', { items: inventory.items });
+    // Enviar snapshot completo para que el servidor pueda validar correctamente
+    room?.send('inventory:update', { inventory });
   }
 
   /**
-   * Usar item
+   * Usar item (envía id único y itemId lógico)
    */
-  public useItem(itemId: string, slot: number): void {
+  public useItem(id: string, itemId: string, slot: number): void {
     const room = colyseusClient.getSocket();
-    room?.send('inventory:use-item', { itemId, slot });
+    room?.send('inventory:use-item', { id, itemId, slot });
   }
 
   /**
@@ -103,6 +104,13 @@ export class InventoryClient {
 
   public onInventoryError(callback: InventoryErrorCallback): void {
     this.on('inventory:error', callback);
+  }
+
+  /**
+   * Obtener la room actual
+   */
+  public getRoom() {
+    return colyseusClient.getSocket();
   }
 
   /**

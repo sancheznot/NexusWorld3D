@@ -1,5 +1,7 @@
 import { Room, Client } from 'colyseus';
 import { InventoryItem, Inventory } from '../src/types/inventory.types';
+import { ITEMS_CATALOG } from '../src/constants/items';
+import { GAME_CONFIG } from '../src/constants/game';
 
 /**
  * Eventos de Inventario para Colyseus
@@ -30,9 +32,11 @@ export interface GoldUpdateData {
 export class InventoryEvents {
   private room: Room;
   private playerInventories = new Map<string, Inventory>();
+  private economyEvents: any; // EconomyEvents instance
 
-  constructor(room: Room) {
+  constructor(room: Room, economyEvents?: any) {
     this.room = room;
+    this.economyEvents = economyEvents;
     this.setupEventHandlers();
   }
 
@@ -81,25 +85,82 @@ export class InventoryEvents {
     });
   }
 
+  // API pública para otros módulos del servidor
+  public addItemFromWorld(playerId: string, baseItem: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) {
+    let inventory = this.playerInventories.get(playerId);
+    if (!inventory) {
+      inventory = this.createInitialInventory();
+      this.playerInventories.set(playerId, inventory);
+    }
+
+    // Enriquecer con catálogo maestro
+    const cat = ITEMS_CATALOG[baseItem.itemId];
+    const merged: InventoryItem = {
+      id: `${baseItem.itemId}_${Date.now()}`,
+      itemId: baseItem.itemId,
+      name: (baseItem as any).name || cat?.name || baseItem.itemId,
+      description: (baseItem as any).description || '',
+      type: (baseItem as any).type || cat?.type || 'misc',
+      rarity: (baseItem as any).rarity || cat?.rarity || 'common',
+      quantity: (baseItem as any).quantity || 1,
+      maxStack: (baseItem as any).maxStack || 1,
+      weight: (baseItem as any).weight ?? cat?.weight ?? 0.1,
+      stats: (baseItem as any).stats,
+      durability: (baseItem as any).durability,
+      maxDurability: (baseItem as any).maxDurability,
+      level: (baseItem as any).level || 1,
+      icon: (baseItem as any).icon || cat?.icon || '📦',
+      thumb: (baseItem as any).thumb || cat?.thumb,
+      model: cat?.visual?.path,
+      isEquipped: false,
+      slot: -1,
+    } as InventoryItem;
+
+    // Stack si mismo itemId y maxStack > 1
+    const existing = inventory.items.find(i => i.itemId === merged.itemId && !i.isEquipped && i.quantity < i.maxStack);
+    if (existing) {
+      existing.quantity += merged.quantity || 1;
+    } else {
+      inventory.items.push(merged);
+      inventory.usedSlots += 1;
+    }
+    inventory.currentWeight = this.calculateTotalWeight(inventory);
+    this.playerInventories.set(playerId, inventory);
+
+    // Notificar
+    this.room.broadcast('inventory:item-added', {
+      playerId,
+      item: merged,
+      action: 'add',
+      timestamp: Date.now()
+    } as ItemUpdateData);
+  }
+
   /**
    * Manejar actualización completa del inventario
    */
   private handleInventoryUpdate(client: Client, data: { inventory: Inventory }) {
     const playerId = client.sessionId;
     
+    console.log(`📦 [DEBUG] handleInventoryUpdate: playerId=${playerId}`);
+    console.log(`📦 [DEBUG] Datos recibidos:`, data.inventory);
+    
     // Validar datos del inventario
     if (!this.validateInventory(data.inventory)) {
+      console.log(`❌ [DEBUG] Inventario inválido para ${playerId}`);
       client.send('inventory:error', { message: 'Datos de inventario inválidos' });
       return;
     }
 
-    // Actualizar inventario del jugador
-    this.playerInventories.set(playerId, data.inventory);
+    // Normalizar slots y actualizar inventario del jugador
+    const normalized = this.ensureSlots({ ...data.inventory });
+    this.playerInventories.set(playerId, normalized);
+    console.log(`✅ [DEBUG] Inventario actualizado en servidor para ${playerId}:`, data.inventory);
 
     // Enviar actualización a todos los jugadores
     this.room.broadcast('inventory:updated', {
       playerId,
-      inventory: data.inventory,
+      inventory: normalized,
       timestamp: Date.now()
     } as InventoryEventData);
 
@@ -174,7 +235,7 @@ export class InventoryEvents {
     }
 
     inventory.currentWeight = this.calculateTotalWeight(inventory);
-    this.playerInventories.set(playerId, inventory);
+    this.playerInventories.set(playerId, this.ensureSlots(inventory));
 
     // Notificar a todos los jugadores
     this.room.broadcast('inventory:item-removed', {
@@ -190,27 +251,75 @@ export class InventoryEvents {
   /**
    * Manejar usar item
    */
-  private handleUseItem(client: Client, data: { itemId: string; slot: number }) {
+  private handleUseItem(client: Client, data: { id?: string; itemId: string; slot: number }) {
     const playerId = client.sessionId;
     const inventory = this.playerInventories.get(playerId);
 
+    console.log(`🍎 [DEBUG] handleUseItem: playerId=${playerId}, itemId=${data.itemId}, slot=${data.slot}`);
+
     if (!inventory) {
+      console.log(`❌ [DEBUG] Inventario no encontrado para ${playerId}`);
       client.send('inventory:error', { message: 'Inventario no encontrado' });
       return;
     }
 
-    const item = inventory.items.find(i => i.id === data.itemId);
+    // Buscar primero por id único si viene, sinó por itemId (stack)
+    let item = data.id ? inventory.items.find(i => i.id === data.id) : undefined;
     if (!item) {
+      item = inventory.items.find(i => i.itemId === data.itemId);
+    }
+    
+    if (!item) {
+      console.log(`❌ [DEBUG] Item no encontrado: ${data.itemId} en inventario de ${playerId}`);
+      console.log(`📦 [DEBUG] Items disponibles:`, inventory.items.map(i => ({ id: i.id, itemId: i.itemId, name: i.name })));
       client.send('inventory:error', { message: 'Item no encontrado' });
       return;
     }
 
+    console.log(`✅ [DEBUG] Item encontrado: ${item.name} (${item.itemId}), tipo: ${item.type}`);
+
     if (item.type !== 'consumable') {
+      console.log(`❌ [DEBUG] Item no consumible: ${item.type}`);
       client.send('inventory:error', { message: 'Item no consumible' });
       return;
     }
 
-    // Notificar uso del item
+    // Aplicar efectos según catálogo
+    const catalog = ITEMS_CATALOG[item.itemId];
+    console.log(`🔍 [DEBUG] Catálogo para ${item.itemId}:`, catalog);
+    
+    if (catalog?.effects?.gold && typeof catalog.effects.gold === 'number') {
+      // Sumar oro al monedero (economía) y reflejar inventario
+      const amountMajor = catalog.effects.gold;
+      console.log(`💰 [DEBUG] Aplicando efecto oro: +${amountMajor} para ${playerId}`);
+      
+      // Notificar economía (wallet) usando referencia directa
+      if (this.economyEvents) {
+        this.economyEvents.creditWalletMajor(playerId, amountMajor, `use:${item.itemId}`);
+        console.log(`💰 Crédito aplicado: +${amountMajor} al wallet de ${playerId}`);
+      } else {
+        console.warn('⚠️ EconomyEvents no disponible para crédito de wallet');
+      }
+      const newGold = (inventory.gold || 0) + amountMajor;
+      inventory.gold = newGold;
+      this.room.broadcast('inventory:gold-updated', {
+        playerId,
+        amount: newGold,
+        change: amountMajor,
+        reason: `use:${item.itemId}`,
+        timestamp: Date.now()
+      });
+    } else {
+      console.log(`⚠️ [DEBUG] No hay efectos de oro para ${item.itemId} o catálogo no encontrado`);
+    }
+    if (catalog?.effects?.health) {
+      // TODO: integrar con sistema de vida de jugador si está disponible
+    }
+    if (catalog?.effects?.food) {
+      // TODO: integrar con sistema de hambre cuando exista (store/redis)
+    }
+
+    // Notificar uso del item (después de aplicar efectos, antes de mutar)
     this.room.broadcast('inventory:item-used', {
       playerId,
       item,
@@ -219,6 +328,30 @@ export class InventoryEvents {
     } as ItemUpdateData);
 
     console.log(`🍎 Item usado: ${item.name} por jugador ${playerId}`);
+
+    // Consumir 1 unidad únicamente del stack correspondiente (usar id único)
+    const beforeCount = inventory.items.length;
+    const idx = inventory.items.findIndex(i => i.id === item.id);
+    if (idx > -1) {
+      const it = inventory.items[idx];
+      if (it.quantity <= 1) {
+        inventory.items.splice(idx, 1);
+        inventory.usedSlots = Math.max(0, (inventory.usedSlots || 0) - 1);
+      } else {
+        it.quantity -= 1;
+      }
+      inventory.currentWeight = this.calculateTotalWeight(inventory);
+      this.playerInventories.set(playerId, this.ensureSlots(inventory));
+
+      // Enviar snapshot actualizado al propio jugador
+      client.send('inventory:updated', {
+        playerId,
+        inventory: this.playerInventories.get(playerId)!,
+        timestamp: Date.now(),
+      } as InventoryEventData);
+      const afterCount = inventory.items.length;
+      console.log(`📦 [DEBUG] Consumo aplicado. Items antes=${beforeCount}, después=${afterCount}.`);
+    }
   }
 
   /**
@@ -315,17 +448,49 @@ export class InventoryEvents {
   }
 
   /**
+   * Crear inventario inicial para un jugador
+   */
+  private createInitialInventory(): Inventory {
+    return {
+      items: [],
+      maxSlots: 20,
+      usedSlots: 0,
+      gold: GAME_CONFIG.currency.startingBalance, // Usar configuración de economía
+      maxWeight: 100,
+      currentWeight: 0
+    };
+  }
+
+  /**
+   * API pública para crear inventario inicial de un jugador
+   */
+  public createPlayerInventory(playerId: string): Inventory {
+    const inventory = this.createInitialInventory();
+    this.playerInventories.set(playerId, inventory);
+    console.log(`📦 Inventario inicial creado para jugador ${playerId}`);
+    return inventory;
+  }
+
+  /**
    * Manejar solicitud de inventario
    */
   private handleInventoryRequest(client: Client) {
     const playerId = client.sessionId;
-    const inventory = this.playerInventories.get(playerId);
+    let inventory = this.playerInventories.get(playerId);
 
-    if (inventory) {
-      client.send('inventory:data', inventory);
-    } else {
-      client.send('inventory:error', { message: 'Inventario no encontrado' });
+    console.log(`📦 [DEBUG] handleInventoryRequest: playerId=${playerId}`);
+    console.log(`📦 [DEBUG] Inventario actual en servidor:`, inventory);
+
+    if (!inventory) {
+      // Crear inventario inicial si no existe
+      inventory = this.createInitialInventory();
+      this.playerInventories.set(playerId, inventory);
+      console.log(`📦 Inventario inicial creado para jugador ${playerId}`);
     }
+
+    const normalized = this.ensureSlots(inventory);
+    console.log(`📦 [DEBUG] Enviando inventario al cliente:`, normalized);
+    client.send('inventory:data', normalized);
   }
 
   /**
@@ -365,6 +530,32 @@ export class InventoryEvents {
     return inventory.items.reduce((total, item) => {
       return total + (item.weight * item.quantity);
     }, 0);
+  }
+
+  /**
+   * Asegura que todos los items tienen un slot único en rango [0, maxSlots)
+   * Mantiene slots existentes; asigna slots libres a los -1/undefined conservando orden
+   */
+  private ensureSlots(inv: Inventory): Inventory {
+    const taken = new Set<number>();
+    for (const it of inv.items) {
+      if (typeof it.slot === 'number' && it.slot >= 0 && it.slot < inv.maxSlots) {
+        taken.add(it.slot);
+      }
+    }
+    let next = 0;
+    const getNextFree = () => {
+      while (taken.has(next) && next < inv.maxSlots) next++;
+      taken.add(next);
+      return next;
+    };
+    for (const it of inv.items) {
+      if (!(typeof it.slot === 'number' && it.slot >= 0 && it.slot < inv.maxSlots)) {
+        it.slot = getNextFree();
+      }
+    }
+    inv.usedSlots = inv.items.length;
+    return inv;
   }
 
   /**

@@ -1,12 +1,20 @@
 import { Room, Client } from 'colyseus';
 import { gameRedis } from '../../src/lib/services/redis';
 import { InventoryEvents } from '../InventoryEvents';
+import { ItemEvents } from '../ItemEvents';
+import { TimeEvents } from '../TimeEvents';
+import { ShopEvents } from '../ShopEvents';
+import { EconomyEvents } from '../EconomyEvents';
+import { JobsEvents } from '../JobsEvents';
+import type { ExtendedJobId } from '../src/constants/jobs';
 
 interface PlayerData {
   id: string;
   username: string;
   position: { x: number; y: number; z: number };
   rotation: { x: number; y: number; z: number };
+  mapId: string; // mapa actual (exterior, hotel-interior, etc.)
+  roleId: ExtendedJobId | null;
   health: number;
   maxHealth: number;
   stamina: number;
@@ -37,8 +45,13 @@ export class HotelHumboldtRoom extends Room {
   private chatMessages: ChatMessage[] = [];
   private redis = gameRedis;
   private inventoryEvents!: InventoryEvents;
+  private _itemEvents!: ItemEvents; // keep reference alive
+  private _timeEvents!: TimeEvents; // keep reference alive
+  private _economyEvents!: EconomyEvents; // keep reference alive
+  private _shopEvents!: ShopEvents; // keep reference alive
+  private _jobsEvents!: JobsEvents; // keep reference alive
 
-  onCreate(options: { [key: string]: string }) {
+  onCreate(_options: { [key: string]: string }) {
     console.log('🏨 Hotel Humboldt Room creada');
     
     // Configurar la sala
@@ -59,8 +72,40 @@ export class HotelHumboldtRoom extends Room {
     // Configurar handlers de mensajes
     this.setupMessageHandlers();
     
-    // Inicializar eventos de inventario
-    this.inventoryEvents = new InventoryEvents(this);
+    // Inicializar economía (banca, transferencias) PRIMERO
+    this._economyEvents = new EconomyEvents(this);
+    // Inicializar eventos de inventario con referencia a economía
+    this.inventoryEvents = new InventoryEvents(this, this._economyEvents);
+    // Inicializar sistema de ítems del mundo
+    this._itemEvents = new ItemEvents(this, (clientId: string) => {
+      const p = this.players.get(clientId);
+      return p?.mapId || null;
+    }, (playerId: string, baseItem) => this.inventoryEvents.addItemFromWorld(playerId, baseItem));
+    // Inicializar sistema de tiempo (día/noche)
+    this._timeEvents = new TimeEvents(this);
+
+    // Inicializar sistema de tiendas
+    this._shopEvents = new ShopEvents(this, {
+      grantItemToPlayer: (playerId, baseItem) => this.inventoryEvents.addItemFromWorld(playerId, baseItem),
+      getPlayerRole: (clientId: string) => this.getPlayerRole(clientId),
+      getPlayerMapId: (clientId: string) => {
+        const p = this.players.get(clientId);
+        return p?.mapId || null;
+      },
+      economy: { chargeWalletMajor: (userId: string, amount: number, reason?: string) => this._economyEvents.chargeWalletMajor(userId, amount, reason) },
+    });
+
+    // Inicializar sistema de trabajos
+    this._jobsEvents = new JobsEvents(this, {
+      grantItemToPlayer: (playerId, baseItem) => this.inventoryEvents.addItemFromWorld(playerId, baseItem),
+      getPlayerMapId: (clientId: string) => {
+        const p = this.players.get(clientId);
+        return p?.mapId || null;
+      },
+      getPlayerRole: (clientId: string) => this.getPlayerRole(clientId),
+      setPlayerRole: (playerId: string, roleId) => this.setPlayerRole(playerId, roleId),
+      economy: { creditWalletMajor: (userId: string, amount: number, reason?: string) => this._economyEvents.creditWalletMajor(userId, amount, reason) },
+    });
     
     // Configurar limpieza automática
     this.setupCleanup();
@@ -84,31 +129,96 @@ export class HotelHumboldtRoom extends Room {
     }, 30000);
   }
 
-  onJoin(client: Client, options: any) {
+  async onJoin(client: Client, options?: { username?: string; worldId?: string }) {
     console.log(`👤 Cliente ${client.sessionId} se unió al Hotel Humboldt`);
-    
-    // Crear jugador usando la misma lógica que tenías
+
+    const now = Date.now();
+    const defaultPosition = { x: 0, y: 0, z: 0 };
+    const defaultRotation = { x: 0, y: 0, z: 0 };
+    const defaultMapId = 'exterior';
+    const defaultWorldId = options?.worldId || 'hotel-humboldt';
+    const fallbackUsername = options?.username || `Jugador_${client.id.substring(0, 6)}`;
+
+    const parseVector = (value: unknown, fallback: { x: number; y: number; z: number }) => {
+      if (!value) return fallback;
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value) as { x: number; y: number; z: number };
+          if (typeof parsed.x === 'number' && typeof parsed.y === 'number' && typeof parsed.z === 'number') {
+            return parsed;
+          }
+        } catch {}
+      } else if (typeof value === 'object') {
+        const obj = value as { x?: number; y?: number; z?: number };
+        if (typeof obj.x === 'number' && typeof obj.y === 'number' && typeof obj.z === 'number') {
+          return { x: obj.x, y: obj.y, z: obj.z };
+        }
+      }
+      return fallback;
+    };
+    const parseNumber = (value: unknown, fallback: number) => {
+      const num = typeof value === 'string' ? Number(value) : typeof value === 'number' ? value : NaN;
+      return Number.isFinite(num) ? num : fallback;
+    };
+    const parseBoolean = (value: unknown, fallback: boolean) => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'string') return value === 'true';
+      return fallback;
+    };
+    const parseString = (value: unknown, fallback: string) => (typeof value === 'string' && value.length > 0 ? value : fallback);
+    const parseRole = (value: unknown): ExtendedJobId | null => {
+      if (typeof value === 'string' && value.length > 0) return value as ExtendedJobId;
+      return null;
+    };
+
+    let storedData: Record<string, unknown> | null = null;
+    try {
+      const stored = await this.redis.getPlayer(client.sessionId);
+      if (stored && Object.keys(stored).length > 0) storedData = stored as Record<string, unknown>;
+    } catch (error) {
+      console.warn('⚠️ Error recuperando jugador desde Redis:', error);
+    }
+
+    const position = parseVector(storedData?.position, defaultPosition);
+    const rotation = parseVector(storedData?.rotation, defaultRotation);
+    const mapId = parseString(storedData?.mapId, defaultMapId);
+    const health = parseNumber(storedData?.health, 100);
+    const maxHealth = parseNumber(storedData?.maxHealth, 100);
+    const stamina = parseNumber(storedData?.stamina, 100);
+    const maxStamina = parseNumber(storedData?.maxStamina, 100);
+    const level = parseNumber(storedData?.level, 1);
+    const experience = parseNumber(storedData?.experience, 0);
+    const worldId = parseString(storedData?.worldId, defaultWorldId);
+    const animation = parseString(storedData?.animation, 'idle');
+    const isMoving = parseBoolean(storedData?.isMoving, false);
+    const isRunning = parseBoolean(storedData?.isRunning, false);
+    const roleId = parseRole(storedData?.roleId);
+    const username = parseString(storedData?.username, fallbackUsername);
+    const lastUpdate = parseNumber(storedData?.lastUpdate, now);
+
     const player: PlayerData = {
       id: client.sessionId,
-      username: options.username || `Jugador_${client.id.substring(0, 6)}`,
-      position: { x: 0, y: 0, z: 0 },
-      rotation: { x: 0, y: 0, z: 0 },
-      health: 100,
-      maxHealth: 100,
-      stamina: 100,
-      maxStamina: 100,
-      level: 1,
-      experience: 0,
-      worldId: 'hotel-humboldt',
+      username,
+      position,
+      rotation,
+      mapId,
+      roleId,
+      health,
+      maxHealth,
+      stamina,
+      maxStamina,
+      level,
+      experience,
+      worldId,
       isOnline: true,
       lastSeen: new Date(),
-      lastUpdate: Date.now(),
-      animation: 'idle',
-      isMoving: false,
-      isRunning: false,
+      lastUpdate: now,
+      animation,
+      isMoving,
+      isRunning,
     };
-    
-        // Agregar jugador
+
+    // Agregar jugador
     this.players.set(client.sessionId, player);
         
         // Actualizar estado de Colyseus
@@ -121,6 +231,8 @@ export class HotelHumboldtRoom extends Room {
           rotationX: player.rotation.x,
           rotationY: player.rotation.y,
           rotationZ: player.rotation.z,
+      mapId: player.mapId,
+          roleId: player.roleId,
           health: player.health,
           maxHealth: player.maxHealth,
           stamina: player.stamina,
@@ -139,7 +251,7 @@ export class HotelHumboldtRoom extends Room {
     console.log('🔄 Jugadores en this.state.players:', Array.from(this.state.players.keys()));
         
         // Guardar en Redis (reutilizando tu lógica)
-        this.savePlayerToRedis(player);
+        void this.savePlayerToRedis(player);
         
         // Enviar estado actual a todos los jugadores
         this.broadcast('player:joined', {
@@ -152,6 +264,9 @@ export class HotelHumboldtRoom extends Room {
         this.broadcast('players:updated', {
           players: Array.from(this.players.values()),
         });
+    
+    // Crear inventario inicial para el jugador
+    this.inventoryEvents.createPlayerInventory(client.sessionId);
     
     // Enviar mensaje de bienvenida solo al jugador que se conectó
     this.sendSystemMessageToClient(client, `¡Bienvenido al Hotel Humboldt, ${player.username}!`);
@@ -204,7 +319,7 @@ export class HotelHumboldtRoom extends Room {
 
   private setupMessageHandlers() {
     // Player join handler
-    this.onMessage('player:join', (client: Client, data: any) => {
+    this.onMessage('player:join', (client: Client, data: { username?: string; worldId?: string }) => {
       console.log(`📥 Recibido player:join de ${client.id}:`, data);
       // Actualizar datos del jugador con la información enviada por el cliente
       const player = this.players.get(client.sessionId);
@@ -231,7 +346,7 @@ export class HotelHumboldtRoom extends Room {
     });
 
     // Movimiento del jugador (reutilizando tu lógica)
-    this.onMessage('player:move', (client: Client, data: any) => {
+    this.onMessage('player:move', (client: Client, data: { position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number }; isRunning?: boolean; isMoving?: boolean; animation?: string }) => {
       const player = this.players.get(client.sessionId);
       if (player) {
         player.position = data.position;
@@ -255,11 +370,17 @@ export class HotelHumboldtRoom extends Room {
           statePlayer.lastUpdate = player.lastUpdate;
         }
         
-        // Broadcast a otros jugadores
-        this.broadcast('player:moved', {
-          playerId: client.sessionId,
-          movement: data,
-        }, { except: client });
+        // Enviar solo a jugadores en el mismo mapa
+        this.clients.forEach((c) => {
+          if (c.sessionId === client.sessionId) return;
+          const target = this.players.get(c.sessionId);
+          if (target && target.mapId === player.mapId) {
+            c.send('player:moved', {
+              playerId: client.sessionId,
+              movement: data,
+            });
+          }
+        });
         
         // Actualizar en Redis (menos frecuente para optimizar)
         // Guardar de forma ocasional
@@ -269,8 +390,60 @@ export class HotelHumboldtRoom extends Room {
       }
     });
 
+    // Cambio de mapa del jugador
+    this.onMessage('map:change', (client: Client, data: { fromMapId: string; toMapId: string; position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number }; reason?: string }) => {
+      const player = this.players.get(client.sessionId);
+      if (!player) return;
+      player.mapId = data.toMapId;
+      player.position = data.position;
+      player.rotation = data.rotation;
+      player.lastUpdate = Date.now();
+
+      // Reflejar en estado sincronizado
+      const statePlayer = this.state.players.get(client.sessionId);
+      if (statePlayer) {
+        statePlayer.x = player.position.x;
+        statePlayer.y = player.position.y;
+        statePlayer.z = player.position.z;
+        statePlayer.rotationX = player.rotation.x;
+        statePlayer.rotationY = player.rotation.y;
+        statePlayer.rotationZ = player.rotation.z;
+        statePlayer.mapId = player.mapId;
+        statePlayer.lastUpdate = player.lastUpdate;
+      }
+
+      // Notificar a todos los clientes el cambio de mapa del jugador
+      const payload = {
+        playerId: client.sessionId,
+        mapId: player.mapId,
+        position: player.position,
+        rotation: player.rotation,
+        timestamp: Date.now(),
+      };
+
+      this.clients.forEach((c) => {
+        c.send('map:changed', payload);
+      });
+    });
+
+    // Petición de datos del mapa actual (jugadores presentes, etc.)
+    this.onMessage('map:request', (client: Client, data: { mapId: string }) => {
+      const mapId = data?.mapId;
+      const playersInMap = Array.from(this.players.values()).filter(p => p.mapId === mapId).map(p => ({
+        id: p.id,
+        mapId: p.mapId,
+        position: p.position,
+        rotation: p.rotation,
+      }));
+      client.send('map:update', {
+        players: playersInMap,
+        mapId,
+        timestamp: Date.now(),
+      });
+    });
+
     // Heartbeat del jugador para refrescar lastUpdate sin necesidad de movimiento
-    this.onMessage('player:heartbeat', (client: Client, data: any) => {
+    this.onMessage('player:heartbeat', (client: Client, _data?: unknown) => {
       const player = this.players.get(client.sessionId);
       if (player) {
         player.lastUpdate = Date.now();
@@ -282,7 +455,7 @@ export class HotelHumboldtRoom extends Room {
     });
 
     // Chat (reutilizando tu lógica)
-    this.onMessage('chat:message', (client: Client, data: any) => {
+    this.onMessage('chat:message', (client: Client, data: { message: string; channel?: string }) => {
       const player = this.players.get(client.sessionId);
       if (player && data.message) {
         const chatMessage: ChatMessage = {
@@ -314,7 +487,7 @@ export class HotelHumboldtRoom extends Room {
     });
 
     // Ataque (reutilizando tu lógica)
-    this.onMessage('player:attack', (client: Client, data: any) => {
+    this.onMessage('player:attack', (client: Client, data: { targetId: string; damage: number }) => {
       const player = this.players.get(client.id);
       if (player) {
         console.log(`⚔️ ${player.username} atacó a ${data.targetId}`);
@@ -327,7 +500,7 @@ export class HotelHumboldtRoom extends Room {
     });
 
     // Interacción (reutilizando tu lógica)
-    this.onMessage('player:interact', (client: Client, data: any) => {
+    this.onMessage('player:interact', (client: Client, data: { objectId: string }) => {
       const player = this.players.get(client.id);
       if (player) {
         console.log(`🤝 ${player.username} interactuó con ${data.objectId}`);
@@ -340,7 +513,8 @@ export class HotelHumboldtRoom extends Room {
     try {
       const messages = await this.redis.getChatMessages(50);
       if (messages) {
-        this.chatMessages = messages.map((msg: any) => ({
+        const typed = messages as { id: string; playerId: string; username: string; message: string; channel: string; timestamp: string | number; type: string }[];
+        this.chatMessages = typed.map((msg) => ({
           id: msg.id,
           playerId: msg.playerId,
           username: msg.username,
@@ -373,12 +547,34 @@ export class HotelHumboldtRoom extends Room {
         isOnline: player.isOnline,
         lastSeen: player.lastSeen.getTime(),
         lastUpdate: player.lastUpdate,
+        mapId: player.mapId,
+        roleId: player.roleId ?? '',
       };
       
       await this.redis.addPlayer(player.id, playerData);
     } catch (error) {
       console.warn('⚠️ Error guardando jugador en Redis:', error);
     }
+  }
+
+  private getPlayerRole(playerId: string): ExtendedJobId | null {
+    return this.players.get(playerId)?.roleId ?? null;
+  }
+
+  private setPlayerRole(playerId: string, roleId: ExtendedJobId | null) {
+    const player = this.players.get(playerId);
+    if (!player) return;
+    if (player.roleId === roleId) return;
+    player.roleId = roleId;
+    const statePlayer = this.state.players.get(playerId);
+    if (statePlayer) {
+      statePlayer.roleId = roleId;
+    }
+    void this.savePlayerToRedis(player);
+    this.broadcast('player:role', { playerId, roleId });
+    this.broadcast('players:updated', {
+      players: Array.from(this.players.values()),
+    });
   }
 
   private async saveChatMessageToRedis(message: ChatMessage) {

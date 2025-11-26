@@ -11,7 +11,7 @@ interface ThirdPersonCameraProps {
   target?: THREE.Object3D;
 }
 
-export default function ThirdPersonCamera({ target: _target }: ThirdPersonCameraProps) {
+export default function ThirdPersonCamera({ }: ThirdPersonCameraProps) {
   const { camera, scene } = useThree();
   const { position } = usePlayerStore();
   const { getCameraState } = useMouseCamera(true); // MISMA instancia global
@@ -33,22 +33,55 @@ export default function ThirdPersonCamera({ target: _target }: ThirdPersonCamera
   }, [camera]);
 
   useFrame(() => {
-    const p = new THREE.Vector3(position.x, position.y, position.z);
+    // Verificar si estamos conduciendo y usar la posición del vehículo
+    const w = window as unknown as { 
+      _veh_pos?: { x: number; y: number; z: number }; 
+      _veh_yaw?: number;
+      _isDriving?: boolean 
+    };
+    const vehPos = w._veh_pos;
+    const vehYaw = w._veh_yaw ?? 0;
+    const isDriving = w._isDriving;
+    
+    // p = punto al que mira la cámara (ancla). target = posición deseada de la cámara
+    let anchor: THREE.Vector3;
+    
+    if (isDriving && vehPos) {
+      // Ancla: posición del vehículo
+      anchor = new THREE.Vector3(vehPos.x, vehPos.y + 1.0, vehPos.z);
+    } else {
+      // Seguir al jugador
+      anchor = new THREE.Vector3(position.x, position.y, position.z);
+    }
+    
+    const p = anchor;
     const { horizontal: yaw, vertical: pitch } = getCameraState();
 
-    const baseDistance = cameraDistance;
-    const height = cameraHeight;
-    const smooth = smoothness;
+    // Ajustar distancia y altura si estamos conduciendo
+    const baseDistance = isDriving ? cameraDistance * 2.2 : cameraDistance; // Aumentado de 1.5 a 2.2
+    const height = isDriving ? cameraHeight * 1.3 : cameraHeight; // Aumentado de 1.2 a 1.3
+    const smooth = isDriving ? smoothness * 0.8 : smoothness;
 
-    const horizontalDist = baseDistance * Math.cos(pitch);
-    // Cámara DETRÁS del personaje: restar el offset en lugar de sumar
-    const camOffset = new THREE.Vector3(
-      -Math.sin(yaw) * horizontalDist,  // Negativo para estar detrás
-      height + baseDistance * Math.sin(pitch),
-      -Math.cos(yaw) * horizontalDist   // Negativo para estar detrás
-    );
-
-    let target = p.clone().add(camOffset);
+    let target: THREE.Vector3;
+    if (isDriving && vehPos) {
+      // Offset detrás del vehículo: si el forward local es ( -sin(yaw), -cos(yaw) ),
+      // el vector hacia atrás es ( +sin(yaw), +cos(yaw) )
+      const back = new THREE.Vector3(
+        Math.sin(vehYaw) * baseDistance,
+        height,
+        Math.cos(vehYaw) * baseDistance
+      );
+      target = p.clone().add(back);
+    } else {
+      const horizontalDist = baseDistance * Math.cos(pitch);
+      // Detrás del jugador según yaw de mouse
+      const camOffset = new THREE.Vector3(
+        -Math.sin(yaw) * horizontalDist,
+        height + baseDistance * Math.sin(pitch),
+        -Math.cos(yaw) * horizontalDist
+      );
+      target = p.clone().add(camOffset);
+    }
     
     // Colisiones de cámara: solo si está habilitado en config
     if (GAME_CONFIG.camera.enableCollision) {
@@ -62,12 +95,13 @@ export default function ThirdPersonCamera({ target: _target }: ThirdPersonCamera
       // Construir candidatos: todos los meshes visibles de la escena
       const candidates: THREE.Object3D[] = [];
       scene.traverse((obj) => {
-        const any = obj as any;
-        if (any.isMesh && obj.visible) {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.isMesh && obj.visible) {
           // Filtrar por userData también
           const isPlayer = obj.userData?.isPlayer || obj.userData?.isRemotePlayer;
           const isPlayerMesh = obj.name.includes('player-mesh') || obj.name.includes('remotePlayer-mesh');
-          if (!isPlayer && !isPlayerMesh) {
+          const isVehicle = obj.userData?.vehicleId; // 🚗 Excluir vehículos
+          if (!isPlayer && !isPlayerMesh && !isVehicle) {
             candidates.push(obj);
           }
         }

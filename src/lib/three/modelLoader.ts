@@ -7,7 +7,7 @@ export interface ModelInfo {
   name: string;
   path: string;
   type: 'gltf' | 'fbx' | 'obj' | 'glb';
-  category: 'nature' | 'building' | 'interior' | 'weapon' | 'prop' | 'terrain';
+  category: 'nature' | 'building' | 'interior' | 'weapon' | 'prop' | 'terrain' | 'vehicle';
   scale?: number;
   position?: [number, number, number];
   rotation?: [number, number, number];
@@ -217,6 +217,10 @@ export class ModelLoader {
         // Building shapes
         geometry = new THREE.BoxGeometry(2, 4, 2);
         color = 0x696969;
+        break;
+      case 'vehicle':
+        geometry = new THREE.BoxGeometry(1.8, 1.4, 4.2);
+        color = 0xd9534f;
         break;
         
       case 'weapon':

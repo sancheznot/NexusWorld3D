@@ -1,18 +1,16 @@
 'use client';
 
-import { Vector3 } from 'three';
 import { Portal } from '@/types/portal.types';
 import TriggerZone from './TriggerZone';
 import PortalEffect from './PortalEffect';
 
 interface PortalTriggerProps {
   portal: Portal;
-  playerPosition: Vector3;
   onPlayerEnter: (portal: Portal) => void;
   onPlayerExit: () => void;
 }
 
-export default function PortalTrigger({ portal, playerPosition, onPlayerEnter, onPlayerExit }: PortalTriggerProps) {
+export default function PortalTrigger({ portal, onPlayerEnter, onPlayerExit }: PortalTriggerProps) {
   return (
     <group>
       {/* Efecto visual del portal */}
@@ -26,7 +24,6 @@ export default function PortalTrigger({ portal, playerPosition, onPlayerEnter, o
                portal.icon === '🛒' ? '#f59e0b' : '#ff6b35'}
         intensity={1} // Reducido de 2 a 1
         icon={portal.icon}
-        playerPosition={[playerPosition.x, playerPosition.y, playerPosition.z]}
       />
       
       {/* Zona de trigger */}
@@ -39,7 +36,6 @@ export default function PortalTrigger({ portal, playerPosition, onPlayerEnter, o
           radius: portal.radius,
           data: { portal },
         }}
-        playerPosition={playerPosition}
         onEnter={() => onPlayerEnter(portal)}
         onExit={() => onPlayerExit()}
         onInteract={() => onPlayerEnter(portal)}

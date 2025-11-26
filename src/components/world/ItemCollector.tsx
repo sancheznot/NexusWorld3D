@@ -1,53 +1,77 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useInventory } from '@/hooks/useInventory';
+import { useState, useEffect, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import itemsClient from '@/lib/colyseus/ItemsClient';
+import { ItemsStateResponse, ItemsUpdateResponse } from '@/types/items-sync.types';
 import { InventoryItem, ItemType, ItemRarity } from '@/types/inventory.types';
+import { modelLoader } from '@/lib/three/modelLoader';
+import { usePlayerStore } from '@/store/playerStore';
+
+// Evitar colecciones duplicadas por re-montajes (por spawnId)
+const collectingSpawnIds = new Set<string>();
+
+type ItemVisual = {
+  path: string;
+  type: 'glb' | 'gltf' | 'fbx' | 'obj';
+  scale?: number;
+  rotation?: [number, number, number];
+};
+
+type ItemWithVisual = Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'> & { visual?: ItemVisual };
 
 interface ItemCollectorProps {
+  spawnId: string;
+  mapId: string;
   position: [number, number, number];
-  item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>;
-  onCollect?: (item: InventoryItem) => void;
+  item: ItemWithVisual;
   collectRadius?: number;
-  playerPosition: [number, number, number];
 }
 
 export default function ItemCollector({ 
+  spawnId,
+  mapId,
   position, 
-  item, 
-  onCollect,
-  collectRadius = 2,
-  playerPosition 
+  item,
+  collectRadius = 1.2,
 }: ItemCollectorProps) {
-  const { addItem } = useInventory();
-  const [isCollected, setIsCollected] = useState(false);
+  const [hasRequested, setHasRequested] = useState(false);
   const [isNearby, setIsNearby] = useState(false);
 
-  // Calcular distancia al jugador
-  const distance = Math.sqrt(
-    Math.pow(position[0] - playerPosition[0], 2) +
-    Math.pow(position[1] - playerPosition[1], 2) +
-    Math.pow(position[2] - playerPosition[2], 2)
-  );
+  useFrame(() => {
+    if (hasRequested) return;
+    
+    const playerPos = usePlayerStore.getState().position;
+    if (!playerPos) return;
 
-  // Verificar si el jugador está cerca
-  useEffect(() => {
-    setIsNearby(distance <= collectRadius);
-  }, [distance, collectRadius]);
-
-  // Recolectar item cuando esté cerca
-  useEffect(() => {
-    if (isNearby && !isCollected) {
-      const success = addItem(item);
-      if (success) {
-        setIsCollected(true);
-        onCollect?.(item as InventoryItem);
-        console.log(`🎒 Item recolectado: ${item.name}`);
-      }
+    const dx = position[0] - playerPos.x;
+    const dy = position[1] - playerPos.y;
+    const dz = position[2] - playerPos.z;
+    const distSq = dx*dx + dy*dy + dz*dz;
+    
+    const nearby = distSq <= collectRadius * collectRadius;
+    if (nearby !== isNearby) {
+      setIsNearby(nearby);
     }
-  }, [isNearby, isCollected, addItem, item, onCollect]);
+  });
 
-  if (isCollected) return null;
+  // Resetear la solicitud cuando el jugador salga del radio
+  useEffect(() => {
+    if (!isNearby) {
+      setHasRequested(false);
+    }
+  }, [isNearby]);
+
+  // Recolectar item cuando esté cerca (100% servidor)
+  useEffect(() => {
+    if (isNearby && !hasRequested && !collectingSpawnIds.has(spawnId)) {
+      collectingSpawnIds.add(spawnId);
+      itemsClient.collectItem({ mapId, spawnId });
+      setHasRequested(true); // evitar spam mientras está cerca
+      // El inventario y visibilidad se actualizarán por eventos del servidor
+    }
+  }, [isNearby, hasRequested, mapId, spawnId]);
 
   const getRarityColor = (rarity: ItemRarity) => {
     const colors = {
@@ -61,62 +85,93 @@ export default function ItemCollector({
     return colors[rarity];
   };
 
+  const loadedRef = useRef<THREE.Object3D | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!item.visual) return;
+      try {
+        const obj = await modelLoader.loadModel({
+          name: item.itemId,
+          path: item.visual.path,
+          type: item.visual.type as 'glb' | 'gltf' | 'fbx' | 'obj',
+          category: 'prop',
+          scale: item.visual.scale,
+          rotation: item.visual.rotation,
+        });
+        if (!cancelled) {
+          loadedRef.current = obj;
+        }
+      } catch {}
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [item.visual, item.itemId]);
+
   return (
-    <mesh position={position}>
-      {/* Item visual */}
-      <boxGeometry args={[0.5, 0.5, 0.5]} />
-      <meshBasicMaterial 
-        color={getRarityColor(item.rarity)}
-        transparent
-        opacity={isNearby ? 1 : 0.7}
-      />
-      
-      {/* Efecto de brillo cuando está cerca */}
-      {isNearby && (
-        <mesh position={[0, 0.5, 0]}>
-          <sphereGeometry args={[0.3, 8, 8]} />
-          <meshBasicMaterial 
-            color={getRarityColor(item.rarity)}
-            transparent
-            opacity={0.3}
-          />
+    <group position={position}>
+      {item.visual && loadedRef.current ? (
+        <primitive object={loadedRef.current} />
+      ) : (
+        <mesh>
+          <boxGeometry args={[0.5, 0.5, 0.5]} />
+          <meshBasicMaterial color={getRarityColor(item.rarity)} transparent opacity={isNearby ? 1 : 0.7} />
         </mesh>
       )}
 
-      {/* Texto flotante */}
       {isNearby && (
-        <mesh position={[0, 1, 0]}>
-          <planeGeometry args={[2, 0.5]} />
-          <meshBasicMaterial 
-            color="#000000"
-            transparent
-            opacity={0.8}
-          />
+        <mesh position={[0, 0.5, 0]}>
+          <sphereGeometry args={[0.3, 8, 8]} />
+          <meshBasicMaterial color={getRarityColor(item.rarity)} transparent opacity={0.3} />
         </mesh>
       )}
-    </mesh>
+    </group>
   );
 }
 
 // Componente para spawnear items en el mundo
-export function ItemSpawner({ 
-  items, 
-  playerPosition 
-}: { 
-  items: Array<{
-    position: [number, number, number];
-    item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>;
-  }>;
-  playerPosition: [number, number, number];
-}) {
+export function ItemSpawner({ mapId }: { mapId: string; }) {
+  const [spawns, setSpawns] = useState<ItemsStateResponse | null>(null);
+
+  useEffect(() => {
+    const stateCb = ((data: ItemsStateResponse) => {
+      if (data.mapId === mapId) setSpawns(data);
+    }) as unknown as (d: unknown) => void;
+
+    const updateCb = ((data: ItemsUpdateResponse) => {
+      if (!spawns || data.mapId !== mapId) return;
+      setSpawns({
+        mapId,
+        items: spawns.items.map(i => i.id === data.spawnId ? { ...i, isCollected: data.isCollected, position: data.position ?? i.position } : i)
+      });
+    }) as unknown as (d: unknown) => void;
+
+    const collectedCb = ((data: { mapId: string; spawnId: string }) => {
+      if (data.mapId !== mapId) return;
+      // Confirmación del servidor; el items:update ya oculta el spawn
+    }) as unknown as (d: unknown) => void;
+
+    itemsClient.on('items:state', stateCb);
+    itemsClient.on('items:update', updateCb);
+    itemsClient.on('items:collected', collectedCb);
+    itemsClient.requestItems({ mapId });
+    return () => {
+      itemsClient.off('items:state', stateCb);
+      itemsClient.off('items:update', updateCb);
+      itemsClient.off('items:collected', collectedCb);
+    };
+  }, [mapId, spawns]);
+
+  if (!spawns) return null;
   return (
     <>
-      {items.map((spawn, index) => (
+      {spawns.items.filter(i => !i.isCollected).map((spawn) => (
         <ItemCollector
-          key={index}
-          position={spawn.position}
+          key={spawn.id}
+          spawnId={spawn.id}
+          mapId={mapId}
+          position={(spawn.position ? [spawn.position.x, spawn.position.y, spawn.position.z] : [0, 0, 0]) as [number, number, number]}
           item={spawn.item}
-          playerPosition={playerPosition}
         />
       ))}
     </>

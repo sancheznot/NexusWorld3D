@@ -149,6 +149,7 @@ export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps
             <div><kbd className="bg-gray-600 px-1 py-0.5 rounded">Shift</kbd> Correr</div>
             <div><kbd className="bg-gray-600 px-1 py-0.5 rounded">I</kbd> Inventario</div>
             <div><kbd className="bg-gray-600 px-1 py-0.5 rounded">M</kbd> Mapa</div>
+            <div><kbd className="bg-gray-600 px-1 py-0.5 rounded">N</kbd> Minimapa</div>
             <div><kbd className="bg-gray-600 px-1 py-0.5 rounded">Enter</kbd> Chat</div>
           </div>
         </div>

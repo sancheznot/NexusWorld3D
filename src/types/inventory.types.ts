@@ -12,6 +12,7 @@ export interface InventoryItem {
   durability?: number;
   maxDurability?: number;
   level: number;
+  thumb?: string;
   icon: string;
   model?: string;
   isEquipped: boolean;

@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import economyClient from '@/lib/colyseus/EconomyClient';
 import { inventoryService, DEFAULT_ITEMS } from '@/lib/services/inventory';
+import inventoryClient from '@/lib/colyseus/InventoryClient';
 import { InventoryItem, Inventory, Equipment, ItemType, ItemRarity } from '@/types/inventory.types';
 
 /**
@@ -10,6 +12,77 @@ export function useInventory() {
   const [inventory, setInventory] = useState<Inventory>(() => inventoryService.getInventory());
   const [equipment, setEquipment] = useState<Equipment>(() => inventoryService.getEquipment());
   const [isLoading, setIsLoading] = useState(false);
+
+  // Suscribirse a cambios del servicio y del servidor (Colyseus)
+  useEffect(() => {
+    const unsub = inventoryService.subscribe(() => {
+      setInventory(inventoryService.getInventory());
+      setEquipment(inventoryService.getEquipment());
+    });
+    const onWallet = (data: unknown) => {
+      // data puede venir como número o como { amount }
+      const payload = data as { amount?: number } | number | undefined;
+      let amount = 0;
+      if (typeof payload === 'number') amount = payload;
+      else if (payload && typeof (payload as { amount?: number }).amount === 'number') amount = (payload as { amount?: number }).amount as number;
+      // Fallback: si llega en minor units por error, normalizar
+      if (amount >= 10000) amount = amount / 100;
+      const inv = inventoryService.getInventory();
+      inv.gold = Math.round(amount);
+      inventoryService.setInventorySnapshot(inv);
+      setInventory(inventoryService.getInventory());
+      console.log(`💰 Wallet sincronizado: ${amount} -> inventario: ${inv.gold}`);
+    };
+    economyClient.on('economy:wallet', onWallet);
+
+    // Suscripción a eventos del servidor de inventario
+    const onInvUpdated = (data: { playerId: string; inventory: Inventory }) => {
+      if (data?.inventory) {
+        console.log(`📦 Inventario actualizado desde servidor:`, data.inventory);
+        inventoryService.setInventorySnapshot(data.inventory);
+        setInventory(inventoryService.getInventory());
+        setEquipment(inventoryService.getEquipment());
+      }
+    };
+    const onInvData = (data: Inventory) => {
+      if (data) {
+        console.log(`📦 Datos de inventario desde servidor:`, data);
+        inventoryService.setInventorySnapshot(data as Inventory);
+        setInventory(inventoryService.getInventory());
+        setEquipment(inventoryService.getEquipment());
+      }
+    };
+    inventoryClient.onInventoryUpdated(onInvUpdated);
+    inventoryClient.onInventoryData(onInvData);
+    
+    // Esperar a que la conexión esté lista antes de solicitar inventario
+    const requestInventory = () => {
+      const room = inventoryClient.getRoom?.();
+      if (room && room.connection.isOpen) {
+        // Primero enviar nuestro inventario actual al servidor
+        const currentInventory = inventoryService.getInventory();
+        room.send('inventory:update', { inventory: currentInventory });
+        console.log('📦 Enviando inventario actual al servidor:', currentInventory);
+        
+        // Luego solicitar el inventario del servidor
+        room.send('inventory:request');
+        console.log('📦 Solicitando inventario del servidor');
+      } else {
+        console.warn('⚠️ No hay room conectada para solicitar inventario, reintentando...');
+        setTimeout(requestInventory, 1000);
+      }
+    };
+    
+    // Intentar solicitar inventario inmediatamente y luego cada segundo hasta que funcione
+    requestInventory();
+    economyClient.requestState();
+    return () => {
+      unsub();
+      economyClient.off('economy:wallet', onWallet);
+      inventoryClient.off('inventory:updated', onInvUpdated as unknown as (d: unknown) => void);
+      inventoryClient.off('inventory:data', onInvData as unknown as (d: unknown) => void);
+    };
+  }, []);
 
   /**
    * Agregar item al inventario
@@ -90,12 +163,15 @@ export function useInventory() {
   const consumeItem = useCallback((itemId: string) => {
     setIsLoading(true);
     try {
-      const success = inventoryService.useItem(itemId);
-      if (success) {
-        setInventory(inventoryService.getInventory());
-        console.log(`✅ Item usado: ${itemId}`);
+      const item = inventoryService.getInventory().items.find(i => i.id === itemId);
+      if (item) {
+        // Delegar al servidor para aplicar efectos (oro, salud, etc.)
+        // Enviar id único y itemId lógico para consumir solo ese stack
+        inventoryClient.useItem(item.id, item.itemId, item.slot ?? -1);
+        console.log(`📡 Enviado a servidor: usar item id=${item.id} itemId=${item.itemId} (${item.name})`);
+        return true;
       }
-      return success;
+      return false;
     } finally {
       setIsLoading(false);
     }
