@@ -225,57 +225,59 @@ export default function CannonCar({ driving, spawn, id = 'playerCar' }: CannonCa
           // y le sumamos la posición relativa de la rueda (Connection + Suspension).
           // Esto elimina el lag entre chasis y ruedas.
           
-          const chassisPos = groupRef.current.position;
-          const chassisRot = groupRef.current.quaternion;
-          
-          // Datos de suspensión (ahora expuestos por physics)
-          const wInfo = wTransform as any; // Cast para acceder a props nuevas
-          if (wInfo.chassisConnectionPointLocal) {
-             const conn = new THREE.Vector3(wInfo.chassisConnectionPointLocal.x, wInfo.chassisConnectionPointLocal.y, wInfo.chassisConnectionPointLocal.z);
-             const dir = new THREE.Vector3(wInfo.directionLocal.x, wInfo.directionLocal.y, wInfo.directionLocal.z);
-             const suspLen = wInfo.suspensionLength || 0;
-             
-             // Posición relativa = Connection + Direction * SuspensionLength
-             const relPos = conn.clone().add(dir.multiplyScalar(suspLen));
-             
-             // Posición Mundial = ChassisPos + ChassisRot * RelPos
-             const worldPos = relPos.applyQuaternion(chassisRot).add(chassisPos);
-             
-             // Aplicar offsets adicionales (Axle/Heading)
-             // Necesitamos el Axle/Heading basados en la rotación de la rueda.
-             // La rotación de la rueda (wTransform.rotation) es "Physics Rotation".
-             // Deberíamos usar una rotación interpolada también?
-             // La rotación no suele tener tanto lag visual como la posición, pero idealmente sí.
-             // Por ahora usaremos wTransform.rotation para la orientación de la rueda.
-             
-             const wheelWorldQuat = new THREE.Quaternion(wTransform.rotation.x, wTransform.rotation.y, wTransform.rotation.z, wTransform.rotation.w);
-             
-             const axleVector = new THREE.Vector3(1, 0, 0).applyQuaternion(wheelWorldQuat).normalize();
-             const headingVector = new THREE.Vector3(0, 1, 0).cross(axleVector).normalize();
-             
-             const offsetVector = axleVector.clone().multiplyScalar(xOffset)
-               .add(headingVector.clone().multiplyScalar(zOffset));
+          if (groupRef.current) {
+            const chassisPos = groupRef.current.position;
+            const chassisRot = groupRef.current.quaternion;
+            
+            // Datos de suspensión (ahora expuestos por physics)
+            const wInfo = wTransform as any; // Cast para acceder a props nuevas
+            if (wInfo.chassisConnectionPointLocal) {
+               const conn = new THREE.Vector3(wInfo.chassisConnectionPointLocal.x, wInfo.chassisConnectionPointLocal.y, wInfo.chassisConnectionPointLocal.z);
+               const dir = new THREE.Vector3(wInfo.directionLocal.x, wInfo.directionLocal.y, wInfo.directionLocal.z);
+               const suspLen = wInfo.suspensionLength || 0;
                
-             const wheelYOffset = 0.25;
-             
-             wVisual.position
-               .copy(worldPos)
-               .add(offsetVector)
-               .setY(worldPos.y + wheelYOffset); // Mantener Y relativa al mundo o al chasis?
-               // Si usamos worldPos.y, sigue la suspensión.
-               // wheelYOffset es un ajuste visual extra.
+               // Posición relativa = Connection + Direction * SuspensionLength
+               const relPos = conn.clone().add(dir.multiplyScalar(suspLen));
                
-             wVisual.quaternion.copy(wheelWorldQuat);
-             
-             // 🔧 CORRECCIÓN DE AROS (RIMS):
-             const isLeft = i === 0 || i === 2;
-             if (isLeft) {
-                wVisual.rotateZ(Math.PI);
-             }
-          } else {
-             // Fallback si no hay info extendida (no debería pasar)
-             wVisual.position.set(wTransform.position.x, wTransform.position.y, wTransform.position.z);
-             wVisual.quaternion.set(wTransform.rotation.x, wTransform.rotation.y, wTransform.rotation.z, wTransform.rotation.w);
+               // Posición Mundial = ChassisPos + ChassisRot * RelPos
+               const worldPos = relPos.applyQuaternion(chassisRot).add(chassisPos);
+               
+               // Aplicar offsets adicionales (Axle/Heading)
+               // Necesitamos el Axle/Heading basados en la rotación de la rueda.
+               // La rotación de la rueda (wTransform.rotation) es "Physics Rotation".
+               // Deberíamos usar una rotación interpolada también?
+               // La rotación no suele tener tanto lag visual como la posición, pero idealmente sí.
+               // Por ahora usaremos wTransform.rotation para la orientación de la rueda.
+               
+               const wheelWorldQuat = new THREE.Quaternion(wTransform.rotation.x, wTransform.rotation.y, wTransform.rotation.z, wTransform.rotation.w);
+               
+               const axleVector = new THREE.Vector3(1, 0, 0).applyQuaternion(wheelWorldQuat).normalize();
+               const headingVector = new THREE.Vector3(0, 1, 0).cross(axleVector).normalize();
+               
+               const offsetVector = axleVector.clone().multiplyScalar(xOffset)
+                 .add(headingVector.clone().multiplyScalar(zOffset));
+                 
+               const wheelYOffset = 0.25;
+               
+               wVisual.position
+                 .copy(worldPos)
+                 .add(offsetVector)
+                 .setY(worldPos.y + wheelYOffset); // Mantener Y relativa al mundo o al chasis?
+                 // Si usamos worldPos.y, sigue la suspensión.
+                 // wheelYOffset es un ajuste visual extra.
+                 
+               wVisual.quaternion.copy(wheelWorldQuat);
+               
+               // 🔧 CORRECCIÓN DE AROS (RIMS):
+               const isLeft = i === 0 || i === 2;
+               if (isLeft) {
+                  wVisual.rotateZ(Math.PI);
+               }
+            } else {
+               // Fallback si no hay info extendida (no debería pasar)
+               wVisual.position.set(wTransform.position.x, wTransform.position.y, wTransform.position.z);
+               wVisual.quaternion.set(wTransform.rotation.x, wTransform.rotation.y, wTransform.rotation.z, wTransform.rotation.w);
+            }
           }
         }
       }

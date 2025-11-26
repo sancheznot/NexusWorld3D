@@ -1349,24 +1349,55 @@ export class CannonPhysics {
 
     // Solo procesar transmisión si no estamos cambiando marcha
     if (state.shiftTimer <= 0) {
-      // REVERSA (S) - Sistema de Sketchbook
+      // REVERSA / FRENO (S)
       if (input.brake > 0.01) {
-        // Cambiar a reversa
-        state.gear = -1;
-        const gearsMaxSpeeds = this.TRANSMISSION_CONFIG.gearsMaxSpeeds;
-        const maxReverseSpeed = Math.abs(gearsMaxSpeeds["-1"]); // 4 m/s
+        // Si vamos hacia adelante (velocidad > 1 m/s), usar FRENO
+        if (forwardSpeed > 1.0) {
+          // Aplicar frenos PRINCIPALMENTE en ruedas traseras para evitar que el carro se levante (nose dive)
+          // Reducir la fuerza global a la mitad para que sea más suave
+          const brakeVal = brakeForce * input.brake * 0.5;
 
-        // Solo aplicar fuerza si no hemos alcanzado la velocidad máxima de reversa
-        if (speed > gearsMaxSpeeds["-1"] && speed < 5) {
-          const powerFactor = (gearsMaxSpeeds["-1"] - speed) / maxReverseSpeed;
-          const force = engineForceBase * 0.7 * Math.abs(powerFactor);
-          engineForce = -force * input.brake; // NEGATIVO para reversa
+          // Distribución de frenado: 20% Adelante, 100% Atrás
+          vehicle.setBrake(brakeVal * 0.2, 0); // Front Left (Poco freno)
+          vehicle.setBrake(brakeVal * 0.2, 1); // Front Right (Poco freno)
+          vehicle.setBrake(brakeVal, 2); // Rear Left (Freno principal)
+          vehicle.setBrake(brakeVal, 3); // Rear Right (Freno principal)
+
+          engineForce = 0; // Cortar motor
+        }
+        // Si estamos casi parados o yendo hacia atrás, usar REVERSA
+        else {
+          // Soltar frenos para permitir movimiento
+          vehicle.setBrake(0, 0);
+          vehicle.setBrake(0, 1);
+          vehicle.setBrake(0, 2);
+          vehicle.setBrake(0, 3);
+
+          // Cambiar a reversa
+          state.gear = -1;
+          const gearsMaxSpeeds = this.TRANSMISSION_CONFIG.gearsMaxSpeeds;
+          const maxReverseSpeed = Math.abs(gearsMaxSpeeds["-1"]);
+
+          // Solo aplicar fuerza si no hemos alcanzado la velocidad máxima de reversa
+          // speed es negativo en reversa (forwardSpeed < 0)
+          if (forwardSpeed > gearsMaxSpeeds["-1"]) {
+            const powerFactor =
+              (maxReverseSpeed - Math.abs(forwardSpeed)) / maxReverseSpeed;
+            const force = engineForceBase * 0.7 * Math.abs(powerFactor);
+            engineForce = -force * input.brake; // NEGATIVO para empujar atrás
+          }
         }
       }
       // ADELANTE - Sistema de Sketchbook (EXACTO)
       else {
-        // Asegurar que estamos en marcha adelante
+        // Asegurar que estamos en marcha adelante si aceleramos
         if (state.gear < 1) state.gear = 1;
+
+        // Resetear frenos si aceleramos
+        vehicle.setBrake(0, 0);
+        vehicle.setBrake(0, 1);
+        vehicle.setBrake(0, 2);
+        vehicle.setBrake(0, 3);
 
         const gearsMaxSpeeds = this.TRANSMISSION_CONFIG.gearsMaxSpeeds;
         const currentGearMaxSpeed =
@@ -1408,7 +1439,7 @@ export class CannonPhysics {
             (engineForceBase / gearRatio) *
             Math.pow(powerFactor, 1) *
             powerCurve;
-          engineForce = force * input.throttle;
+          engineForce = force * input.throttle; // POSITIVO para adelante
         }
       }
     }
@@ -1460,16 +1491,17 @@ export class CannonPhysics {
 
     this.vehicleState.set(id, state);
 
-    // Aplicar fuerza del motor en ruedas traseras (0, 1 porque el modelo está invertido)
-    vehicle.applyEngineForce(engineForce, 0);
-    vehicle.applyEngineForce(engineForce, 1);
+    // Aplicar fuerza del motor en ruedas traseras (2, 3)
+    // Indices: 0=FL, 1=FR, 2=RL, 3=RR
+    vehicle.applyEngineForce(engineForce, 2);
+    vehicle.applyEngineForce(engineForce, 3);
 
-    // Freno de mano (Space) - Aplicar en ruedas traseras (0, 1)
+    // Freno de mano (Space) - Aplicar en ruedas traseras (2, 3)
     if (input.handbrake && input.handbrake > 0.01) {
-      // Aplicar freno fuerte en ruedas traseras (0, 1 porque el modelo está invertido)
-      const handbrakeForce = brakeForce * 2; // Freno de mano muy fuerte
-      vehicle.setBrake(handbrakeForce * input.handbrake, 0);
-      vehicle.setBrake(handbrakeForce * input.handbrake, 1);
+      // Aplicar freno en ruedas traseras (Suavizado)
+      const handbrakeForce = brakeForce * 0.8;
+      vehicle.setBrake(handbrakeForce * input.handbrake, 2);
+      vehicle.setBrake(handbrakeForce * input.handbrake, 3);
     }
     // Freno motor cuando no hay input (desaceleración paulatina)
     else if (input.throttle < 0.01 && input.brake < 0.01) {
@@ -1553,6 +1585,10 @@ export class CannonPhysics {
   ): {
     position: { x: number; y: number; z: number };
     rotation: { x: number; y: number; z: number; w: number };
+    suspensionLength?: number;
+    chassisConnectionPointLocal?: { x: number; y: number; z: number };
+    directionLocal?: { x: number; y: number; z: number };
+    axleLocal?: { x: number; y: number; z: number };
   } | null {
     const vehicle = (this as unknown as Record<string, unknown>)[
       `${id}:vehicle`
@@ -1563,7 +1599,7 @@ export class CannonPhysics {
     vehicle.updateWheelTransform(wheelIndex);
 
     const t = vehicle.wheelInfos[wheelIndex].worldTransform;
-    const info = vehicle.wheelInfos[wheelIndex];
+    const info = vehicle.wheelInfos[wheelIndex] as any; // Cast to any to access hidden props
     return {
       position: { x: t.position.x, y: t.position.y, z: t.position.z },
       rotation: {
