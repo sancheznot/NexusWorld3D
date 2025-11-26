@@ -1,6 +1,5 @@
 'use client';
 
-import { Vector3 } from 'three';
 import TriggerZone from './TriggerZone';
 import { modelLoader } from '@/lib/three/modelLoader';
 import { useEffect, useRef } from 'react';
@@ -11,11 +10,10 @@ import shopClient from '@/lib/colyseus/ShopClient';
 
 interface NPCShopTriggerProps {
   zone: TriggerZoneData;
-  playerPosition: Vector3;
   visual?: { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] };
 }
 
-export default function NPCShopTrigger({ zone, playerPosition, visual }: NPCShopTriggerProps) {
+export default function NPCShopTrigger({ zone, visual }: NPCShopTriggerProps) {
   const { toggleShop } = useUIStore();
   const ref = useRef<Object3D | null>(null);
   useEffect(() => {
@@ -43,7 +41,6 @@ export default function NPCShopTrigger({ zone, playerPosition, visual }: NPCShop
       {ref.current && <primitive object={ref.current} />}
       <TriggerZone
         data={zone}
-        playerPosition={playerPosition}
         onInteract={() => {
           toggleShop();
           shopClient.requestShops();

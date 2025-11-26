@@ -12,12 +12,11 @@ import type { ExtendedJobId } from '@/constants/jobs';
 
 interface NPCJobTriggerProps {
   zone: TriggerZoneData;
-  playerPosition: Vector3;
   visual?: { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] };
   jobId: ExtendedJobId;
 }
 
-export default function NPCJobTrigger({ zone, playerPosition, visual, jobId }: NPCJobTriggerProps) {
+export default function NPCJobTrigger({ zone, visual, jobId }: NPCJobTriggerProps) {
   const { openJobsPanel } = useUIStore();
   const ref = useRef<Object3D | null>(null);
   useEffect(() => {
@@ -45,7 +44,6 @@ export default function NPCJobTrigger({ zone, playerPosition, visual, jobId }: N
       {ref.current && <primitive object={ref.current} />}
       <TriggerZone
         data={zone}
-        playerPosition={playerPosition}
         onInteract={() => {
           openJobsPanel(jobId);
           jobsClient.openJob(jobId);

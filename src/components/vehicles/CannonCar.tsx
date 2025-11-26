@@ -5,6 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGLTF } from '@react-three/drei';
 import { getPhysicsInstance } from '@/hooks/useCannonPhysics';
+import { usePlayerStore } from '@/store/playerStore';
 
 type Spawn = { x: number; y: number; z: number; yaw: number };
 
@@ -176,6 +177,13 @@ export default function CannonCar({ driving, spawn, id = 'playerCar' }: CannonCa
         z: t.position.z,
       };
       (window as unknown as { _veh_yaw?: number })._veh_yaw = t.rotationY; // Yaw normal
+
+      // 🔄 Sync Player Position with Vehicle
+      if (driving) {
+        usePlayerStore.getState().updatePosition({ x: t.position.x, y: t.position.y, z: t.position.z });
+        // Optional: Sync rotation if needed, but usually player rotation inside car is fixed or handled by camera
+        usePlayerStore.getState().updateRotation({ x: 0, y: t.rotationY, z: 0 });
+      }
     }
 
     // 2. Sincronizar Ruedas

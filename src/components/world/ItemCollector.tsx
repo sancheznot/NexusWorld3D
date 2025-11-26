@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import itemsClient from '@/lib/colyseus/ItemsClient';
 import { ItemsStateResponse, ItemsUpdateResponse } from '@/types/items-sync.types';
 import { InventoryItem, ItemType, ItemRarity } from '@/types/inventory.types';
 import { modelLoader } from '@/lib/three/modelLoader';
+import { usePlayerStore } from '@/store/playerStore';
 
 // Evitar colecciones duplicadas por re-montajes (por spawnId)
 const collectingSpawnIds = new Set<string>();
@@ -25,7 +27,6 @@ interface ItemCollectorProps {
   position: [number, number, number];
   item: ItemWithVisual;
   collectRadius?: number;
-  playerPosition: [number, number, number];
 }
 
 export default function ItemCollector({ 
@@ -34,22 +35,26 @@ export default function ItemCollector({
   position, 
   item,
   collectRadius = 1.2,
-  playerPosition 
 }: ItemCollectorProps) {
   const [hasRequested, setHasRequested] = useState(false);
   const [isNearby, setIsNearby] = useState(false);
 
-  // Calcular distancia al jugador
-  const distance = Math.sqrt(
-    Math.pow(position[0] - playerPosition[0], 2) +
-    Math.pow(position[1] - playerPosition[1], 2) +
-    Math.pow(position[2] - playerPosition[2], 2)
-  );
+  useFrame(() => {
+    if (hasRequested) return;
+    
+    const playerPos = usePlayerStore.getState().position;
+    if (!playerPos) return;
 
-  // Verificar si el jugador está cerca
-  useEffect(() => {
-    setIsNearby(distance <= collectRadius);
-  }, [distance, collectRadius]);
+    const dx = position[0] - playerPos.x;
+    const dy = position[1] - playerPos.y;
+    const dz = position[2] - playerPos.z;
+    const distSq = dx*dx + dy*dy + dz*dz;
+    
+    const nearby = distSq <= collectRadius * collectRadius;
+    if (nearby !== isNearby) {
+      setIsNearby(nearby);
+    }
+  });
 
   // Resetear la solicitud cuando el jugador salga del radio
   useEffect(() => {
@@ -125,7 +130,7 @@ export default function ItemCollector({
 }
 
 // Componente para spawnear items en el mundo
-export function ItemSpawner({ mapId, playerPosition }: { mapId: string; playerPosition: [number, number, number]; }) {
+export function ItemSpawner({ mapId }: { mapId: string; }) {
   const [spawns, setSpawns] = useState<ItemsStateResponse | null>(null);
 
   useEffect(() => {
@@ -167,7 +172,6 @@ export function ItemSpawner({ mapId, playerPosition }: { mapId: string; playerPo
           mapId={mapId}
           position={(spawn.position ? [spawn.position.x, spawn.position.y, spawn.position.z] : [0, 0, 0]) as [number, number, number]}
           item={spawn.item}
-          playerPosition={playerPosition}
         />
       ))}
     </>

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Vector3 } from 'three';
 import JobWaypointTrigger from './JobWaypointTrigger';
 import TriggerZone from './TriggerZone';
 import jobsClient from '@/lib/colyseus/JobsClient';
@@ -28,12 +27,11 @@ interface StartZoneInfo {
 
 interface JobWaypointsLayerProps {
   currentMap: string;
-  playerPosition: Vector3;
   playerRoleId: ExtendedJobId | null;
   isDriving: boolean;
 }
 
-export default function JobWaypointsLayer({ currentMap, playerPosition, playerRoleId, isDriving }: JobWaypointsLayerProps) {
+export default function JobWaypointsLayer({ currentMap, playerRoleId, isDriving }: JobWaypointsLayerProps) {
   const addNotification = useUIStore(state => state.addNotification);
   const [next, setNext] = useState<WaypointInfo | null>(null);
   const [activeJobId, setActiveJobId] = useState<ExtendedJobId | null>(null);
@@ -87,7 +85,9 @@ export default function JobWaypointsLayer({ currentMap, playerPosition, playerRo
   const nextZone = useMemo(() => {
     if (!next) return null;
     if (next.mapId && next.mapId !== currentMap) return null;
-    const pos = next.position ?? { x: playerPosition.x, y: playerPosition.y, z: playerPosition.z };
+    // Default to 0,0,0 if player position is not available (it will be updated by trigger anyway)
+    // Or better, use the waypoint position which should always be defined for a valid waypoint
+    const pos = next.position ?? { x: 0, y: 0, z: 0 }; 
     return {
       id: next.waypointId,
       kind: 'job' as const,
@@ -95,7 +95,7 @@ export default function JobWaypointsLayer({ currentMap, playerPosition, playerRo
       position: { x: pos.x, y: pos.y, z: pos.z },
       radius: 2,
     };
-  }, [next, currentMap, playerPosition.x, playerPosition.y, playerPosition.z]);
+  }, [next, currentMap]);
 
   const handleStartInteract = () => {
     if (!startZone) return;
@@ -127,12 +127,11 @@ export default function JobWaypointsLayer({ currentMap, playerPosition, playerRo
             position: startZone.position,
             radius: startZone.radius,
           }}
-          playerPosition={playerPosition}
           onInteract={handleStartInteract}
           debug={false}
         />
       )}
-      {nextZone && <JobWaypointTrigger zone={nextZone} playerPosition={playerPosition} />}
+      {nextZone && <JobWaypointTrigger zone={nextZone} />}
     </>
   );
 }

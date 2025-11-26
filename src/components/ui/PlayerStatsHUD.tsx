@@ -24,9 +24,10 @@ type MapLocation = keyof typeof MAP_LOCATIONS;
 
 interface PlayerStatsHUDProps {
   className?: string;
+  isDriving?: boolean;
 }
 
-export default function PlayerStatsHUD({ className = '' }: PlayerStatsHUDProps) {
+export default function PlayerStatsHUD({ className = '', isDriving = false }: PlayerStatsHUDProps) {
   const { health, maxHealth, stamina, maxStamina, hunger, maxHunger, position, isMoving, isRunning } = usePlayerStore();
   const [balance, setBalance] = useState(0);
   const [limitsUsed, setLimitsUsed] = useState<{ deposit: number; withdraw: number; transfer: number } | null>(null);
@@ -192,9 +193,9 @@ export default function PlayerStatsHUD({ className = '' }: PlayerStatsHUDProps) 
             X: {position.x.toFixed(1)} | Y: {position.y.toFixed(1)} | Z: {position.z.toFixed(1)}
           </div>
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${isMoving ? (isRunning ? 'bg-orange-400' : 'bg-blue-400') : 'bg-gray-400'}`}></div>
+            <div className={`w-2 h-2 rounded-full ${isDriving ? 'bg-purple-400' : isMoving ? (isRunning ? 'bg-orange-400' : 'bg-blue-400') : 'bg-gray-400'}`}></div>
             <span className="text-xs">
-              {isMoving ? (isRunning ? '🏃 Corriendo' : '🚶 Caminando') : '⏸️ Inmóvil'}
+              {isDriving ? '🚗 Manejando' : isMoving ? (isRunning ? '🏃 Corriendo' : '🚶 Caminando') : '⏸️ Inmóvil'}
             </span>
           </div>
         </div>

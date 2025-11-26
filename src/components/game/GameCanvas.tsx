@@ -48,17 +48,18 @@ import CannonCar from '@/components/vehicles/CannonCar';
 import CannonStepper from '@/components/physics/CannonStepper';
 import Minimap from '@/components/ui/Minimap';
 import LiveCameraCapture from '@/components/cameras/LiveCameraCapture';
+import DebugInfo from '@/components/ui/DebugInfo';
 
 export default function GameCanvas() {
   const { isConnected, connectionError, connect, joinGame } = useSocket();
-  const { position, player } = usePlayerStore();
+  const { player } = usePlayerStore();
   const { players } = useWorldStore();
   const { isInventoryOpen, isMapOpen, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals } = useUIStore();
   const { settings, isLoaded } = useGameSettings();
   
   // Game settings state
   const [showSettings, setShowSettings] = useState(false);
-  const { isActive: isTestingCameraActive, height: testingHeight, distance: testingDistance } = useTestingCamera(isChatOpen);
+  const { isActive: isTestingCameraActive, height: testingHeight, distance: testingDistance } = useTestingCamera();
   
   // Game flow state
   const [showLogin, setShowLogin] = useState(true);
@@ -69,14 +70,12 @@ export default function GameCanvas() {
   const [hidePlayerWhileDriving, setHidePlayerWhileDriving] = useState(false);
   const [canEnterVehicle, setCanEnterVehicle] = useState(false);
   const [vehSpawn, setVehSpawn] = useState<{ x: number; y: number; z: number; yaw: number } | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
   const [showModelInfo, setShowModelInfo] = useState(false);
   
   // Enable keyboard for movement when game is started (menus can be open)
   const keyboardEnabled = isGameStarted;
   const updatePositionStore = usePlayerStore((s) => s.updatePosition);
   const updateRotationStore = usePlayerStore((s) => s.updateRotation);
-  const playerVec3 = useMemo(() => new Vector3(position.x, position.y, position.z), [position.x, position.y, position.z]);
   
   // Deshabilitar controles del jugador cuando está conduciendo
   useKeyboard(isGameStarted && !showSettings && !isDriving);
@@ -90,7 +89,11 @@ export default function GameCanvas() {
       e.preventDefault();
       const w = window as unknown as { _veh_pos?: { x: number; y: number; z: number }; _veh_spawn?: { x: number; y: number; z: number } };
       const veh = w._veh_pos || w._veh_spawn;
-      const px = position.x, py = position.y, pz = position.z;
+      
+      const playerPos = usePlayerStore.getState().position;
+      if (!playerPos) return;
+
+      const px = playerPos.x, py = playerPos.y, pz = playerPos.z;
       const vx = veh?.x ?? px, vy = veh?.y ?? py, vz = veh?.z ?? pz;
       const dx = vx - px, dy = vy - py, dz = vz - pz;
       const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
@@ -139,7 +142,7 @@ export default function GameCanvas() {
     
     window.addEventListener('keydown', onF);
     return () => window.removeEventListener('keydown', onF);
-  }, [isGameStarted, canEnterVehicle, isDriving, updatePositionStore, position.x, position.y, position.z]);
+  }, [isGameStarted, canEnterVehicle, isDriving, updatePositionStore]);
 
   // Calcular proximidad al vehículo (cada 200ms)
   useEffect(() => {
@@ -159,9 +162,12 @@ export default function GameCanvas() {
         return; 
       }
       
-      const dx = vehPos.x - position.x;
-      const dy = vehPos.y - position.y;
-      const dz = vehPos.z - position.z;
+      const playerPos = usePlayerStore.getState().position;
+      if (!playerPos) return;
+
+      const dx = vehPos.x - playerPos.x;
+      const dy = vehPos.y - playerPos.y;
+      const dz = vehPos.z - playerPos.z;
       const distSq = dx*dx + dy*dy + dz*dz;
       
       // Permitir entrar si está a menos de 5 metros
@@ -169,7 +175,7 @@ export default function GameCanvas() {
     }, 200);
     
     return () => clearInterval(t);
-  }, [position.x, position.y, position.z, isDriving]);
+  }, [isDriving]);
 
   // Obtener spawn publicado por CityModel (con polling para evitar race condition)
   useEffect(() => {
@@ -179,19 +185,13 @@ export default function GameCanvas() {
     }
     
     let attempts = 0;
-    const maxAttempts = 20; // 2 segundos máximo
+    const maxAttempts = 300; // 30 segundos máximo (el modelo de ciudad puede tardar en cargar)
     
     const checkSpawn = () => {
       const s = (window as unknown as { _veh_spawn?: { x: number; y: number; z: number; yaw: number } })._veh_spawn;
       if (s) {
         setVehSpawn(s);
         console.log(`🚗 Vehículo spawneado en: X=${s.x.toFixed(1)}, Y=${s.y.toFixed(1)}, Z=${s.z.toFixed(1)}`);
-        console.log(`📍 Tu jugador está en: X=${position.x.toFixed(1)}, Y=${position.y.toFixed(1)}, Z=${position.z.toFixed(1)}`);
-        const distance = Math.sqrt(
-          Math.pow(s.x - position.x, 2) + 
-          Math.pow(s.z - position.z, 2)
-        );
-        console.log(`📏 Distancia al vehículo: ${distance.toFixed(1)} metros`);
         return true;
       }
       return false;
@@ -206,13 +206,13 @@ export default function GameCanvas() {
       if (checkSpawn() || attempts >= maxAttempts) {
         clearInterval(interval);
         if (attempts >= maxAttempts) {
-          console.warn('⚠️ No se encontró spawn de vehículo después de 2 segundos');
+          console.warn('⚠️ No se encontró spawn de vehículo después de 30 segundos');
         }
       }
     }, 100);
     
     return () => clearInterval(interval);
-  }, [currentMap, position.x, position.y, position.z]);
+  }, [currentMap]); // ⚡ Optimized: Removed position dependencies to prevent re-running every frame
   
   // Constantes para evitar re-renderizados
   const hotelInteriorProps = useMemo(() => ({
@@ -326,9 +326,7 @@ export default function GameCanvas() {
     
     // Connect to server after login
     if (!isConnected) {
-      setIsConnecting(true);
       await connect();
-      setIsConnecting(false);
     }
   };
 
@@ -442,7 +440,6 @@ export default function GameCanvas() {
               <PortalTrigger
                 key={portal.id}
                 portal={portal}
-                playerPosition={playerVec3}
                 onPlayerEnter={handlePlayerEnterPortal}
                 onPlayerExit={handlePlayerExitPortal}
               />
@@ -451,11 +448,10 @@ export default function GameCanvas() {
             {/* Items recolectables en el mundo (sincronizados) */}
             <ItemSpawner 
               mapId={currentMap}
-              playerPosition={[position.x, position.y, position.z]}
             />
 
             {/* Capa de Waypoints de trabajos activos */}
-            <JobWaypointsLayer currentMap={currentMap} playerPosition={playerVec3} playerRoleId={player?.roleId ?? null} isDriving={isDriving} />
+            <JobWaypointsLayer currentMap={currentMap} playerRoleId={player?.roleId ?? null} isDriving={isDriving} />
 
             {/* NPC Shops por mapa (del config) */}
             {Object.values(NPCS).filter(n => n.mapId === currentMap && n.opensShopId).map(npc => (
@@ -463,7 +459,6 @@ export default function GameCanvas() {
                 key={npc.id}
                 zone={{ id: npc.id, kind: 'shop', name: npc.name, position: npc.zone.position, radius: npc.zone.radius }}
                 visual={npc.visual as { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] }}
-                playerPosition={playerVec3}
               />
             ))}
 
@@ -473,7 +468,6 @@ export default function GameCanvas() {
                 key={`job_${npc.id}`}
                 zone={{ id: `job_${npc.id}`, kind: 'job', name: npc.name, position: npc.zone.position, radius: npc.zone.radius }}
                 visual={npc.visual as { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] }}
-                playerPosition={playerVec3}
                 jobId={npc.jobId!}
               />
             ))}
@@ -481,7 +475,6 @@ export default function GameCanvas() {
           {/* Current Player - Ocultar cuando está conduciendo */}
           {!hidePlayerWhileDriving && (
             <PlayerV2 
-              position={[position.x, position.y, position.z]}
               isCurrentPlayer={true}
               keyboardEnabled={keyboardEnabled}
               customization={player?.customization}
@@ -501,7 +494,8 @@ export default function GameCanvas() {
             const sessionId = colyseusClient.getSessionId();
             const sameMap = players.filter(p => p.mapId === currentMap);
             const others = sameMap.filter(p => (sessionId ? p.id !== sessionId : p.id !== player?.id));
-            const origin = { x: position.x, y: position.y, z: position.z };
+            const playerPos = usePlayerStore.getState().position;
+            const origin = playerPos ? { x: playerPos.x, y: playerPos.y, z: playerPos.z } : { x: 0, y: 0, z: 0 };
             const dist = (p: { position: { x: number; z: number } }) => {
               const dx = p.position.x - origin.x;
               const dz = p.position.z - origin.z;
@@ -579,7 +573,7 @@ export default function GameCanvas() {
       <ServerClock className="absolute top-4 left-[48%] z-10" />
       
       {/* Player Stats HUD - Reorganizado */}
-      <PlayerStatsHUD className="absolute top-4 right-4 z-10" />
+      <PlayerStatsHUD className="absolute top-4 right-4 z-10" isDriving={isDriving} />
       
       {/* Vehicle HUD - Mostrar solo cuando está conduciendo */}
       {isDriving && <VehicleHUD vehicleId="playerCar" visible={isDriving} />}
@@ -677,25 +671,9 @@ export default function GameCanvas() {
         </div>
       )}
       
-      {/* Debug: Mostrar ubicación del vehículo */}
-      {process.env.NODE_ENV === 'development' && vehSpawn && (
-        <div className="absolute bottom-32 left-4 z-20 bg-blue-900/80 text-white text-xs p-2 rounded">
-          <div className="font-bold mb-1">🚗 Vehículo:</div>
-          <div>X: {vehSpawn.x.toFixed(1)}</div>
-          <div>Y: {vehSpawn.y.toFixed(1)}</div>
-          <div>Z: {vehSpawn.z.toFixed(1)}</div>
-          <div className="mt-1 font-bold">📍 Tu posición:</div>
-          <div>X: {position.x.toFixed(1)}</div>
-          <div>Y: {position.y.toFixed(1)}</div>
-          <div>Z: {position.z.toFixed(1)}</div>
-          <div className="mt-1 font-bold">
-            📏 Distancia: {Math.sqrt(
-              Math.pow(vehSpawn.x - position.x, 2) + 
-              Math.pow(vehSpawn.z - position.z, 2)
-            ).toFixed(1)}m
-          </div>
-        </div>
-      )}
+      {/* Debug: Mostrar ubicación del vehículo y jugador */}
+      <DebugInfo vehSpawn={vehSpawn} />
+
       <JobsUI />
 
       {isMapOpen && (
@@ -738,7 +716,6 @@ export default function GameCanvas() {
         isOpen={showCharacterCreator}
         onClose={handleBackToLogin}
         onComplete={handleCharacterComplete}
-        isConnecting={isConnecting}
       />
 
       {/* Model Info Modal */}

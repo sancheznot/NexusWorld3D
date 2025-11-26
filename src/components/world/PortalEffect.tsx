@@ -1,9 +1,11 @@
 'use client';
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
+
+import { usePlayerStore } from '@/store/playerStore';
 
 interface PortalEffectProps {
   position: [number, number, number];
@@ -11,7 +13,6 @@ interface PortalEffectProps {
   color?: string;
   intensity?: number;
   icon?: string;
-  playerPosition?: [number, number, number];
 }
 
 export default function PortalEffect({ 
@@ -20,12 +21,12 @@ export default function PortalEffect({
   color = '#ff6b35', 
   intensity = 2,
   icon = '🏨',
-  playerPosition
 }: PortalEffectProps) {
   const groupRef = useRef<THREE.Group>(null);
   const lightRef = useRef<THREE.PointLight>(null);
   const ringRef = useRef<THREE.Mesh>(null);
   const particlesRef = useRef<THREE.Points>(null);
+  const [showIcon, setShowIcon] = useState(false);
 
   // Crear geometría de partículas
   const particlesGeometry = useMemo(() => {
@@ -110,6 +111,18 @@ export default function PortalEffect({
     if (lightRef.current) {
       lightRef.current.intensity = intensity * 0.1 + Math.sin(time * 2) * 0.02; // Muchísimo más suave
     }
+
+    // Check distance for icon visibility
+    const playerPos = usePlayerStore.getState().position;
+    if (playerPos && icon) {
+      const distSq = 
+        Math.pow(position[0] - playerPos.x, 2) +
+        Math.pow(position[1] - playerPos.y, 2) +
+        Math.pow(position[2] - playerPos.z, 2);
+      
+      const shouldShow = distSq <= 289; // 17^2
+      if (shouldShow !== showIcon) setShowIcon(shouldShow);
+    }
   });
 
   return (
@@ -143,14 +156,7 @@ export default function PortalEffect({
         target-position={[0, 0, 0]}
       />
       {/* Icono del portal flotando (solo si el jugador está cerca) */}
-      {icon && playerPosition && (() => {
-        const distance = Math.sqrt(
-          Math.pow(position[0] - playerPosition[0], 2) +
-          Math.pow(position[1] - playerPosition[1], 2) +
-          Math.pow(position[2] - playerPosition[2], 2)
-        );
-        return distance <= 17; // Solo renderizar si está a 17 metros o menos
-      })() && (
+      {icon && showIcon && (
         <Html 
           position={[0, 1, 0]} 
           center
