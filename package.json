@@ -19,6 +19,7 @@
     "dev": "concurrently \"next dev\" \"tsx server/index.ts\"",
     "build": "next build",
     "start": "tsx server/combined.ts",
+    "start:all": "npm run start",
     "lint": "eslint"
   },
   "dependencies": {
