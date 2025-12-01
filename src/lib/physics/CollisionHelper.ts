@@ -1,22 +1,22 @@
 /**
  * Collision Helper - Utilidades para crear y gestionar colliders optimizados
  * Inspirado en Sketchbook
- * 
+ *
  * Este helper funciona en conjunto con:
  * - cannonPhysics.ts: Sistema principal de física con Cannon.js
  * - collisionSystem.ts: Sistema de colisiones básico de Three.js (fallback)
- * 
+ *
  * Proporciona métodos de alto nivel para crear colliders optimizados
  * sin necesidad de conocer los detalles de implementación.
  */
 
-import * as CANNON from 'cannon-es';
-import * as THREE from 'three';
-import { CollisionGroups } from '@/constants/collisionGroups';
-import type { CannonPhysics } from '@/lib/three/cannonPhysics';
+import * as CANNON from "cannon-es";
+import * as THREE from "three";
+import { CollisionGroups } from "@/constants/collisionGroups";
+import type { CannonPhysics } from "@/lib/three/cannonPhysics";
 
 export interface ColliderConfig {
-  type: 'box' | 'sphere' | 'cylinder' | 'trimesh' | 'compound';
+  type: "box" | "sphere" | "cylinder" | "trimesh" | "compound";
   mass?: number;
   position?: { x: number; y: number; z: number };
   rotation?: { x: number; y: number; z: number };
@@ -53,11 +53,19 @@ export class CollisionHelper {
     });
 
     if (config.position) {
-      body.position.set(config.position.x, config.position.y, config.position.z);
+      body.position.set(
+        config.position.x,
+        config.position.y,
+        config.position.z
+      );
     }
 
     if (config.rotation) {
-      body.quaternion.setFromEuler(config.rotation.x, config.rotation.y, config.rotation.z);
+      body.quaternion.setFromEuler(
+        config.rotation.x,
+        config.rotation.y,
+        config.rotation.z
+      );
     }
 
     return body;
@@ -80,7 +88,11 @@ export class CollisionHelper {
     });
 
     if (config.position) {
-      body.position.set(config.position.x, config.position.y, config.position.z);
+      body.position.set(
+        config.position.x,
+        config.position.y,
+        config.position.z
+      );
     }
 
     return body;
@@ -109,11 +121,19 @@ export class CollisionHelper {
     });
 
     if (config.position) {
-      body.position.set(config.position.x, config.position.y, config.position.z);
+      body.position.set(
+        config.position.x,
+        config.position.y,
+        config.position.z
+      );
     }
 
     if (config.rotation) {
-      body.quaternion.setFromEuler(config.rotation.x, config.rotation.y, config.rotation.z);
+      body.quaternion.setFromEuler(
+        config.rotation.x,
+        config.rotation.y,
+        config.rotation.z
+      );
     }
 
     return body;
@@ -123,7 +143,11 @@ export class CollisionHelper {
    * Crea un collider compuesto para objetos complejos (ej: árbol = cilindro + esfera)
    */
   static createCompoundCollider(
-    shapes: Array<{ shape: CANNON.Shape; offset?: CANNON.Vec3; orientation?: CANNON.Quaternion }>,
+    shapes: Array<{
+      shape: CANNON.Shape;
+      offset?: CANNON.Vec3;
+      orientation?: CANNON.Quaternion;
+    }>,
     config: ColliderConfig
   ): CANNON.Body {
     const body = new CANNON.Body({
@@ -138,11 +162,19 @@ export class CollisionHelper {
     });
 
     if (config.position) {
-      body.position.set(config.position.x, config.position.y, config.position.z);
+      body.position.set(
+        config.position.x,
+        config.position.y,
+        config.position.z
+      );
     }
 
     if (config.rotation) {
-      body.quaternion.setFromEuler(config.rotation.x, config.rotation.y, config.rotation.z);
+      body.quaternion.setFromEuler(
+        config.rotation.x,
+        config.rotation.y,
+        config.rotation.z
+      );
     }
 
     return body;
@@ -166,11 +198,14 @@ export class CollisionHelper {
     return this.createCompoundCollider(
       [
         { shape: trunk, offset: new CANNON.Vec3(0, trunkHeight / 2, 0) },
-        { shape: canopy, offset: new CANNON.Vec3(0, trunkHeight + canopyRadius, 0) },
+        {
+          shape: canopy,
+          offset: new CANNON.Vec3(0, trunkHeight + canopyRadius, 0),
+        },
       ],
       {
         ...config,
-        type: 'compound',
+        type: "compound",
         position,
         group: config.group ?? CollisionGroups.Default,
         mask: config.mask ?? -1,
@@ -190,7 +225,7 @@ export class CollisionHelper {
 
     return this.createSphereCollider(radius, {
       ...config,
-      type: 'sphere',
+      type: "sphere",
       position,
       group: config.group ?? CollisionGroups.Default,
       mask: config.mask ?? -1,
@@ -207,7 +242,7 @@ export class CollisionHelper {
   ): CANNON.Body {
     return this.createBoxCollider(size, {
       ...config,
-      type: 'box',
+      type: "box",
       position,
       group: config.group ?? CollisionGroups.Default,
       mask: config.mask ?? -1,
@@ -237,26 +272,28 @@ export class CollisionHelper {
   /**
    * Detecta el tipo de objeto basándose en su nombre
    */
-  static detectObjectType(name: string): 'tree' | 'rock' | 'building' | 'pole' | 'unknown' {
+  static detectObjectType(
+    name: string
+  ): "tree" | "rock" | "building" | "pole" | "unknown" {
     const lowerName = name.toLowerCase();
 
     if (/tree|arbol|palm|pine|oak|bush/i.test(lowerName)) {
-      return 'tree';
+      return "tree";
     }
 
     if (/rock|stone|boulder|piedra/i.test(lowerName)) {
-      return 'rock';
+      return "rock";
     }
 
     if (/building|house|edificio|casa|wall|pared/i.test(lowerName)) {
-      return 'building';
+      return "building";
     }
 
     if (/pole|post|poste|column|columna/i.test(lowerName)) {
-      return 'pole';
+      return "pole";
     }
 
-    return 'unknown';
+    return "unknown";
   }
 
   /**
@@ -270,21 +307,25 @@ export class CollisionHelper {
     const info = this.extractMeshInfo(mesh);
 
     switch (type) {
-      case 'tree':
+      case "tree":
         return this.createTreeCollider(info.position, info.size, config);
-      case 'rock':
+      case "rock":
         return this.createRockCollider(info.position, info.size, config);
-      case 'building':
+      case "building":
         return this.createBuildingCollider(info.position, info.size, config);
-      case 'pole':
+      case "pole":
         return this.createCylinderCollider(
           Math.min(info.size.x, info.size.z) * 0.5,
           info.size.y,
-          { ...config, type: 'cylinder', position: info.position }
+          { ...config, type: "cylinder", position: info.position }
         );
       default:
         // Fallback: box genérico
-        return this.createBoxCollider(info.size, { ...config, type: 'box', position: info.position });
+        return this.createBoxCollider(info.size, {
+          ...config,
+          type: "box",
+          position: info.position,
+        });
     }
   }
 
@@ -293,13 +334,13 @@ export class CollisionHelper {
    */
   static hasUCXCollider(scene: THREE.Object3D, objectName: string): boolean {
     let hasUCX = false;
-    const baseName = objectName.replace(/_\d+$/, '').toLowerCase();
+    const baseName = objectName.replace(/_\d+$/, "").toLowerCase();
 
     scene.traverse((child) => {
-      if (child.name.startsWith('UCX_')) {
+      if (child.name.startsWith("UCX_")) {
         const ucxBaseName = child.name
-          .replace(/^UCX_/, '')
-          .replace(/_\d+$/, '')
+          .replace(/^UCX_/, "")
+          .replace(/_\d+$/, "")
           .toLowerCase();
         if (ucxBaseName === baseName) {
           hasUCX = true;
@@ -335,7 +376,8 @@ export class CollisionHelper {
       if (options.skipObjects?.includes(mesh.name)) return;
 
       // Skip si no está en la lista de inclusión (si se especificó)
-      if (options.onlyObjects && !options.onlyObjects.includes(mesh.name)) return;
+      if (options.onlyObjects && !options.onlyObjects.includes(mesh.name))
+        return;
 
       // Skip si tiene UCX y useUCX está activado
       if (options.useUCX && this.hasUCXCollider(scene, mesh.name)) return;
@@ -356,7 +398,7 @@ export class CollisionHelper {
   /**
    * Método de alto nivel: Crea colliders usando el sistema CannonPhysics
    * Este es el método recomendado para usar en el juego.
-   * 
+   *
    * @param physics - Instancia de CannonPhysics
    * @param scene - Escena de Three.js
    * @param mapId - ID del mapa (para prefijo de colliders)
@@ -378,7 +420,7 @@ export class CollisionHelper {
     total: number;
   } {
     console.log(`🔧 CollisionHelper: Creando colliders para mapa ${mapId}`);
-    
+
     let ucxCount = 0;
     let preciseStats = { trees: 0, rocks: 0, poles: 0, skipped: 0 };
 
@@ -390,14 +432,19 @@ export class CollisionHelper {
 
     // 2. Crear colliders precisos si están habilitados
     if (options.usePrecise !== false) {
-      preciseStats = physics.createPreciseCollidersFromScene(scene, mapId);
-      console.log(`✅ Precise Colliders: ${preciseStats.trees} árboles, ${preciseStats.rocks} rocas, ${preciseStats.poles} postes`);
+      preciseStats = physics.createOptimizedColliders(scene, mapId);
+      console.log(
+        `✅ Precise Colliders: ${preciseStats.trees} árboles, ${preciseStats.rocks} rocas, ${preciseStats.poles} postes`
+      );
     }
 
-    const total = ucxCount + preciseStats.trees + preciseStats.rocks + preciseStats.poles;
-    
+    const total =
+      ucxCount + preciseStats.trees + preciseStats.rocks + preciseStats.poles;
+
     console.log(`🎉 Total de colliders creados: ${total}`);
-    console.log(`⏭️  Objetos saltados (ya tienen UCX): ${preciseStats.skipped}`);
+    console.log(
+      `⏭️  Objetos saltados (ya tienen UCX): ${preciseStats.skipped}`
+    );
 
     return {
       ucx: ucxCount,
@@ -461,10 +508,7 @@ export class CollisionHelper {
   /**
    * Limpia todos los colliders de un mapa específico
    */
-  static clearMapColliders(
-    physics: CannonPhysics,
-    mapId: string
-  ): number {
+  static clearMapColliders(physics: CannonPhysics, mapId: string): number {
     return physics.removeBodiesByPrefix(mapId);
   }
 
@@ -478,13 +522,13 @@ export class CollisionHelper {
   } {
     const world = physics.getWorld();
     const bodies = world.bodies;
-    
+
     // Contar vehículos (bodies con masa > 0 que no son el jugador)
-    const vehicleBodies = bodies.filter(b => b.mass > 1).length;
-    
+    const vehicleBodies = bodies.filter((b) => b.mass > 1).length;
+
     return {
       totalBodies: bodies.length,
-      playerBody: bodies.some(b => b.mass === 1), // El jugador tiene masa 1
+      playerBody: bodies.some((b) => b.mass === 1), // El jugador tiene masa 1
       vehicleBodies,
     };
   }
@@ -500,27 +544,27 @@ export class CollisionHelper {
 
     // Verificar que tenga al menos una shape
     if (body.shapes.length === 0) {
-      warnings.push('Body no tiene shapes');
+      warnings.push("Body no tiene shapes");
     }
 
     // Verificar collision groups
     if (body.collisionFilterGroup === 0) {
-      warnings.push('CollisionFilterGroup no está configurado');
+      warnings.push("CollisionFilterGroup no está configurado");
     }
 
     // Verificar collision mask
     if (body.collisionFilterMask === 0) {
-      warnings.push('CollisionFilterMask está en 0 (no colisionará con nada)');
+      warnings.push("CollisionFilterMask está en 0 (no colisionará con nada)");
     }
 
     // Verificar material
     if (!body.material) {
-      warnings.push('Body no tiene material asignado');
+      warnings.push("Body no tiene material asignado");
     }
 
     // Verificar collisionResponse
     if (!body.collisionResponse) {
-      warnings.push('collisionResponse está desactivado');
+      warnings.push("collisionResponse está desactivado");
     }
 
     return {
@@ -530,31 +574,30 @@ export class CollisionHelper {
   }
 }
 
-
 /**
  * GUÍA DE USO RÁPIDO
  * ===================
- * 
+ *
  * 1. Crear colliders para un mapa completo (RECOMENDADO):
- * 
+ *
  *    const stats = CollisionHelper.createCollidersWithPhysics(
  *      physics,
  *      scene,
  *      'exterior',
  *      { useUCX: true, usePrecise: true }
  *    );
- * 
+ *
  * 2. Crear collider individual para edificio:
- * 
+ *
  *    CollisionHelper.createBuildingColliderWithPhysics(
  *      physics,
  *      { x: 0, y: 0, z: 0 },
  *      { x: 10, y: 5, z: 10 },
  *      'building-hotel'
  *    );
- * 
+ *
  * 3. Crear collider individual para árbol:
- * 
+ *
  *    CollisionHelper.createTreeColliderWithPhysics(
  *      physics,
  *      { x: 5, y: 0, z: 5 },
@@ -562,15 +605,14 @@ export class CollisionHelper {
  *      8,    // altura
  *      'tree-01'
  *    );
- * 
+ *
  * 4. Limpiar colliders de un mapa:
- * 
+ *
  *    const removed = CollisionHelper.clearMapColliders(physics, 'exterior');
  *    console.log(`Removed ${removed} colliders`);
- * 
+ *
  * 5. Obtener estadísticas:
- * 
+ *
  *    const stats = CollisionHelper.getColliderStats(physics);
  *    console.log(`Total bodies: ${stats.totalBodies}`);
  */
-
