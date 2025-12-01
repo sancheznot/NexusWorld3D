@@ -162,7 +162,7 @@ export const GAME_CONFIG = {
       maxGears: 5,
       timeToShift: 0.2, // Tiempo de transición entre marchas (segundos)
       gearsMaxSpeeds: {
-        "-1": -4, // Reversa: -14 km/h
+        "-1": -6.67, // Reversa: -24 km/h
         "0": 0, // Neutro
         "1": 8, // Primera: ~29 km/h
         "2": 14, // Segunda: ~50 km/h

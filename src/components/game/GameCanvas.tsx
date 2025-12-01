@@ -9,6 +9,7 @@ import { useWorldStore } from '@/store/worldStore';
 import { useGameSettings } from '@/hooks/useGameSettings';
 import PlayerV2 from '@/components/world/PlayerV2';
 import { colyseusClient } from '@/lib/colyseus/client';
+import jobsClient from '@/lib/colyseus/JobsClient';
 import CityModel from '@/components/world/CityModel';
 import Lighting from '@/components/world/Lighting';
 import Skybox from '@/components/world/Skybox';
@@ -40,6 +41,7 @@ import timeClient from '@/lib/colyseus/TimeClient';
 import BankUI from '@/components/ui/BankUI';
 import ShopUI from '@/components/ui/ShopUI';
 import NPCShopTrigger from '@/components/world/NPCShopTrigger';
+import JobProgressUI from '@/components/ui/JobProgressUI';
 import JobsUI from '@/components/ui/JobsUI';
 import NPCJobTrigger from '@/components/world/NPCJobTrigger';
 import JobWaypointsLayer from '@/components/world/JobWaypointsLayer';
@@ -49,6 +51,7 @@ import CannonStepper from '@/components/physics/CannonStepper';
 import Minimap from '@/components/ui/Minimap';
 import LiveCameraCapture from '@/components/cameras/LiveCameraCapture';
 import DebugInfo from '@/components/ui/DebugInfo';
+import TruckSpawner from '@/components/game/TruckSpawner';
 
 export default function GameCanvas() {
   const { isConnected, connectionError, connect, joinGame } = useSocket();
@@ -70,6 +73,7 @@ export default function GameCanvas() {
   const [hidePlayerWhileDriving, setHidePlayerWhileDriving] = useState(false);
   const [canEnterVehicle, setCanEnterVehicle] = useState(false);
   const [vehSpawn, setVehSpawn] = useState<{ x: number; y: number; z: number; yaw: number } | null>(null);
+  const [vehicleModel, setVehicleModel] = useState('/models/vehicles/cars/City_Car_07.glb');
   const [showModelInfo, setShowModelInfo] = useState(false);
   
   // Enable keyboard for movement when game is started (menus can be open)
@@ -143,6 +147,20 @@ export default function GameCanvas() {
     window.addEventListener('keydown', onF);
     return () => window.removeEventListener('keydown', onF);
   }, [isGameStarted, canEnterVehicle, isDriving, updatePositionStore]);
+
+  // 🚚 Remove truck when job is completed
+  useEffect(() => {
+    const onJobCompleted = () => {
+      console.log('🎉 Job completed! Removing truck...');
+      setVehSpawn(null);
+      setIsDriving(false);
+      setHidePlayerWhileDriving(false);
+      (window as unknown as { _isDriving?: boolean })._isDriving = false;
+    };
+    
+    jobsClient.on('jobs:completed', onJobCompleted);
+    return () => jobsClient.off('jobs:completed', onJobCompleted);
+  }, []);
 
   // Calcular proximidad al vehículo (cada 200ms)
   useEffect(() => {
@@ -527,9 +545,23 @@ export default function GameCanvas() {
           <CannonCar
             driving={isDriving}
             spawn={vehSpawn}
-            modelPath="/models/vehicles/cars/Car_07.glb"
+            modelPath={vehicleModel}
           />
         )}
+
+        {/* Truck Spawner */}
+        <TruckSpawner 
+          position={[70, 1, 65]} 
+          onSpawn={() => {
+            setVehicleModel('/models/vehicles/cars/City_Car_07.glb'); // Using City Car as Truck for now
+            // Teleport vehicle to spawn point if needed, or just let it stay
+            // Ideally we respawn it at the parking spot
+            setVehSpawn({ x: 65, y: 2, z: 65, yaw: 0 });
+            // Also ensure we are not driving so we can enter it
+            setIsDriving(false);
+            setHidePlayerWhileDriving(false);
+          }} 
+        />
 
         {/* DEBUG 3D: Pilar verde en el spawn del vehículo para verificar render */}
         {vehSpawn && (
@@ -648,6 +680,7 @@ export default function GameCanvas() {
       <InventoryUI />
       {currentMap === 'bank' && <BankUI />}
       <ShopUI />
+      <JobProgressUI />
 
       {/* Hint para conducir */}
       {!isDriving && canEnterVehicle && (
@@ -673,6 +706,8 @@ export default function GameCanvas() {
       
       {/* Debug: Mostrar ubicación del vehículo y jugador */}
       <DebugInfo vehSpawn={vehSpawn} />
+
+
 
       <JobsUI />
 

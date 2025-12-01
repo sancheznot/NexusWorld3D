@@ -16,14 +16,14 @@ interface CannonCarProps {
   id?: string;
 }
 
-export default function CannonCar({ driving, spawn, id = 'playerCar' }: CannonCarProps) {
+export default function CannonCar({ driving, spawn, modelPath = '/models/vehicles/cars/City_Car_07.glb', id = 'playerCar' }: CannonCarProps) {
   const groupRef = useRef<THREE.Group>(null);
   const wheelsRef = useRef<(THREE.Group | null)[]>([]);
   const steeringWheelRef = useRef<THREE.Object3D | null>(null);
   const [controls, setControls] = useState({ forward: false, backward: false, left: false, right: false, handbrake: false });
 
   // Cargar modelos separados
-  const chassisGLTF = useGLTF('/models/vehicles/cars/City_Car_07.glb');
+  const chassisGLTF = useGLTF(modelPath);
   const wheelGLTF = useGLTF('/models/vehicles/cars/Wheel_01.glb');
 
   // Preparar visuales
