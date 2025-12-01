@@ -316,7 +316,7 @@ export const useSocket = () => {
       console.log("🗺️ map:update recibido", data);
       // Refrescar jugadores presentes en este mapa (sin perder campos extra)
       // Mezcla conservadora: solo aseguramos mapId/position/rotation de los reportados
-      data.players.forEach((p) => {
+      data.players.forEach((p: any) => {
         updateWorldPlayer(p.id, {
           position: p.position,
           rotation: p.rotation,
