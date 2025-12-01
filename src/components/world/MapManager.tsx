@@ -52,7 +52,7 @@ export default function MapManager({
           <PortalTrigger
             key={portal.id}
             portal={portal}
-            playerPosition={playerPosition}
+
             onPlayerEnter={handlePlayerEnterPortal}
             onPlayerExit={handlePlayerExitPortal}
           />

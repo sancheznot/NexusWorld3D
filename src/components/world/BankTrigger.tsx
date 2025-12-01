@@ -19,7 +19,7 @@ export default function BankTrigger({ zone, playerPosition, userId, onOpenUI }: 
   return (
     <TriggerZone
       data={zone}
-      playerPosition={playerPosition}
+
       onEnter={() => { /* hint UI could show */ }}
       onExit={() => { /* hide hint */ }}
       onInteract={async () => {
