@@ -1,12 +1,13 @@
-import { Room, Client } from 'colyseus';
-import { gameRedis } from '../../src/lib/services/redis';
-import { InventoryEvents } from '../InventoryEvents';
-import { ItemEvents } from '../ItemEvents';
-import { TimeEvents } from '../TimeEvents';
-import { ShopEvents } from '../ShopEvents';
-import { EconomyEvents } from '../EconomyEvents';
-import { JobsEvents } from '../JobsEvents';
-import type { ExtendedJobId } from '../src/constants/jobs';
+import { Room, Client } from "colyseus";
+import { gameRedis } from "../../src/lib/services/redis";
+import { InventoryEvents } from "../InventoryEvents";
+import { ItemEvents } from "../ItemEvents";
+import { TimeEvents } from "../TimeEvents";
+import { ShopEvents } from "../ShopEvents";
+import { EconomyEvents } from "../EconomyEvents";
+import { JobsEvents } from "../JobsEvents";
+import type { ExtendedJobId } from "../../src/constants/jobs";
+import { HotelHumboldtState, PlayerState } from "./schema/HotelHumboldtState";
 
 interface PlayerData {
   id: string;
@@ -52,61 +53,76 @@ export class HotelHumboldtRoom extends Room {
   private _jobsEvents!: JobsEvents; // keep reference alive
 
   onCreate(_options: { [key: string]: string }) {
-    console.log('🏨 Hotel Humboldt Room creada');
-    
+    console.log("🏨 Hotel Humboldt Room creada");
+
     // Configurar la sala
     this.maxClients = 50;
     this.autoDispose = false;
-    
+
     // Configurar el estado de Colyseus para sincronización automática
     this.state = {
-      players: new Map()
+      players: new Map(),
     };
-    
-    console.log('🔄 Estado inicial de Colyseus:', this.state);
-    console.log('🔄 this.state.players:', this.state.players);
-    
+
+    console.log("🔄 Estado inicial de Colyseus:", this.state);
+    console.log("🔄 this.state.players:", this.state.players);
+
     // Cargar mensajes de chat recientes
     this.loadRecentChatMessages();
-    
+
     // Configurar handlers de mensajes
     this.setupMessageHandlers();
-    
+
     // Inicializar economía (banca, transferencias) PRIMERO
     this._economyEvents = new EconomyEvents(this);
     // Inicializar eventos de inventario con referencia a economía
     this.inventoryEvents = new InventoryEvents(this, this._economyEvents);
     // Inicializar sistema de ítems del mundo
-    this._itemEvents = new ItemEvents(this, (clientId: string) => {
-      const p = this.players.get(clientId);
-      return p?.mapId || null;
-    }, (playerId: string, baseItem) => this.inventoryEvents.addItemFromWorld(playerId, baseItem));
+    this._itemEvents = new ItemEvents(
+      this,
+      (clientId: string) => {
+        const p = this.players.get(clientId);
+        return p?.mapId || null;
+      },
+      (playerId: string, baseItem) =>
+        this.inventoryEvents.addItemFromWorld(playerId, baseItem)
+    );
     // Inicializar sistema de tiempo (día/noche)
     this._timeEvents = new TimeEvents(this);
 
     // Inicializar sistema de tiendas
     this._shopEvents = new ShopEvents(this, {
-      grantItemToPlayer: (playerId, baseItem) => this.inventoryEvents.addItemFromWorld(playerId, baseItem),
-      getPlayerRole: (clientId: string) => this.getPlayerRole(clientId),
+      grantItemToPlayer: (playerId, baseItem) =>
+        this.inventoryEvents.addItemFromWorld(playerId, baseItem),
+      getPlayerRole: (clientId: string) =>
+        this.getPlayerRole(clientId) || undefined,
       getPlayerMapId: (clientId: string) => {
         const p = this.players.get(clientId);
         return p?.mapId || null;
       },
-      economy: { chargeWalletMajor: (userId: string, amount: number, reason?: string) => this._economyEvents.chargeWalletMajor(userId, amount, reason) },
+      economy: {
+        chargeWalletMajor: (userId: string, amount: number, reason?: string) =>
+          this._economyEvents.chargeWalletMajor(userId, amount, reason),
+      },
     });
 
     // Inicializar sistema de trabajos
     this._jobsEvents = new JobsEvents(this, {
-      grantItemToPlayer: (playerId, baseItem) => this.inventoryEvents.addItemFromWorld(playerId, baseItem),
+      grantItemToPlayer: (playerId, baseItem) =>
+        this.inventoryEvents.addItemFromWorld(playerId, baseItem),
       getPlayerMapId: (clientId: string) => {
         const p = this.players.get(clientId);
         return p?.mapId || null;
       },
       getPlayerRole: (clientId: string) => this.getPlayerRole(clientId),
-      setPlayerRole: (playerId: string, roleId) => this.setPlayerRole(playerId, roleId),
-      economy: { creditWalletMajor: (userId: string, amount: number, reason?: string) => this._economyEvents.creditWalletMajor(userId, amount, reason) },
+      setPlayerRole: (playerId: string, roleId) =>
+        this.setPlayerRole(playerId, roleId),
+      economy: {
+        creditWalletMajor: (userId: string, amount: number, reason?: string) =>
+          this._economyEvents.creditWalletMajor(userId, amount, reason),
+      },
     });
-    
+
     // Configurar limpieza automática
     this.setupCleanup();
 
@@ -123,60 +139,91 @@ export class HotelHumboldtRoom extends Room {
         }
       }
       if (removed.length > 0) {
-        console.log(`🧹 Eliminados por inactividad (offline): ${removed.length}`);
-        this.broadcast('players:updated', { players: Array.from(this.players.values()) });
+        console.log(
+          `🧹 Eliminados por inactividad (offline): ${removed.length}`
+        );
+        this.broadcast("players:updated", {
+          players: Array.from(this.players.values()),
+        });
       }
     }, 30000);
   }
 
-  async onJoin(client: Client, options?: { username?: string; worldId?: string }) {
+  async onJoin(
+    client: Client,
+    options?: { username?: string; worldId?: string }
+  ) {
     console.log(`👤 Cliente ${client.sessionId} se unió al Hotel Humboldt`);
 
     const now = Date.now();
     const defaultPosition = { x: 0, y: 0, z: 0 };
     const defaultRotation = { x: 0, y: 0, z: 0 };
-    const defaultMapId = 'exterior';
-    const defaultWorldId = options?.worldId || 'hotel-humboldt';
-    const fallbackUsername = options?.username || `Jugador_${client.id.substring(0, 6)}`;
+    const defaultMapId = "exterior";
+    const defaultWorldId = options?.worldId || "hotel-humboldt";
+    const fallbackUsername =
+      options?.username || `Jugador_${client.id.substring(0, 6)}`;
 
-    const parseVector = (value: unknown, fallback: { x: number; y: number; z: number }) => {
+    const parseVector = (
+      value: unknown,
+      fallback: { x: number; y: number; z: number }
+    ) => {
       if (!value) return fallback;
-      if (typeof value === 'string') {
+      if (typeof value === "string") {
         try {
-          const parsed = JSON.parse(value) as { x: number; y: number; z: number };
-          if (typeof parsed.x === 'number' && typeof parsed.y === 'number' && typeof parsed.z === 'number') {
+          const parsed = JSON.parse(value) as {
+            x: number;
+            y: number;
+            z: number;
+          };
+          if (
+            typeof parsed.x === "number" &&
+            typeof parsed.y === "number" &&
+            typeof parsed.z === "number"
+          ) {
             return parsed;
           }
         } catch {}
-      } else if (typeof value === 'object') {
+      } else if (typeof value === "object") {
         const obj = value as { x?: number; y?: number; z?: number };
-        if (typeof obj.x === 'number' && typeof obj.y === 'number' && typeof obj.z === 'number') {
+        if (
+          typeof obj.x === "number" &&
+          typeof obj.y === "number" &&
+          typeof obj.z === "number"
+        ) {
           return { x: obj.x, y: obj.y, z: obj.z };
         }
       }
       return fallback;
     };
     const parseNumber = (value: unknown, fallback: number) => {
-      const num = typeof value === 'string' ? Number(value) : typeof value === 'number' ? value : NaN;
+      const num =
+        typeof value === "string"
+          ? Number(value)
+          : typeof value === "number"
+          ? value
+          : NaN;
       return Number.isFinite(num) ? num : fallback;
     };
     const parseBoolean = (value: unknown, fallback: boolean) => {
-      if (typeof value === 'boolean') return value;
-      if (typeof value === 'string') return value === 'true';
+      if (typeof value === "boolean") return value;
+      if (typeof value === "string") return value === "true";
       return fallback;
     };
-    const parseString = (value: unknown, fallback: string) => (typeof value === 'string' && value.length > 0 ? value : fallback);
+    const parseString = (value: unknown, fallback: string) =>
+      typeof value === "string" && value.length > 0 ? value : fallback;
     const parseRole = (value: unknown): ExtendedJobId | null => {
-      if (typeof value === 'string' && value.length > 0) return value as ExtendedJobId;
+      if (typeof value === "string" && value.length > 0)
+        return value as ExtendedJobId;
       return null;
     };
 
     let storedData: Record<string, unknown> | null = null;
     try {
       const stored = await this.redis.getPlayer(client.sessionId);
-      if (stored && Object.keys(stored).length > 0) storedData = stored as Record<string, unknown>;
+      if (stored && Object.keys(stored).length > 0)
+        storedData = stored as Record<string, unknown>;
     } catch (error) {
-      console.warn('⚠️ Error recuperando jugador desde Redis:', error);
+      console.warn("⚠️ Error recuperando jugador desde Redis:", error);
     }
 
     const position = parseVector(storedData?.position, defaultPosition);
@@ -189,7 +236,7 @@ export class HotelHumboldtRoom extends Room {
     const level = parseNumber(storedData?.level, 1);
     const experience = parseNumber(storedData?.experience, 0);
     const worldId = parseString(storedData?.worldId, defaultWorldId);
-    const animation = parseString(storedData?.animation, 'idle');
+    const animation = parseString(storedData?.animation, "idle");
     const isMoving = parseBoolean(storedData?.isMoving, false);
     const isRunning = parseBoolean(storedData?.isRunning, false);
     const roleId = parseRole(storedData?.roleId);
@@ -220,142 +267,235 @@ export class HotelHumboldtRoom extends Room {
 
     // Agregar jugador
     this.players.set(client.sessionId, player);
-        
-        // Actualizar estado de Colyseus
+
+    // Actualizar estado de Colyseus
     this.state.players.set(client.sessionId, {
       id: player.id,
-          username: player.username,
-          x: player.position.x,
-          y: player.position.y,
-          z: player.position.z,
-          rotationX: player.rotation.x,
-          rotationY: player.rotation.y,
-          rotationZ: player.rotation.z,
+      username: player.username,
+      x: player.position.x,
+      y: player.position.y,
+      z: player.position.z,
+      rotationX: player.rotation.x,
+      rotationY: player.rotation.y,
+      rotationZ: player.rotation.z,
       mapId: player.mapId,
-          roleId: player.roleId,
-          health: player.health,
-          maxHealth: player.maxHealth,
-          stamina: player.stamina,
-          maxStamina: player.maxStamina,
-          level: player.level,
-          experience: player.experience,
-          animation: player.animation || 'idle',
-          isMoving: player.isMoving || false,
-          isRunning: player.isRunning || false,
-          isOnline: player.isOnline,
-          lastUpdate: player.lastUpdate || Date.now()
-        });
-        
-        console.log('🔄 Estado de Colyseus actualizado:', this.state);
-        console.log('🔄 this.state.players.size:', this.state.players.size);
-    console.log('🔄 Jugadores en this.state.players:', Array.from(this.state.players.keys()));
-        
-        // Guardar en Redis (reutilizando tu lógica)
-        void this.savePlayerToRedis(player);
-        
-        // Enviar estado actual a todos los jugadores
-        this.broadcast('player:joined', {
-          player: player,
-          players: Array.from(this.players.values()),
-        });
-        
-        // Enviar lista actualizada de jugadores
-        console.log('📤 Enviando players:updated a todos los clientes:', Array.from(this.players.values()).length, 'jugadores');
-        this.broadcast('players:updated', {
-          players: Array.from(this.players.values()),
-        });
-    
+      roleId: player.roleId,
+      health: player.health,
+      maxHealth: player.maxHealth,
+      stamina: player.stamina,
+      maxStamina: player.maxStamina,
+      level: player.level,
+      experience: player.experience,
+      animation: player.animation || "idle",
+      isMoving: player.isMoving || false,
+      isRunning: player.isRunning || false,
+      isOnline: player.isOnline,
+      lastUpdate: player.lastUpdate || Date.now(),
+    });
+
+    console.log("🔄 Estado de Colyseus actualizado:", this.state);
+    console.log("🔄 this.state.players.size:", this.state.players.size);
+    console.log(
+      "🔄 Jugadores en this.state.players:",
+      Array.from(this.state.players.keys())
+    );
+
+    // Guardar en Redis (reutilizando tu lógica)
+    void this.savePlayerToRedis(player);
+
+    // Enviar estado actual a todos los jugadores
+    this.broadcast("player:joined", {
+      player: player,
+      players: Array.from(this.players.values()),
+    });
+
+    // Enviar lista actualizada de jugadores
+    console.log(
+      "📤 Enviando players:updated a todos los clientes:",
+      Array.from(this.players.values()).length,
+      "jugadores"
+    );
+    this.broadcast("players:updated", {
+      players: Array.from(this.players.values()),
+    });
+
     // Crear inventario inicial para el jugador
     this.inventoryEvents.createPlayerInventory(client.sessionId);
-    
+
     // Enviar mensaje de bienvenida solo al jugador que se conectó
-    this.sendSystemMessageToClient(client, `¡Bienvenido al Hotel Humboldt, ${player.username}!`);
-    
-    console.log(`✅ Jugador ${player.username} agregado. Total: ${this.players.size}`);
+    this.sendSystemMessageToClient(
+      client,
+      `¡Bienvenido al Hotel Humboldt, ${player.username}!`
+    );
+
+    console.log(
+      `✅ Jugador ${player.username} agregado. Total: ${this.players.size}`
+    );
   }
 
   onLeave(client: Client, consented: boolean) {
     console.log(`👋 Cliente ${client.sessionId} salió del Hotel Humboldt`);
-    
+
     const player = this.players.get(client.sessionId);
     if (player) {
       // Marcar como offline
       player.isOnline = false;
       player.lastSeen = new Date();
-      
+
       // Guardar estado final en Redis
       this.savePlayerToRedis(player);
-      
+
       // Limpiar inventario del jugador
       this.inventoryEvents.cleanupPlayerInventory(client.sessionId);
-      
-          // Remover de la sala: inmediato si cierre consentido, pequeño delay si no
-          const delayMs = consented ? 0 : 2000;
-          setTimeout(() => {
-            this.players.delete(client.sessionId);
-            this.state.players.delete(client.sessionId);
-            
-            this.broadcast('player:left', {
-              playerId: client.sessionId,
-              players: Array.from(this.players.values()),
-            });
-            
-            // Enviar lista actualizada de jugadores
-            console.log('📤 Enviando players:updated después de salir:', Array.from(this.players.values()).length, 'jugadores');
-            this.broadcast('players:updated', {
-              players: Array.from(this.players.values()),
-            });
-            
-            console.log(`🗑️ Jugador ${player.username} removido. Total: ${this.players.size}`);
-          }, delayMs);
-      
+
+      // Remover de la sala: inmediato si cierre consentido, pequeño delay si no
+      const delayMs = consented ? 0 : 2000;
+      setTimeout(() => {
+        this.players.delete(client.sessionId);
+        this.state.players.delete(client.sessionId);
+
+        this.broadcast("player:left", {
+          playerId: client.sessionId,
+          players: Array.from(this.players.values()),
+        });
+
+        // Enviar lista actualizada de jugadores
+        console.log(
+          "📤 Enviando players:updated después de salir:",
+          Array.from(this.players.values()).length,
+          "jugadores"
+        );
+        this.broadcast("players:updated", {
+          players: Array.from(this.players.values()),
+        });
+
+        console.log(
+          `🗑️ Jugador ${player.username} removido. Total: ${this.players.size}`
+        );
+      }, delayMs);
+
       this.sendSystemMessage(`${player.username} se desconectó`);
     }
   }
 
   onDispose() {
-    console.log('🏨 Hotel Humboldt Room cerrada');
+    console.log("🏨 Hotel Humboldt Room cerrada");
   }
 
   private setupMessageHandlers() {
     // Player join handler
-    this.onMessage('player:join', (client: Client, data: { username?: string; worldId?: string }) => {
-      console.log(`📥 Recibido player:join de ${client.id}:`, data);
-      // Actualizar datos del jugador con la información enviada por el cliente
-      const player = this.players.get(client.sessionId);
-      if (player) {
-        if (data?.username && data.username !== player.username) {
-          player.username = data.username;
+    this.onMessage(
+      "player:join",
+      (client: Client, data: { username?: string; worldId?: string }) => {
+        console.log(`📥 Recibido player:join de ${client.id}:`, data);
+        // Actualizar datos del jugador con la información enviada por el cliente
+        const player = this.players.get(client.sessionId);
+        if (player) {
+          if (data?.username && data.username !== player.username) {
+            player.username = data.username;
+          }
+          if (data?.worldId && data.worldId !== player.worldId) {
+            player.worldId = data.worldId;
+          }
+          // Reflejar cambios en el estado sincronizado de Colyseus
+          const statePlayer = this.state.players.get(client.sessionId);
+          if (statePlayer) {
+            statePlayer.username = player.username;
+          }
+          // Guardar cambios en Redis
+          this.savePlayerToRedis(player);
+          // Reenviar lista de jugadores actualizada a todos
+          console.log(
+            "📤 players:updated tras player:join (update de datos):",
+            this.players.size
+          );
+          this.broadcast("players:updated", {
+            players: Array.from(this.players.values()),
+          });
         }
-        if (data?.worldId && data.worldId !== player.worldId) {
-          player.worldId = data.worldId;
-        }
-        // Reflejar cambios en el estado sincronizado de Colyseus
-        const statePlayer = this.state.players.get(client.sessionId);
-        if (statePlayer) {
-          statePlayer.username = player.username;
-        }
-        // Guardar cambios en Redis
-        this.savePlayerToRedis(player);
-        // Reenviar lista de jugadores actualizada a todos
-        console.log('📤 players:updated tras player:join (update de datos):', this.players.size);
-        this.broadcast('players:updated', {
-          players: Array.from(this.players.values()),
-        });
       }
-    });
+    );
 
     // Movimiento del jugador (reutilizando tu lógica)
-    this.onMessage('player:move', (client: Client, data: { position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number }; isRunning?: boolean; isMoving?: boolean; animation?: string }) => {
-      const player = this.players.get(client.sessionId);
-      if (player) {
+    this.onMessage(
+      "player:move",
+      (
+        client: Client,
+        data: {
+          position: { x: number; y: number; z: number };
+          rotation: { x: number; y: number; z: number };
+          isRunning?: boolean;
+          isMoving?: boolean;
+          animation?: string;
+        }
+      ) => {
+        const player = this.players.get(client.sessionId);
+        if (player) {
+          player.position = data.position;
+          player.rotation = data.rotation;
+          player.animation =
+            data.animation ||
+            (data.isRunning ? "running" : data.isMoving ? "walking" : "idle");
+          player.isMoving = data.isMoving || false;
+          player.isRunning = data.isRunning || false;
+          player.lastUpdate = Date.now();
+          // Reflejar movimiento también en el estado sincronizado
+          const statePlayer = this.state.players.get(client.sessionId);
+          if (statePlayer) {
+            statePlayer.x = player.position.x;
+            statePlayer.y = player.position.y;
+            statePlayer.z = player.position.z;
+            statePlayer.rotationX = player.rotation.x;
+            statePlayer.rotationY = player.rotation.y;
+            statePlayer.rotationZ = player.rotation.z;
+            statePlayer.animation = player.animation;
+            statePlayer.isMoving = player.isMoving;
+            statePlayer.isRunning = player.isRunning;
+            statePlayer.lastUpdate = player.lastUpdate;
+          }
+
+          // Enviar solo a jugadores en el mismo mapa
+          this.clients.forEach((c) => {
+            if (c.sessionId === client.sessionId) return;
+            const target = this.players.get(c.sessionId);
+            if (target && target.mapId === player.mapId) {
+              c.send("player:moved", {
+                playerId: client.sessionId,
+                movement: data,
+              });
+            }
+          });
+
+          // Actualizar en Redis (menos frecuente para optimizar)
+          // Guardar de forma ocasional
+          // if (Date.now() - (player.lastUpdate || 0) > 1000) {
+          //   this.savePlayerToRedis(player);
+          // }
+        }
+      }
+    );
+
+    // Cambio de mapa del jugador
+    this.onMessage(
+      "map:change",
+      (
+        client: Client,
+        data: {
+          fromMapId: string;
+          toMapId: string;
+          position: { x: number; y: number; z: number };
+          rotation: { x: number; y: number; z: number };
+          reason?: string;
+        }
+      ) => {
+        const player = this.players.get(client.sessionId);
+        if (!player) return;
+        player.mapId = data.toMapId;
         player.position = data.position;
         player.rotation = data.rotation;
-        player.animation = data.animation || (data.isRunning ? 'running' : data.isMoving ? 'walking' : 'idle');
-        player.isMoving = data.isMoving || false;
-        player.isRunning = data.isRunning || false;
         player.lastUpdate = Date.now();
-        // Reflejar movimiento también en el estado sincronizado
+
+        // Reflejar en estado sincronizado
         const statePlayer = this.state.players.get(client.sessionId);
         if (statePlayer) {
           statePlayer.x = player.position.x;
@@ -364,78 +504,37 @@ export class HotelHumboldtRoom extends Room {
           statePlayer.rotationX = player.rotation.x;
           statePlayer.rotationY = player.rotation.y;
           statePlayer.rotationZ = player.rotation.z;
-          statePlayer.animation = player.animation;
-          statePlayer.isMoving = player.isMoving;
-          statePlayer.isRunning = player.isRunning;
+          statePlayer.mapId = player.mapId;
           statePlayer.lastUpdate = player.lastUpdate;
         }
-        
-        // Enviar solo a jugadores en el mismo mapa
+
+        // Notificar a todos los clientes el cambio de mapa del jugador
+        const payload = {
+          playerId: client.sessionId,
+          mapId: player.mapId,
+          position: player.position,
+          rotation: player.rotation,
+          timestamp: Date.now(),
+        };
+
         this.clients.forEach((c) => {
-          if (c.sessionId === client.sessionId) return;
-          const target = this.players.get(c.sessionId);
-          if (target && target.mapId === player.mapId) {
-            c.send('player:moved', {
-              playerId: client.sessionId,
-              movement: data,
-            });
-          }
+          c.send("map:changed", payload);
         });
-        
-        // Actualizar en Redis (menos frecuente para optimizar)
-        // Guardar de forma ocasional
-        // if (Date.now() - (player.lastUpdate || 0) > 1000) {
-        //   this.savePlayerToRedis(player);
-        // }
       }
-    });
-
-    // Cambio de mapa del jugador
-    this.onMessage('map:change', (client: Client, data: { fromMapId: string; toMapId: string; position: { x: number; y: number; z: number }; rotation: { x: number; y: number; z: number }; reason?: string }) => {
-      const player = this.players.get(client.sessionId);
-      if (!player) return;
-      player.mapId = data.toMapId;
-      player.position = data.position;
-      player.rotation = data.rotation;
-      player.lastUpdate = Date.now();
-
-      // Reflejar en estado sincronizado
-      const statePlayer = this.state.players.get(client.sessionId);
-      if (statePlayer) {
-        statePlayer.x = player.position.x;
-        statePlayer.y = player.position.y;
-        statePlayer.z = player.position.z;
-        statePlayer.rotationX = player.rotation.x;
-        statePlayer.rotationY = player.rotation.y;
-        statePlayer.rotationZ = player.rotation.z;
-        statePlayer.mapId = player.mapId;
-        statePlayer.lastUpdate = player.lastUpdate;
-      }
-
-      // Notificar a todos los clientes el cambio de mapa del jugador
-      const payload = {
-        playerId: client.sessionId,
-        mapId: player.mapId,
-        position: player.position,
-        rotation: player.rotation,
-        timestamp: Date.now(),
-      };
-
-      this.clients.forEach((c) => {
-        c.send('map:changed', payload);
-      });
-    });
+    );
 
     // Petición de datos del mapa actual (jugadores presentes, etc.)
-    this.onMessage('map:request', (client: Client, data: { mapId: string }) => {
+    this.onMessage("map:request", (client: Client, data: { mapId: string }) => {
       const mapId = data?.mapId;
-      const playersInMap = Array.from(this.players.values()).filter(p => p.mapId === mapId).map(p => ({
-        id: p.id,
-        mapId: p.mapId,
-        position: p.position,
-        rotation: p.rotation,
-      }));
-      client.send('map:update', {
+      const playersInMap = Array.from(this.players.values())
+        .filter((p) => p.mapId === mapId)
+        .map((p) => ({
+          id: p.id,
+          mapId: p.mapId,
+          position: p.position,
+          rotation: p.rotation,
+        }));
+      client.send("map:update", {
         players: playersInMap,
         mapId,
         timestamp: Date.now(),
@@ -443,7 +542,7 @@ export class HotelHumboldtRoom extends Room {
     });
 
     // Heartbeat del jugador para refrescar lastUpdate sin necesidad de movimiento
-    this.onMessage('player:heartbeat', (client: Client, _data?: unknown) => {
+    this.onMessage("player:heartbeat", (client: Client, _data?: unknown) => {
       const player = this.players.get(client.sessionId);
       if (player) {
         player.lastUpdate = Date.now();
@@ -455,65 +554,88 @@ export class HotelHumboldtRoom extends Room {
     });
 
     // Chat (reutilizando tu lógica)
-    this.onMessage('chat:message', (client: Client, data: { message: string; channel?: string }) => {
-      const player = this.players.get(client.sessionId);
-      if (player && data.message) {
-        const chatMessage: ChatMessage = {
-          id: `msg_${Date.now()}_${client.sessionId}_${Math.random().toString(36).substring(2, 9)}`,
-          playerId: client.sessionId,
-          username: player.username,
-          message: data.message,
-          channel: data.channel || 'global',
-          timestamp: new Date(),
-          type: 'player'
-        };
-        
-        // Agregar al estado
-        this.chatMessages.push(chatMessage);
-        
-        // Mantener solo los últimos 100 mensajes
-        if (this.chatMessages.length > 100) {
-          this.chatMessages = this.chatMessages.slice(-100);
+    this.onMessage(
+      "chat:message",
+      (client: Client, data: { message: string; channel?: string }) => {
+        const player = this.players.get(client.sessionId);
+        if (player && data.message) {
+          const chatMessage: ChatMessage = {
+            id: `msg_${Date.now()}_${client.sessionId}_${Math.random()
+              .toString(36)
+              .substring(2, 9)}`,
+            playerId: client.sessionId,
+            username: player.username,
+            message: data.message,
+            channel: data.channel || "global",
+            timestamp: new Date(),
+            type: "player",
+          };
+
+          // Agregar al estado
+          this.chatMessages.push(chatMessage);
+
+          // Mantener solo los últimos 100 mensajes
+          if (this.chatMessages.length > 100) {
+            this.chatMessages = this.chatMessages.slice(-100);
+          }
+
+          // Guardar en Redis
+          this.saveChatMessageToRedis(chatMessage);
+
+          // Broadcast a todos
+          this.broadcast("chat:message", chatMessage);
+
+          console.log(`💬 ${player.username}: ${data.message}`);
         }
-        
-        // Guardar en Redis
-        this.saveChatMessageToRedis(chatMessage);
-        
-        // Broadcast a todos
-        this.broadcast('chat:message', chatMessage);
-        
-        console.log(`💬 ${player.username}: ${data.message}`);
       }
-    });
+    );
 
     // Ataque (reutilizando tu lógica)
-    this.onMessage('player:attack', (client: Client, data: { targetId: string; damage: number }) => {
-      const player = this.players.get(client.id);
-      if (player) {
-        console.log(`⚔️ ${player.username} atacó a ${data.targetId}`);
-        this.broadcast('player:attacked', {
-          attackerId: client.id,
-          targetId: data.targetId,
-          damage: data.damage,
-        }, { except: client });
+    this.onMessage(
+      "player:attack",
+      (client: Client, data: { targetId: string; damage: number }) => {
+        const player = this.players.get(client.id);
+        if (player) {
+          console.log(`⚔️ ${player.username} atacó a ${data.targetId}`);
+          this.broadcast(
+            "player:attacked",
+            {
+              attackerId: client.id,
+              targetId: data.targetId,
+              damage: data.damage,
+            },
+            { except: client }
+          );
+        }
       }
-    });
+    );
 
     // Interacción (reutilizando tu lógica)
-    this.onMessage('player:interact', (client: Client, data: { objectId: string }) => {
-      const player = this.players.get(client.id);
-      if (player) {
-        console.log(`🤝 ${player.username} interactuó con ${data.objectId}`);
-        // TODO: Implementar lógica de interacción
+    this.onMessage(
+      "player:interact",
+      (client: Client, data: { objectId: string }) => {
+        const player = this.players.get(client.id);
+        if (player) {
+          console.log(`🤝 ${player.username} interactuó con ${data.objectId}`);
+          // TODO: Implementar lógica de interacción
+        }
       }
-    });
+    );
   }
 
   private async loadRecentChatMessages() {
     try {
       const messages = await this.redis.getChatMessages(50);
       if (messages) {
-        const typed = messages as { id: string; playerId: string; username: string; message: string; channel: string; timestamp: string | number; type: string }[];
+        const typed = messages as {
+          id: string;
+          playerId: string;
+          username: string;
+          message: string;
+          channel: string;
+          timestamp: string | number;
+          type: string;
+        }[];
         this.chatMessages = typed.map((msg) => ({
           id: msg.id,
           playerId: msg.playerId,
@@ -521,12 +643,12 @@ export class HotelHumboldtRoom extends Room {
           message: msg.message,
           channel: msg.channel,
           timestamp: new Date(msg.timestamp),
-          type: msg.type
+          type: msg.type,
         }));
         console.log(`💬 ${messages.length} mensajes de chat cargados`);
       }
     } catch (error) {
-      console.warn('⚠️ Error cargando mensajes de chat:', error);
+      console.warn("⚠️ Error cargando mensajes de chat:", error);
     }
   }
 
@@ -543,17 +665,17 @@ export class HotelHumboldtRoom extends Room {
         maxStamina: player.maxStamina,
         level: player.level,
         experience: player.experience,
-        worldId: 'hotel-humboldt',
+        worldId: "hotel-humboldt",
         isOnline: player.isOnline,
         lastSeen: player.lastSeen.getTime(),
         lastUpdate: player.lastUpdate,
         mapId: player.mapId,
-        roleId: player.roleId ?? '',
+        roleId: (player.roleId as string) ?? "",
       };
-      
+
       await this.redis.addPlayer(player.id, playerData);
     } catch (error) {
-      console.warn('⚠️ Error guardando jugador en Redis:', error);
+      console.warn("⚠️ Error guardando jugador en Redis:", error);
     }
   }
 
@@ -571,8 +693,8 @@ export class HotelHumboldtRoom extends Room {
       statePlayer.roleId = roleId;
     }
     void this.savePlayerToRedis(player);
-    this.broadcast('player:role', { playerId, roleId });
-    this.broadcast('players:updated', {
+    this.broadcast("player:role", { playerId, roleId });
+    this.broadcast("players:updated", {
       players: Array.from(this.players.values()),
     });
   }
@@ -588,47 +710,47 @@ export class HotelHumboldtRoom extends Room {
         timestamp: message.timestamp,
         type: message.type,
       };
-      
+
       await this.redis.addChatMessage(messageData);
     } catch (error) {
-      console.warn('⚠️ Error guardando mensaje en Redis:', error);
+      console.warn("⚠️ Error guardando mensaje en Redis:", error);
     }
   }
 
   private sendSystemMessage(message: string) {
     const systemMessage: ChatMessage = {
       id: `system_${Date.now()}`,
-      playerId: 'system',
-      username: 'Sistema',
+      playerId: "system",
+      username: "Sistema",
       message: message,
-      channel: 'system',
+      channel: "system",
       timestamp: new Date(),
-      type: 'system'
+      type: "system",
     };
-    
+
     this.chatMessages.push(systemMessage);
-    
+
     // Mantener solo los últimos 100 mensajes
     if (this.chatMessages.length > 100) {
       this.chatMessages = this.chatMessages.slice(-100);
     }
-    
-    this.broadcast('chat:message', systemMessage);
+
+    this.broadcast("chat:message", systemMessage);
   }
 
   private sendSystemMessageToClient(client: Client, message: string) {
     const systemMessage: ChatMessage = {
       id: `system_${Date.now()}_${client.id}`,
-      playerId: 'system',
-      username: 'Sistema',
+      playerId: "system",
+      username: "Sistema",
       message: message,
-      channel: 'system',
+      channel: "system",
       timestamp: new Date(),
-      type: 'system'
+      type: "system",
     };
-    
+
     // Enviar solo al cliente específico
-    client.send('chat:message', systemMessage);
+    client.send("chat:message", systemMessage);
   }
 
   private setupCleanup() {
@@ -636,9 +758,9 @@ export class HotelHumboldtRoom extends Room {
     setInterval(async () => {
       try {
         await this.redis.cleanupExpiredData();
-        console.log('🧹 Limpieza de datos expirados completada');
+        console.log("🧹 Limpieza de datos expirados completada");
       } catch (error) {
-        console.error('❌ Error en limpieza de datos:', error);
+        console.error("❌ Error en limpieza de datos:", error);
       }
     }, 5 * 60 * 1000);
   }

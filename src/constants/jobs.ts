@@ -256,7 +256,7 @@ export const JOBS: Record<ExtendedJobId, JobConfig> = {
     start: {
       id: "trucker_start",
       mapId: "exterior",
-      position: { x: 60, y: 1, z: 60 },
+      position: { x: 65, y: 1, z: 65 }, // Moved away from NPC (60,1,60)
       radius: 5,
       requiresVehicle: true,
       label: "Iniciar Ruta de Carga",
@@ -264,36 +264,36 @@ export const JOBS: Record<ExtendedJobId, JobConfig> = {
     route: {
       waypoints: [
         {
-          id: "load_point",
+          id: "load_point_a",
           mapId: "exterior",
           position: { x: 70, y: 1, z: 50 },
-          radius: 4,
-          waitSeconds: 15,
+          radius: 6, // Larger radius for trucks
+          waitSeconds: 30,
           label: "Cargar Mercancía (Punto A)",
         },
         {
           id: "unload_point_b",
           mapId: "exterior",
           position: { x: -20, y: 1, z: -20 },
-          radius: 4,
-          waitSeconds: 15,
+          radius: 6,
+          waitSeconds: 40,
           label: "Descargar (Punto B)",
         },
         {
           id: "load_point_c",
           mapId: "exterior",
           position: { x: -30, y: 1, z: 30 },
-          radius: 4,
-          waitSeconds: 15,
+          radius: 6,
+          waitSeconds: 50,
           label: "Recargar (Punto C)",
         },
         {
           id: "return_base",
           mapId: "exterior",
-          position: { x: 60, y: 1, z: 60 },
-          radius: 4,
-          waitSeconds: 10,
-          label: "Entregar y Finalizar",
+          position: { x: 65, y: 1, z: 65 }, // Return to start
+          radius: 6,
+          waitSeconds: 0, // Instant finish
+          label: "Finalizar Ruta",
         },
       ],
       rules: { payPerStop: 50, completionBonus: 500, timeLimitSec: 1200 },
