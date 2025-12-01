@@ -7,7 +7,6 @@ import { ShopEvents } from "../ShopEvents";
 import { EconomyEvents } from "../EconomyEvents";
 import { JobsEvents } from "../JobsEvents";
 import type { ExtendedJobId } from "../../src/constants/jobs";
-import { HotelHumboldtState, PlayerState } from "./schema/HotelHumboldtState";
 
 interface PlayerData {
   id: string;
