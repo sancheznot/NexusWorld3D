@@ -1,7 +1,7 @@
-import { createDinero, type Dinero } from '@dinero.js/core';
-import { calculator } from '@dinero.js/calculator-number';
-import currencyjs from 'currency.js';
-import { GAME_CONFIG } from '@/constants/game';
+import { createDinero, type Dinero } from "@dinero.js/core";
+import { calculator } from "@dinero.js/calculator-number";
+import currencyjs from "currency.js";
+import { GAME_CONFIG } from "@/constants/game";
 
 const dinero = createDinero<number>({ calculator });
 
@@ -32,22 +32,28 @@ export function toMajor(minorAmount: number): number {
   return currencyjs(minorAmount).divide(100).value;
 }
 
-export function formatMinor(minorAmount: number, opts?: { withCode?: boolean; withSymbol?: boolean }): string {
+export function formatMinor(
+  minorAmount: number,
+  opts?: { withCode?: boolean; withSymbol?: boolean }
+): string {
   const withSymbol = opts?.withSymbol ?? true;
   const withCode = opts?.withCode ?? false;
   const major = toMajor(minorAmount);
   const formatted = currencyjs(major, {
-    symbol: withSymbol ? GAME_CONFIG.currency.symbol : '',
+    symbol: withSymbol ? GAME_CONFIG.currency.symbol : "",
     precision: 2,
   }).format();
   return withCode ? `${formatted} ${GAME_CONFIG.currency.code}` : formatted;
 }
 
-export function formatMajor(majorAmount: number, opts?: { withCode?: boolean; withSymbol?: boolean }): string {
+export function formatMajor(
+  majorAmount: number,
+  opts?: { withCode?: boolean; withSymbol?: boolean }
+): string {
   const withSymbol = opts?.withSymbol ?? true;
   const withCode = opts?.withCode ?? false;
   const formatted = currencyjs(majorAmount, {
-    symbol: withSymbol ? GAME_CONFIG.currency.symbol : '',
+    symbol: withSymbol ? GAME_CONFIG.currency.symbol : "",
     precision: 2,
   }).format();
   return withCode ? `${formatted} ${GAME_CONFIG.currency.code}` : formatted;
@@ -60,12 +66,12 @@ export function parseToMinor(input: string): number {
 }
 
 export function addMinor(a: number, b: number): number {
-  return currencyjs(a).add(b).intValue;
+  return Math.floor(a + b);
 }
 
 export function subMinor(a: number, b: number): number {
-  const res = currencyjs(a).subtract(b).intValue;
-  return Math.max(0, res);
+  const res = a - b;
+  return Math.max(0, Math.floor(res));
 }
 
 export function clampTransferMinor(minorAmount: number): number {
@@ -87,5 +93,3 @@ export const money = {
   createMoneyFromMinor,
   createMoneyFromMajor,
 };
-
-
