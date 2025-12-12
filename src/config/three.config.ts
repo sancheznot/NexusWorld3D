@@ -1,12 +1,23 @@
 export const THREE_CONFIG = {
+  // Game Mode Configuration
+  // '3d': Standard Third Person experience
+  // 'sideScroller': 2.5D view (Project Zomboid / Inside style)
+  gameMode: "3d" as "3d" | "sideScroller",
+
   // Camera settings
   camera: {
     fov: 75,
     near: 0.1,
     far: 100,
     position: { x: 0, y: 10, z: 15 },
+    // Side Scroller specific settings
+    sideScroller: {
+      distance: 15,
+      height: 5,
+      fov: 45, // Lower FOV for more "orthographic-like" feel
+    },
   },
-  
+
   // Lighting settings
   lighting: {
     ambient: {
@@ -20,7 +31,7 @@ export const THREE_CONFIG = {
       castShadow: true,
     },
   },
-  
+
   // Player settings
   player: {
     size: 1,
@@ -31,25 +42,25 @@ export const THREE_CONFIG = {
     },
     jumpHeight: 3,
   },
-  
+
   // World settings
   world: {
     size: 100, // Reducido para mejor rendimiento
     height: 0.1,
     gridSize: 10,
   },
-  
+
   // Rendering settings
   rendering: {
     antialias: true,
     shadowMap: {
       enabled: true,
-      type: 'PCFSoftShadowMap',
+      type: "PCFSoftShadowMap",
     },
-    toneMapping: 'ACESFilmicToneMapping',
+    toneMapping: "ACESFilmicToneMapping",
     toneMappingExposure: 1,
   },
-  
+
   // Controls settings
   controls: {
     enableDamping: true,
