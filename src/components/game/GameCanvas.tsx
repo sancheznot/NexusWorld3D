@@ -14,6 +14,7 @@ import CityModel from '@/components/world/CityModel';
 import Lighting from '@/components/world/Lighting';
 import Skybox from '@/components/world/Skybox';
 import ThirdPersonCamera from '@/components/world/ThirdPersonCamera';
+import SideScrollCamera from '@/components/world/SideScrollCamera';
 import TestingCamera from '@/components/world/TestingCamera';
 import { useTestingCamera } from '@/hooks/useTestingCamera';
 import { useKeyboard } from '@/hooks/useKeyboard';
@@ -536,7 +537,11 @@ export default function GameCanvas() {
           })()}
           
                     {/* Camera Controller */}
-                    <ThirdPersonCamera />
+                    {THREE_CONFIG.gameMode === 'sideScroller' ? (
+                      <SideScrollCamera />
+                    ) : (
+                      <ThirdPersonCamera />
+                    )}
                     
                     {/* Testing Camera */}
                     <TestingCamera />
