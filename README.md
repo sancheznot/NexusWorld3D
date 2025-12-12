@@ -1,8 +1,8 @@
 # 🌍 NexusWorld3D Framework
 
-> **An open-source framework for creating 3D multiplayer worlds without Blender or advanced programming**
+> **An open-source framework for creating 3D and 2D multiplayer worlds without Blender or advanced programming**
 
-> **Un framework open-source para crear mundos 3D multijugador sin necesidad de Blender o programación avanzada**
+> **Un framework open-source para crear mundos 3D y 2D multijugador sin necesidad de Blender o programación avanzada**
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/your-template-id)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -22,6 +22,7 @@
 ## ✨ Features / Características
 
 - 🎮 **Real-time Multiplayer** / **Multijugador en tiempo real** - Up to 50 simultaneous players / Hasta 50 jugadores simultáneos
+- 🏞️ **Multi-Mode Support** / **Soporte Multi-Modo** - Create 3D open worlds or 2.5D side-scrollers / Crea mundos 3D abiertos o 2.5D side-scrollers
 - 🎨 **Visual World Editor** / **Editor visual de mundos** - Drag & drop 3D models in browser / Drag & drop de modelos 3D en el navegador
 - ⚡ **No Database Required** / **Sin base de datos** - Everything in Redis + S3 + JSON files / Todo en Redis + S3 + archivos JSON
 - 🔧 **Highly Configurable** / **Altamente configurable** - Health, stamina, physics, animations, etc. / Vida, stamina, física, animaciones, etc.
@@ -49,6 +50,7 @@ cp env.example.txt .env.local
 ```
 
 **Minimum configuration / Configuración mínima:**
+
 ```env
 # Admin (no database / sin base de datos)
 ADMIN_USERNAME_ACCESS=admin
@@ -99,20 +101,21 @@ Abre [http://localhost:3000](http://localhost:3000) y ve a `/admin` para crear t
 
 ## 📚 Documentation / Documentación
 
-| Document | Descripción |
-|----------|-------------|
-| [📖 Framework Vision (EN)](./docs/en/FRAMEWORK_VISION.md) | Complete vision, architecture and roadmap |
-| [📖 Framework Vision (ES)](./docs/es/FRAMEWORK_VISION.md) | Visión completa, arquitectura y roadmap |
-| [🚀 Deployment Guide (EN)](./docs/en/DEPLOYMENT_GUIDE.md) | Deployment and configuration guide |
-| [🚀 Deployment Guide (ES)](./docs/es/DEPLOYMENT_AND_FRAMEWORK.md) | Guía de despliegue y configuración |
-| [⚡ Model Optimization (EN)](./docs/en/MODEL_OPTIMIZATION.md) | Best practices for 3D assets |
-| [⚡ Model Optimization (ES)](./docs/es/OPTIMIZACION_MODELOS.md) | Mejores prácticas para assets 3D |
-| [📚 Documentation Index (EN)](./docs/en/README.md) | Complete documentation navigation |
-| [📚 Documentation Index (ES)](./docs/es/README.md) | Navegación completa de la documentación |
+| Document                                                          | Descripción                               |
+| ----------------------------------------------------------------- | ----------------------------------------- |
+| [📖 Framework Vision (EN)](./docs/en/FRAMEWORK_VISION.md)         | Complete vision, architecture and roadmap |
+| [📖 Framework Vision (ES)](./docs/es/FRAMEWORK_VISION.md)         | Visión completa, arquitectura y roadmap   |
+| [🚀 Deployment Guide (EN)](./docs/en/DEPLOYMENT_GUIDE.md)         | Deployment and configuration guide        |
+| [🚀 Deployment Guide (ES)](./docs/es/DEPLOYMENT_AND_FRAMEWORK.md) | Guía de despliegue y configuración        |
+| [⚡ Model Optimization (EN)](./docs/en/MODEL_OPTIMIZATION.md)     | Best practices for 3D assets              |
+| [⚡ Model Optimization (ES)](./docs/es/OPTIMIZACION_MODELOS.md)   | Mejores prácticas para assets 3D          |
+| [📚 Documentation Index (EN)](./docs/en/README.md)                | Complete documentation navigation         |
+| [📚 Documentation Index (ES)](./docs/es/README.md)                | Navegación completa de la documentación   |
 
 ## 🎮 Game Features / Características del Juego
 
 ### Player System / Sistema de Jugadores
+
 - WASD movement + mouse / Movimiento WASD + mouse
 - Dynamic animations (idle, walking, running, jumping) / Animaciones dinámicas (idle, walking, running, jumping)
 - Health and stamina system / Sistema de salud y stamina
@@ -120,6 +123,7 @@ Abre [http://localhost:3000](http://localhost:3000) y ve a `/admin` para crear t
 - Third-person camera / Cámara en tercera persona
 
 ### 3D World / Mundo 3D
+
 - Procedural terrain / Terreno procedural
 - Nature decorations / Decoraciones de naturaleza
 - Dynamic lighting / Iluminación dinámica
@@ -127,6 +131,7 @@ Abre [http://localhost:3000](http://localhost:3000) y ve a `/admin` para crear t
 - Smart collisions / Colisiones inteligentes
 
 ### Multiplayer / Multijugador
+
 - Real-time synchronization / Sincronización en tiempo real
 - Global chat / Chat global
 - Automatic LOD (Level of Detail) / LOD (Level of Detail) automático
@@ -136,6 +141,7 @@ Abre [http://localhost:3000](http://localhost:3000) y ve a `/admin` para crear t
 ## ⚙️ Advanced Configuration / Configuración Avanzada
 
 ### nexusworld3d.config.ts
+
 ```typescript
 export default {
   server: {
@@ -153,12 +159,13 @@ export default {
     runSpeed: 8,
   },
   characters: {
-    animations: ['idle', 'walking', 'running', 'jumping'],
+    animations: ["idle", "walking", "running", "jumping"],
   },
-}
+};
 ```
 
 ### Environment Variables / Variables de Entorno
+
 See [env.example.txt](./env.example.txt) for all available options.
 
 Ver [env.example.txt](./env.example.txt) para todas las opciones disponibles.
@@ -166,17 +173,20 @@ Ver [env.example.txt](./env.example.txt) para todas las opciones disponibles.
 ## 🚢 Deploy to Production / Deploy a Producción
 
 ### Railway (Recommended / Recomendado)
+
 1. Connect your repo to Railway / Conecta tu repo a Railway
 2. Configure environment variables / Configura las variables de entorno
 3. Automatic deploy / Deploy automático
 
 ### Render
+
 1. Create a new Web Service / Crea un nuevo Web Service
 2. Connect your repo / Conecta tu repo
 3. Configure build command: `npm run build`
 4. Configure start command: `npm run start`
 
 ### Fly.io
+
 1. `flyctl launch`
 2. Configure environment variables / Configura las variables de entorno
 3. `flyctl deploy`
@@ -187,6 +197,7 @@ Ver [env.example.txt](./env.example.txt) para todas las opciones disponibles.
 ## 🛠️ Development / Desarrollo
 
 ### Project Structure / Estructura del Proyecto
+
 ```
 src/
 ├── core/           # Framework core / Core del framework
@@ -204,6 +215,7 @@ public/models/     # 3D assets / Assets 3D
 ```
 
 ### Available Scripts / Scripts Disponibles
+
 ```bash
 npm run dev        # Development (Next + Colyseus) / Desarrollo (Next + Colyseus)
 npm run build      # Production build / Build de producción
