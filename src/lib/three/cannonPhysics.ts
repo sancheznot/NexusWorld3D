@@ -580,7 +580,7 @@ export class CannonPhysics {
         const airForce = 10 * deltaTime;
 
         // Añadir velocidad pero limitando a no superar maxSpeed excesivamente
-        // (aunque en Sketchbook a veces se permite superar para bunny hopping, aquí limitamos suavemente)
+        // (aunque en otras implementaciones se permite superar para bunny hopping, aquí limitamos suavemente)
         this.playerBody.velocity.x += input.x * airForce;
         this.playerBody.velocity.z += input.z * airForce;
 
@@ -1388,7 +1388,7 @@ export class CannonPhysics {
           }
         }
       }
-      // ADELANTE - Sistema de Sketchbook (EXACTO)
+      // ADELANTE - Sistema de tracción (EXACTO)
       else {
         // Asegurar que estamos en marcha adelante si aceleramos
         if (state.gear < 1) state.gear = 1;
@@ -1434,7 +1434,7 @@ export class CannonPhysics {
           const rpm = 1000 + (absSpeed / currentGearMaxSpeed) * 6000;
           const powerCurve = this.calculatePowerCurve(rpm);
 
-          // Fuerza del motor (como Sketchbook)
+          // Fuerza del motor (simulada)
           const force =
             (engineForceBase / gearRatio) *
             Math.pow(powerFactor, 1) *

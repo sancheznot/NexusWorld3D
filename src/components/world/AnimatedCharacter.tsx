@@ -173,7 +173,7 @@ export default function AnimatedCharacter({
     }
   }, [modelLoaded, actions, animation]);
 
-  // Sistema de inclinación del personaje (Sketchbook)
+  // Sistema de inclinación (Movement Tilt)
   useFrame((_, delta) => {
     if (!isCurrentPlayer || !tiltContainerRef.current) return;
     
@@ -194,7 +194,7 @@ export default function AnimatedCharacter({
     lastRotationRef.current = currentRotation;
     
     // Aplicar inclinación lateral basada en velocidad angular y velocidad lineal
-    // Fórmula de Sketchbook: rotation.z = -angularVelocity * multiplier * velocity.length()
+    // Fórmula: rotation.z = -angularVelocity * multiplier * velocity.length()
     const velocityLength = velocityRef.current.length();
     
     // Escalar la inclinación basado en la velocidad (más velocidad = más inclinación permitida)
@@ -218,7 +218,7 @@ export default function AnimatedCharacter({
     );
     
     // Compensación vertical para evitar que el personaje flote cuando se inclina
-    // Fórmula de Sketchbook: position.y = (cos(abs(tilt)) / 2) - 0.5
+    // Fórmula: position.y = (cos(abs(tilt)) / 2) - 0.5
     const verticalCompensation = 
       (Math.cos(Math.abs(clampedTilt)) / 2) * GAME_CONFIG.player.tilt.verticalCompensation + 
       GAME_CONFIG.player.tilt.verticalOffset;

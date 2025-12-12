@@ -122,13 +122,13 @@ export const GAME_CONFIG = {
       y: 1.05,
       z: -25,
     },
-    // Sistema de inclinación del personaje (Sketchbook)
+    // Sistema de inclinación del personaje (Custom Tilt)
     tilt: {
       multiplier: 0.6, // Multiplicador de inclinación base (se escala con velocidad)
       verticalOffset: 0, // Offset vertical base - 0 para mantener altura normal
       verticalCompensation: 0.1, // Compensación vertical para evitar flotación - Reducido
     },
-    // Sistema de física de caída (Sketchbook)
+    // Sistema de física de caída (Updated Physics)
     fall: {
       // Umbrales de velocidad Y (valores negativos)
       softLandingThreshold: -2, // Menor que esto = caída media
@@ -144,7 +144,7 @@ export const GAME_CONFIG = {
       // Control en el aire
       airControl: 0.05, // Control muy reducido mientras cae
     },
-    // Sistema de estados (Sketchbook) - EXPERIMENTAL
+    // Sistema de estados (State Machine) - EXPERIMENTAL
     stateMachine: {
       enabled: true, // ✅ ACTIVADO - State Machine arreglado (respeta duraciones)
       debugLogs: true, // Mostrar logs de transiciones de estado

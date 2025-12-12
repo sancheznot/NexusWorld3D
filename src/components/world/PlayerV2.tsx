@@ -76,7 +76,7 @@ export default function PlayerV2({
   const staminaRegenAccRef = useRef(0); // acumula fracciones de regeneración
   const currentAnimation = useCharacterAnimation(input.jumpType);
   
-  // Sistema de física de caída (Sketchbook)
+  // Sistema de física de caída (Custom Physics)
   const [fallState, setFallState] = useState<'none' | 'falling' | 'landing'>('none');
   const groundImpactVelocityRef = useRef({ x: 0, y: 0, z: 0 });
   const landingAnimationUntilRef = useRef(0);
@@ -86,7 +86,7 @@ export default function PlayerV2({
   // Edge detection para salto (State Machine)
   const lastJumpInputRef = useRef(false); // Para detectar cuando Space es RECIÉN presionado
 
-  // Sistema de Estados (Sketchbook) - OPCIONAL
+  // Sistema de Estados (State Machine) - OPCIONAL
   const stateMachine = useMemo(() => {
     if (!GAME_CONFIG.player.stateMachine.enabled) return null;
     return new CharacterStateMachine(); // Inicia en IdleState por defecto
@@ -360,7 +360,7 @@ export default function PlayerV2({
       const dmg = GAME_CONFIG.gameplay.hunger.starvationDamagePerSecond * delta;
       store.updateHealth(Math.max(0, Math.floor(store.health - dmg)));
     }
-    // Sistema de física de caída mejorado (Sketchbook)
+    // Sistema de física de caída mejorado (Updated Physics)
     const velocity = physicsRef.current.getPlayerVelocity();
     const isGrounded = physicsRef.current.isGrounded();
     
@@ -391,7 +391,7 @@ export default function PlayerV2({
     const now = performance.now();
     const absImpact = Math.abs(impactVelocityY);
     
-    // Determinar tipo de aterrizaje según umbrales de Sketchbook
+    // Determinar tipo de aterrizaje según umbrales configurados
     if (impactVelocityY < GAME_CONFIG.player.fall.hardLandingThreshold) {
       // Caída fuerte: Roll (rodar) - Reduce daño
       setFallState('landing');
@@ -434,7 +434,7 @@ export default function PlayerV2({
   let desiredAnim = currentAnimation;
   const nowAnim = performance.now();
   
-  // MODO 1: Usar State Machine (Sketchbook) si está habilitado
+  // MODO 1: Usar State Machine si está habilitado
   if (GAME_CONFIG.player.stateMachine.enabled && stateMachine && isCurrentPlayer) {
     const velocity = physicsRef.current?.getPlayerVelocity() || { x: 0, y: 0, z: 0 };
     const isGrounded = physicsRef.current?.isGrounded() || true;
@@ -444,8 +444,8 @@ export default function PlayerV2({
     const jumpPressed = input.isJumping && !lastJumpInputRef.current;
     lastJumpInputRef.current = input.isJumping;
     
-    // Convertir input de nuestro formato (x, z) a formato Sketchbook (forward, backward, left, right)
-    const sketchbookInput = {
+    // Convertir input (forward, backward, left, right)
+    const stateInput = {
       forward: input.z > 0,
       backward: input.z < 0,
       left: input.x < 0,
@@ -466,7 +466,7 @@ export default function PlayerV2({
     
     // Construir contexto actualizado para el State Machine
     const context: CharacterStateContext = {
-      input: sketchbookInput,
+      input: stateInput,
       isGrounded,
       velocity,
       stamina,
@@ -476,7 +476,7 @@ export default function PlayerV2({
     // Actualizar State Machine y obtener animación
     const deltaTime = 1/60; // Aproximación, en producción usar delta real
     const stateAnimation = stateMachine.update(deltaTime, context);
-    // Mapear nombres de animación de Sketchbook a nuestras animaciones
+    // Mapear nombres de animación a nuestras animaciones
     desiredAnim = stateAnimation as AnimationState;
     
     if (GAME_CONFIG.player.stateMachine.debugLogs) {

@@ -1,6 +1,6 @@
 /**
  * Collision Helper - Utilidades para crear y gestionar colliders optimizados
- * Inspirado en Sketchbook
+ * Inspirado en librerías de física de vehículos
  *
  * Este helper funciona en conjunto con:
  * - cannonPhysics.ts: Sistema principal de física con Cannon.js

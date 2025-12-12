@@ -40,7 +40,7 @@ export default function CityModel({
       name
     );
 
-    // 🎯 OPTIMIZED: Generación inteligente de colliders (Sketchbook-inspired)
+    // 🎯 OPTIMIZED: Generación inteligente de colliders (Optimized Generation)
     // - Escaleras -> Convex Hull (Rampas suaves)
     // - Montañas -> Trimesh (Terreno complejo)
     // - Árboles/Rocas -> Primitivas (Cilindros/Esferas)
