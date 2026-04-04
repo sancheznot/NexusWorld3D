@@ -1,6 +1,6 @@
 export const GAME_CONFIG = {
   currency: {
-    code: "HBC", // Humboldt Coin
+    code: "NXC", // Nexus credits (demo / framework)
     symbol: "₿",
     startingBalance: 1000,
     maxTransfer: 100000,

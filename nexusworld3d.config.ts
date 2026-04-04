@@ -122,7 +122,7 @@ const defaultConfig: NexusWorld3DConfig = {
 
   networking: {
     colyseusRoomName: "nexus-world",
-    colyseusLegacyRoomNames: ["hotel-humboldt"],
+    colyseusLegacyRoomNames: [],
     colyseusLobbyRoomName: "nexus-lobby",
   },
 

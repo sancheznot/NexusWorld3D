@@ -1,4 +1,5 @@
-import * as THREE from 'three';
+import * as THREE from "three";
+import { frameworkDemoLandmarkBuildingUserDataName } from "@/lib/frameworkBranding";
 
 export class CollisionSystem {
   private colliders: THREE.Mesh[] = [];
@@ -37,9 +38,8 @@ export class CollisionSystem {
       
       if (collisionType === 'building' || collisionType === 'tree') {
         if (this.checkBoxCollision(correctedPosition, collider)) {
-          // Para el Hotel Humboldt, usar colisiones más específicas
-          if (buildingName === 'HotelHumboldt') {
-            console.log('🏨 Colisión con Hotel Humboldt - bloqueando movimiento');
+          if (buildingName === frameworkDemoLandmarkBuildingUserDataName) {
+            console.log("🏢 Colisión con edificio demo — bloqueando movimiento");
             return playerPosition; // Devolver posición original sin cambios
           } else {
             console.log(`🚫 Colisión con ${collisionType} - manteniendo posición`);
@@ -91,15 +91,16 @@ export class CollisionSystem {
     // Verificar colisión con margen de seguridad
     const margin = this.playerRadius + 0.5; // Margen reducido para colisiones más precisas
     
-    // Para el Hotel Humboldt, usar colisiones más específicas
-    if (box.userData.buildingName === 'HotelHumboldt') {
-      // El hotel está en posición [0, 0, -100] con escala [6, 6, 6]
+    if (box.userData.buildingName === frameworkDemoLandmarkBuildingUserDataName) {
+      // Edificio demo (~ [0, 0, -100], escala [6, 6, 6])
       // Ajustar las dimensiones según la escala real
       const hotelWidth = halfSize.x * 2; // Ancho total
       const hotelHeight = halfSize.y * 2; // Altura total
       const hotelDepth = halfSize.z * 2; // Profundidad total
       
-      console.log(`🏨 Hotel collision check: pos(${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}) vs hotel(${boxCenter.x.toFixed(2)}, ${boxCenter.y.toFixed(2)}, ${boxCenter.z.toFixed(2)}) size(${hotelWidth.toFixed(2)}x${hotelHeight.toFixed(2)}x${hotelDepth.toFixed(2)})`);
+      console.log(
+        `🏢 Demo landmark collision: pos(${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}) vs box(${boxCenter.x.toFixed(2)}, ${boxCenter.y.toFixed(2)}, ${boxCenter.z.toFixed(2)}) size(${hotelWidth.toFixed(2)}x${hotelHeight.toFixed(2)}x${hotelDepth.toFixed(2)})`
+      );
       
       return (
         position.x >= boxCenter.x - halfSize.x - margin &&

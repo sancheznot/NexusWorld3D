@@ -119,20 +119,19 @@ export class CameraSystem {
       fps: 60,
     });
 
-    // Cámara 2: Entrada del Hotel
     const cam2 = this.addCamera({
-      id: 'hotel-entrance',
-      name: 'Entrada Hotel Humboldt',
-      description: 'Vista de la entrada principal del hotel',
+      id: "hotel-entrance",
+      name: "Entrada edificio demo",
+      description: "Vista de la entrada principal del edificio demo",
       position: new Vector3(10, 5, -95),
       target: new Vector3(0, 2, -100),
       fov: 60,
       updateInterval: 1500,
     });
     cam2.updateSnapshot({
-      id: 'hotel-entrance',
-      name: 'Entrada Hotel Humboldt',
-      description: 'Vista de la entrada principal del hotel',
+      id: "hotel-entrance",
+      name: "Entrada edificio demo",
+      description: "Vista de la entrada principal del edificio demo",
       timestamp: Date.now(),
       imageData: this.generatePlaceholderImage('hotel'),
       players: 0,

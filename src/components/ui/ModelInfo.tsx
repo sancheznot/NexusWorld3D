@@ -113,8 +113,8 @@ export default function ModelInfo({ isOpen, onClose }: ModelInfoProps) {
         <div className="mt-6 p-4 bg-green-900 bg-opacity-50 rounded-lg">
           <p className="text-green-200 text-sm">
             <strong>✅ Modelos Integrados:</strong>
-            <br />• <strong>Hotel Humboldt</strong> - Modelo principal del hotel (107MB)
-            <br />• <strong>Green Dome Structure</strong> - Estructura decorativa al lado del hotel
+            <br />• <strong>Demo landmark GLB</strong> - Edificio principal del template (modelo optimizado)
+            <br />• <strong>Green Dome Structure</strong> - Estructura decorativa (demo)
             <br />• <strong>Terreno Optimizado</strong> - Terrain_01.glb para todo el mapa (15KB, más eficiente)
             <br />• <strong>Árboles Reales</strong> - Tree_04, Tree_05, Tree_06 (132-271KB cada uno)
             <br />• <strong>Environment Models</strong> - 30+ modelos de hierba, plantas, flores y rocas

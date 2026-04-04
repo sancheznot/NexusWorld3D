@@ -13,14 +13,14 @@ interface TeleportLocation {
 // Ubicaciones predefinidas para teletransportación
 const TELEPORT_LOCATIONS: TeleportLocation[] = [
   {
-    name: 'Hotel Exterior',
+    name: "Edificio demo (exterior)",
     position: { x: 8.5, y: 1.0, z: 9.4 },
-    description: 'Entrada del Hotel Humboldt'
+    description: "Entrada del edificio demo",
   },
   {
-    name: 'Hotel Interior',
+    name: "Edificio demo (interior)",
     position: { x: 6.0, y: 1.0, z: 7.0 },
-    description: 'Interior del Hotel'
+    description: "Interior del edificio demo",
   },
   {
     name: 'Policía',

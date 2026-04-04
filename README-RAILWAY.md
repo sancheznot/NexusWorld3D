@@ -1,4 +1,4 @@
-# Hotel Humboldt / NexusWorld3D — Railway
+# NexusWorld3D — Railway
 
 ## ES
 

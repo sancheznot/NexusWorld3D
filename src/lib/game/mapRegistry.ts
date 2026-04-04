@@ -40,8 +40,8 @@ registerMaps([
   // ===== MAPA EXTERIOR (CIUDAD) =====
   {
     id: 'exterior',
-    name: 'Exterior del Hotel',
-    description: 'El área exterior del icónico Hotel Humboldt',
+    name: "Zona urbana (exterior)",
+    description: "Exterior de la ciudad demo del framework",
     // Posición donde aparece el jugador al entrar a este mapa
     spawnPosition: { x: 0, y: 0, z: 0 },
     spawnRotation: { x: 0, y: 0, z: 0 },
@@ -49,8 +49,8 @@ registerMaps([
       // Portal de entrada al hotel
       {
         id: 'hotel-entrance',
-        name: 'Entrada del Hotel',
-        description: 'Entrar al interior del Hotel Humboldt',
+        name: "Entrada al edificio demo",
+        description: "Portal al interior del edificio principal (demo)",
         // Posición del portal en el mundo exterior
         position: { x: 8.5, y: 1.0, z: 9.4 },
         radius: 1, // Radio de activación del portal
@@ -136,15 +136,15 @@ registerMaps([
         name: 'Banco',
         position: { x: 30, y: 0, z: -20 },
         radius: GAME_CONFIG.triggers.defaultRadius,
-        data: { branchId: 'humboldt-01' },
+        data: { branchId: "main-01" },
       }
     ],
   },
-  // ===== MAPA INTERIOR DEL HOTEL =====
+  // ===== Interior edificio demo =====
   {
-    id: 'hotel-interior',
-    name: 'Interior del Hotel',
-    description: 'El lujoso interior del Hotel Humboldt',
+    id: "hotel-interior",
+    name: "Interior edificio demo",
+    description: "Interior del edificio principal (plantilla)",
     // Posición donde aparece el jugador al entrar al hotel
     spawnPosition: { x: 0, y: 0, z: 0 },
     spawnRotation: { x: 0, y: 0, z: 0 },
@@ -152,7 +152,7 @@ registerMaps([
       // Portal de salida del hotel
       {
         id: 'hotel-exit',
-        name: 'Salida del Hotel',
+        name: "Salida al exterior",
         description: 'Volver al exterior',
         // Portal está en el interior del hotel
         position: { x: 3.0, y: 1.0, z: 7.0 },

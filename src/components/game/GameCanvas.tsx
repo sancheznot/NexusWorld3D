@@ -575,14 +575,14 @@ export default function GameCanvas() {
               tileSize={25}
             /> */}
             
-            {/* Hotel Humboldt - 80% del tamaño original */}
-            {/* <HotelHumboldt 
+            {/* DemoLandmarkBuilding — edificio demo (GLB opcional) */}
+            {/* <DemoLandmarkBuilding 
               position={[0, 0, -100]} 
               scale={[6, 6, 6]} 
               rotation={[0, 0, 0]} 
               /> */}
             
-            {/* Green Dome Structure - Decoración al lado del hotel */}
+            {/* Green Dome Structure — decoración demo */}
             {/* <GreenDomeStructure 
               position={[30, 0, -30]} 
               scale={[3, 3, 3]} 
@@ -906,7 +906,7 @@ export default function GameCanvas() {
               </button>
             </div>
             <div className="text-white">
-              <p>El mapa del Hotel Humboldt estará aquí...</p>
+              <p>El mapa del mundo (plantilla NexusWorld3D) estará aquí…</p>
               <p className="text-sm text-gray-400 mt-2">Presiona M para cerrar</p>
             </div>
           </div>

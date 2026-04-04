@@ -16,6 +16,7 @@ import {
   MOVEMENT_HELP_ROWS,
 } from "@/config/gameKeybindings";
 import { GameButton } from "@/components/ui/GameButton";
+import { frameworkAppName } from "@/lib/frameworkBranding";
 
 type Props = {
   isOpen: boolean;
@@ -78,7 +79,9 @@ export default function PauseMenu({
             >
               Pausa
             </h2>
-            <p className="text-xs text-slate-400">Pause · Hotel Humboldt</p>
+            <p className="text-xs text-slate-400">
+              Pause · {frameworkAppName}
+            </p>
           </div>
         </div>
 

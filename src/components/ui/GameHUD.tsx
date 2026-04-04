@@ -12,10 +12,11 @@ import { colyseusClient } from "@/lib/colyseus/client";
 import { inventoryService } from "@/lib/services/inventory";
 import type { InventoryItem } from "@/types/inventory.types";
 import ServerClock from "@/components/ui/ServerClock";
+import { frameworkDefaultWorldDisplayName } from "@/lib/frameworkBranding";
 
 const MAP_LOCATIONS: Record<string, string> = {
   exterior: "Sector urbano",
-  "hotel-interior": "Hotel Humboldt",
+  "hotel-interior": `${frameworkDefaultWorldDisplayName} · Interior`,
   "police-station": "Comisaría",
   bank: "Banco Central",
   hospital: "Hospital",

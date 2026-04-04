@@ -22,9 +22,9 @@ export async function GET(request: NextRequest) {
         isTemporary: false
       },
       {
-        id: 'hotel-humboldt',
-        name: 'Hotel Humboldt',
-        url: '/models/hotel_humboldt_model.glb',
+        id: "demo-landmark-building",
+        name: "Demo landmark building (GLB)",
+        url: "/models/hotel_humboldt_model.glb",
         type: 'glb',
         size: 2048000, // 2MB placeholder
         isTemporary: false

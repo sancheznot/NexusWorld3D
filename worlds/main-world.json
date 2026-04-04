@@ -1,7 +1,7 @@
 {
   "id": "main-world",
   "name": "Mundo Principal",
-  "description": "El mundo principal del Hotel Humboldt",
+  "description": "Mundo demo principal (NexusWorld3D)",
   "version": "1.0.0",
   "createdAt": "2024-12-20T10:00:00.000Z",
   "updatedAt": "2025-10-20T23:34:38.403Z",
@@ -33,7 +33,7 @@
       },
       "hasCollision": true,
       "metadata": {
-        "description": "Added from Hotel Humboldt"
+        "description": "Added from NexusWorld3D template"
       }
     },
     {
@@ -57,7 +57,7 @@
       },
       "hasCollision": true,
       "metadata": {
-        "description": "Added from Hotel Humboldt"
+        "description": "Added from NexusWorld3D template"
       }
     },
     {
@@ -81,7 +81,7 @@
       },
       "hasCollision": true,
       "metadata": {
-        "description": "Added from Hotel Humboldt"
+        "description": "Added from NexusWorld3D template"
       }
     },
     {

@@ -15,3 +15,15 @@ export const frameworkColyseusRoomName =
 
 export const frameworkLobbyRoomName =
   nexusWorld3DConfig.networking.colyseusLobbyRoomName;
+
+/**
+ * ES: `userData.buildingName` del edificio demo grande (GLB + física).
+ * EN: `userData.buildingName` for the large demo landmark (GLB + physics).
+ */
+export const frameworkDemoLandmarkBuildingUserDataName = "NexusDemoLandmark";
+
+/**
+ * ES: Id interno del collider de caja del demo (Cannon).
+ * EN: Internal box-collider id for the demo (Cannon).
+ */
+export const frameworkDemoLandmarkColliderId = "nexus-demo-landmark";

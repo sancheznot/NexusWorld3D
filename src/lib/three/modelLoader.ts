@@ -265,7 +265,7 @@ export class ModelLoader {
     return mesh;
   }
 
-  // Predefined model configurations for Hotel Humboldt
+  // Predefined model configurations for the demo template
   getNatureModels(): ModelInfo[] {
     return [
       // Árboles reales
