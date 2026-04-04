@@ -9,7 +9,7 @@ import { useAdminTeleport } from '@/hooks/useAdminTeleport';
 import { collisionSystem } from '@/lib/three/collisionSystem';
 import AnimatedCharacter from '@/components/world/AnimatedCharacter';
 import { useCharacterAnimation, type AnimationState } from '@/hooks/useCharacterAnimation';
-import { GAME_CONFIG } from '@/constants/game';
+import { GAME_CONFIG, computeJumpVelocityForApex } from '@/constants/game';
 import * as THREE from 'three';
 import { PlayerCustomization } from '@/types/player.types';
 import { CharacterStateMachine } from '@/lib/character/CharacterStateMachine';
@@ -235,10 +235,13 @@ export default function PlayerV2({
           jumpAppliedRef.current = false;
         }
         if (!jumpAppliedRef.current && nowMs >= jumpApplyAtRef.current) {
-          let jumpForce = 6;
-          if (currentInput.jumpType === 'running') jumpForce = 6.5;
-          else if (currentInput.jumpType === 'backflip') jumpForce = 7.2;
-          physicsRef.current.jump(jumpForce);
+          const pc = GAME_CONFIG.physics.playerCharacter;
+          const g = GAME_CONFIG.physics.gravity;
+          let apex: number = pc.jumpApexHeightNormal;
+          if (currentInput.jumpType === "running") apex = pc.jumpApexHeightRunning;
+          else if (currentInput.jumpType === "backflip")
+            apex = pc.jumpApexHeightBackflip;
+          physicsRef.current.jump(computeJumpVelocityForApex(apex, g));
           jumpAppliedRef.current = true;
           jumpLockedUntilRef.current = nowMs + JUMP_ANIM_DURATION_MS;
           wasJumpingRef.current = true; // Marcar que iniciamos un salto intencional

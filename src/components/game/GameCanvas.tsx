@@ -406,17 +406,18 @@ export default function GameCanvas() {
   
   // Debug: Log current state (only when there are issues)
   if (isGameStarted && !keyboardEnabled) {
-    console.log('⚠️ Keyboard disabled but game started:', {
+    console.log("⚠️ Keyboard disabled but game started:", {
       showLobby,
-      showLogin,
-      showCharacterCreator,
+      modalLoginOpen: showLogin,
+      modalCharacterCreatorOpen: showCharacterCreator,
       isGameStarted,
       isConnected,
       keyboardEnabled,
+      nextAuthStatus: status,
       isInventoryOpen,
       isMapOpen,
       isChatOpen,
-      player: player?.username
+      player: player?.username,
     });
   }
 
@@ -809,12 +810,31 @@ export default function GameCanvas() {
           )}
           {process.env.NODE_ENV === "development" && (
             <>
-              <div className="rounded bg-black/65 p-2 text-xs text-white backdrop-blur-sm">
-                <div>Login: {showLogin ? "Sí" : "No"}</div>
-                <div>Creator: {showCharacterCreator ? "Sí" : "No"}</div>
-                <div>Game: {isGameStarted ? "Sí" : "No"}</div>
-                <div>Keyboard: {keyboardEnabled ? "Sí" : "No"}</div>
-                <div>Player: {player?.username || "N/A"}</div>
+              <div className="rounded bg-black/65 p-2 text-[11px] leading-snug text-white backdrop-blur-sm">
+                <div className="mb-1 border-b border-white/10 pb-1 font-bold text-cyan-300">
+                  Dev · conexión / UI
+                </div>
+                <div>
+                  NextAuth:{" "}
+                  {status === "loading"
+                    ? "cargando…"
+                    : status === "authenticated"
+                      ? `sí · ${session?.user?.name ?? session?.user?.email ?? "cuenta"}`
+                      : "no (invitado / sin sesión)"}
+                </div>
+                <div>
+                  Modal login (auth): {showLogin ? "abierto" : "cerrado"}
+                </div>
+                <div>
+                  Modal personaje: {showCharacterCreator ? "abierto" : "cerrado"}
+                </div>
+                <div>Lobby pantalla: {showLobby ? "visible" : "oculto"}</div>
+                <div>Partida 3D: {isGameStarted ? "sí" : "no"}</div>
+                <div>Teclado mundo: {keyboardEnabled ? "sí" : "no"}</div>
+                <div>Jugador (store): {player?.username || "N/A"}</div>
+                <div className="mt-1 text-[9px] text-slate-400">
+                  EN: “Modal login” = ventana de auth, no si estás logueado.
+                </div>
               </div>
               {connectionError && (
                 <div className="rounded bg-red-600 px-3 py-1 text-sm text-white">

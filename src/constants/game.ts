@@ -58,6 +58,10 @@ export const GAME_CONFIG = {
       cullingActivationDistance: 80, // Metros (Aumentado para evitar que el coche entre en el vacío)
       cullingDeactivationDistance: 100, // Hysteresis para evitar parpadeo
       optimizationInterval: 1000, // ms
+      /** ES: Intervalo de logs de stats (ms). 0 = nunca (recomendado en prod). EN: 0 = never. */
+      physicsStatsIntervalMs: 0,
+      /** ES: Logs detallados al crear UCX/trimesh/suelos/etc. EN: Verbose collider build logs. */
+      verboseColliderLogs: false,
     },
     // Configuración general de física
     maxColliderSize: 50, // Tamaño máximo antes de subdividir
@@ -65,9 +69,27 @@ export const GAME_CONFIG = {
     acceleration: 60, // Aceleración aumentada para respuesta rápida
     airControl: 5, // Fuerza de control en el aire
     deceleration: 50, // Frenado lateral
-    gravity: -30, // Gravedad aumentada
+    gravity: -30, // ES: Unidades/s² (más negativo = caída más rápida). EN: Units/s².
     targetFPS: 120, // FPS objetivo por defecto
     maxDeltaTime: 1 / 90, // Paso fijo
+    /**
+     * ES: Personaje a pie — salto coherente con v = √(2·|g|·h) (misma idea que un Rigidbody en Unity).
+     * EN: On-foot character — jump velocity from apex height h: v = √(2·|g|·h).
+     */
+    playerCharacter: {
+      jumpApexHeightNormal: 1.06,
+      jumpApexHeightRunning: 1.2,
+      jumpApexHeightBackflip: 1.34,
+      /** ES: Aceleración horizontal añadida en el aire (unidades/s² escaladas por input). */
+      airControlAcceleration: 34,
+      airMaxHorizontalSpeed: 14,
+      /** ES: Ray desde el centro del body hacia abajo (m). */
+      groundProbeLength: 1.65,
+      /** ES: Si el hit está más cerca que esto, consideramos suelo (m). */
+      groundProbeHitMaxDistance: 1.26,
+      /** ES: Iteraciones del solver GSSolver (más = contactos más estables, más CPU). */
+      solverIterations: 8,
+    },
     // Patrones de nombres para meshes
     patterns: {
       naturalMesh: [
@@ -179,6 +201,16 @@ export const GAME_CONFIG = {
     },
   },
 } as const;
+
+/** ES: Velocidad vertical inicial para alcanzar ~apexHeight con gravedad gravityY. EN: Jump vy for given apex under gravityY. */
+export function computeJumpVelocityForApex(
+  apexHeightMeters: number,
+  gravityY: number = GAME_CONFIG.physics.gravity
+): number {
+  const g = Math.abs(gravityY);
+  const h = Math.max(0.02, apexHeightMeters);
+  return Math.sqrt(2 * g * h);
+}
 
 export type CurrencyCode = typeof GAME_CONFIG.currency.code;
 

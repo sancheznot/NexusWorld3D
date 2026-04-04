@@ -7,6 +7,7 @@
 
 import { CharacterState, CharacterStateContext } from "../CharacterState";
 import { getAnimationDuration } from "@/hooks/useAnimationDurations";
+import { GAME_CONFIG, computeJumpVelocityForApex } from "@/constants/game";
 
 /**
  * Estado: Idle (Parado)
@@ -176,9 +177,12 @@ export class JumpState extends CharacterState {
 
     // APLICAR SALTO FÍSICO (sincronizar animación con física)
     if (context.applyJump) {
-      const jumpForce = 6; // Fuerza normal de salto
-      context.applyJump(jumpForce);
-      console.log(`⚡ Aplicando salto físico: ${jumpForce}`);
+      const apex = GAME_CONFIG.physics.playerCharacter.jumpApexHeightNormal;
+      const vy = computeJumpVelocityForApex(
+        apex,
+        GAME_CONFIG.physics.gravity
+      );
+      context.applyJump(vy);
     }
   }
 

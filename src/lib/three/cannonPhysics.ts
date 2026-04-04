@@ -33,6 +33,12 @@ interface IRaycastVehicle {
 }
 
 export class CannonPhysics {
+  private verboseColliderLogs(): boolean {
+    // GAME_CONFIG está `as const`; el flag sigue siendo booleano en runtime si se muta o amplía el tipo.
+    return (GAME_CONFIG.physics.performance as { verboseColliderLogs: boolean })
+      .verboseColliderLogs;
+  }
+
   private world: CANNON.World;
   private bodies: Map<string, CANNON.Body> = new Map();
   private playerBody: CANNON.Body | null = null;
@@ -71,7 +77,10 @@ export class CannonPhysics {
     // Configurar solver MEJORADO para mejores colisiones
     this.world.broadphase = new CANNON.SAPBroadphase(this.world);
     const solver = new CANNON.GSSolver();
-    solver.iterations = 5; // Reducido de 10 a 5 para optimización
+    solver.iterations = Math.max(
+      5,
+      GAME_CONFIG.physics.playerCharacter.solverIterations
+    );
     this.world.solver = solver;
 
     // DESACTIVAR sleep temporalmente para debug de colisiones
@@ -179,7 +188,7 @@ export class CannonPhysics {
         }
       }
     });
-    if (count > 0) {
+    if (count > 0 && this.verboseColliderLogs()) {
       console.log(`⛰️  ${count} Trimesh colliders generados (${idPrefix})`);
     }
     return count;
@@ -255,7 +264,7 @@ export class CannonPhysics {
       }
     });
 
-    if (count > 0) {
+    if (count > 0 && this.verboseColliderLogs()) {
       console.log(`🔷 ${count} Convex Hull colliders generados (${idPrefix})`);
     }
     return count;
@@ -429,11 +438,15 @@ export class CannonPhysics {
       vehicle.updateVehicle(delta);
     });
 
-    // Debug: Mostrar rendimiento de física (cada 3 segundos)
-    if (!this.lastDebugTime || Date.now() - this.lastDebugTime > 3000) {
-      const activeColliders = Array.from(this.bodies.values()).filter(
-        (b) => (b as ICullableBody).isActive !== false
-      ).length;
+    const statsMs = GAME_CONFIG.physics.performance.physicsStatsIntervalMs ?? 0;
+    if (
+      statsMs > 0 &&
+      (!this.lastDebugTime || Date.now() - this.lastDebugTime > statsMs)
+    ) {
+      let activeColliders = 0;
+      for (const b of this.bodies.values()) {
+        if ((b as ICullableBody).isActive !== false) activeColliders += 1;
+      }
       const inactiveColliders = this.bodies.size - activeColliders;
 
       console.log(`⚡ Physics Performance:`);
@@ -451,7 +464,9 @@ export class CannonPhysics {
   // Setter para el vehículo actual
   setCurrentVehicle(id: string | null) {
     this.currentVehicleId = id;
-    console.log(`🚗 Active Vehicle set to: ${id}`);
+    if (this.verboseColliderLogs()) {
+      console.log(`🚗 Active Vehicle set to: ${id}`);
+    }
   }
 
   /**
@@ -575,16 +590,21 @@ export class CannonPhysics {
 
       // 2. Aplicar Air Control (fuerza pequeña para ajustar trayectoria)
       if (input.x !== 0 || input.z !== 0) {
-        // Fuerza aditiva, no reemplazo de velocidad
-        // Usamos un valor hardcodeado o de config si existiera (AIR_CONTROL = 5)
-        const airForce = 10 * deltaTime;
+        const pc = GAME_CONFIG.physics.playerCharacter;
+        const airAccel = pc.airControlAcceleration * deltaTime;
+        this.playerBody.velocity.x += input.x * airAccel;
+        this.playerBody.velocity.z += input.z * airAccel;
 
-        // Añadir velocidad pero limitando a no superar maxSpeed excesivamente
-        // (aunque en otras implementaciones se permite superar para bunny hopping, aquí limitamos suavemente)
-        this.playerBody.velocity.x += input.x * airForce;
-        this.playerBody.velocity.z += input.z * airForce;
+        const cap = pc.airMaxHorizontalSpeed;
+        const hx = this.playerBody.velocity.x;
+        const hz = this.playerBody.velocity.z;
+        const horiz = Math.hypot(hx, hz);
+        if (horiz > cap && horiz > 1e-6) {
+          const s = cap / horiz;
+          this.playerBody.velocity.x *= s;
+          this.playerBody.velocity.z *= s;
+        }
 
-        // Actualizar currentVelocity para que al aterrizar no haya salto brusco
         this.currentVelocity.x = this.playerBody.velocity.x;
         this.currentVelocity.z = this.playerBody.velocity.z;
       }
@@ -601,16 +621,8 @@ export class CannonPhysics {
       this.playerBody.velocity.z *= 0.95;
     }
 
-    // Clamp vertical movement: si toca suelo, corrige penetración y opcionalmente amortigua caída
-    if (this.playerBody.position.y <= this.playerBaseY + 0.01) {
-      if (this.playerBody.position.y < this.playerBaseY) {
-        this.playerBody.position.y = this.playerBaseY;
-      }
-      if (this.playerBody.velocity.y < 0) {
-        // amortiguar el impacto sin eliminar aceleración en el aire
-        this.playerBody.velocity.y = 0;
-      }
-    }
+    // ES: Sin snap a Y global ni “kill” de vy en suelo — Cannon + materiales resuelven contacto (más cercano a Rigidbody Unity).
+    // EN: No global Y snap or grounded vy clamp — contacts handle landing/slopes.
   }
 
   private lerp(start: number, end: number, factor: number): number {
@@ -748,35 +760,31 @@ export class CannonPhysics {
     );
   }
 
-  jump(force: number) {
+  /**
+   * ES: Impulso de salto: `verticalVelocity` es velocidad Y objetivo (p. ej. desde computeJumpVelocityForApex).
+   * EN: Jump impulse as target vertical velocity (e.g. from computeJumpVelocityForApex).
+   */
+  jump(verticalVelocity: number) {
     if (!this.playerBody) return;
-
-    // Solo saltar si está en el suelo (centro del cilindro en Y=1.05)
-    if (this.isGrounded()) {
-      this.playerBody.velocity.y = force;
-      console.log(`🦘 Jump applied: ${force}`);
-    }
+    if (!this.isGrounded()) return;
+    this.playerBody.velocity.y = verticalVelocity;
   }
 
   isGrounded(): boolean {
     if (!this.playerBody) return false;
 
-    // Raycast hacia abajo para detectar suelo (más robusto que altura fija)
+    const { groundProbeLength, groundProbeHitMaxDistance } =
+      GAME_CONFIG.physics.playerCharacter;
     const start = this.playerBody.position;
-    const end = new CANNON.Vec3(start.x, start.y - 1.5, start.z); // 1.5m hacia abajo (altura jugador ~2m)
+    const end = new CANNON.Vec3(start.x, start.y - groundProbeLength, start.z);
 
     const ray = new CANNON.Ray(start, end);
     const result = new CANNON.RaycastResult();
 
-    // Raycast contra todo el mundo (CollisionGroups se encargan del filtrado si es necesario)
-    // Pero idealmente solo contra suelo y estáticos
     ray.intersectWorld(this.world, { mode: CANNON.Ray.CLOSEST, result });
 
-    if (result.hasHit) {
-      // Si la distancia es pequeña (estamos tocando o casi tocando el suelo)
-      // distance es desde el centro del cuerpo. Centro a pies = 1.0m (aprox)
-      // Margen de 0.2m
-      if (result.distance < 1.2) return true;
+    if (result.hasHit && result.distance < groundProbeHitMaxDistance) {
+      return true;
     }
 
     return false;
@@ -1829,11 +1837,13 @@ export class CannonPhysics {
     this.world.addBody(body);
     (body as ICullableBody).isActive = true; // Inicializar tag
     this.bodies.set(id, body);
-    console.log(
-      `🏢 Box collider creado: ${id} → size=(${sx.toFixed(1)}, ${sy.toFixed(
-        1
-      )}, ${sz.toFixed(1)})`
-    );
+    if (this.verboseColliderLogs()) {
+      console.log(
+        `🏢 Box collider creado: ${id} → size=(${sx.toFixed(1)}, ${sy.toFixed(
+          1
+        )}, ${sz.toFixed(1)})`
+      );
+    }
   }
 
   // 🚀 NUEVO: Crear body desde forma de three-to-cannon
@@ -1873,13 +1883,15 @@ export class CannonPhysics {
     this.world.addBody(body);
     (body as ICullableBody).isActive = true; // Inicializar tag
     this.bodies.set(id, body);
-    console.log(
-      `🚀 Automatic collider created: ${id} at (${position.x.toFixed(
-        1
-      )}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)}) shape=${
-        cannonShape.type
-      }`
-    );
+    if (this.verboseColliderLogs()) {
+      console.log(
+        `🚀 Automatic collider created: ${id} at (${position.x.toFixed(
+          1
+        )}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)}) shape=${
+          cannonShape.type
+        }`
+      );
+    }
 
     return body;
   }
@@ -1891,18 +1903,21 @@ export class CannonPhysics {
     idPrefix: string
   ) {
     let count = 0;
-    console.log(
-      `🔧 createUCXBoxCollidersFromScene: Starting with prefix ${idPrefix}`
-    );
+    const v = this.verboseColliderLogs();
+    if (v) {
+      console.log(
+        `🔧 createUCXBoxCollidersFromScene: Starting with prefix ${idPrefix}`
+      );
+    }
 
     scene.traverse((child) => {
       if ((child as THREE.Mesh).isMesh && filter(child.name)) {
-        console.log(`🎯 Found UCX mesh: ${child.name}`);
+        if (v) console.log(`🎯 Found UCX mesh: ${child.name}`);
         const mesh = child as THREE.Mesh;
 
         // 🔹 Hacer invisible el mesh UCX (solo para collider)
         mesh.visible = false;
-        console.log(`👻 Mesh UCX oculto: ${child.name}`);
+        if (v) console.log(`👻 Mesh UCX oculto: ${child.name}`);
 
         mesh.updateMatrixWorld();
         const worldBox = new THREE.Box3().setFromObject(mesh);
@@ -1929,9 +1944,11 @@ export class CannonPhysics {
       }
     });
 
-    console.log(
-      `📊 UCX Box Colliders created: ${count} for prefix ${idPrefix}`
-    );
+    if (v || count > 0) {
+      console.log(
+        `📊 UCX Box Colliders created: ${count} for prefix ${idPrefix}`
+      );
+    }
     return count;
   }
 
@@ -1986,11 +2003,13 @@ export class CannonPhysics {
 
     this.world.addBody(body);
     this.bodies.set(id, body);
-    console.log(
-      `🎨 Mesh collider created (three-to-cannon): ${id} with ${meshesProcessed} meshes at (${position[0].toFixed(
-        1
-      )}, ${position[1].toFixed(1)}, ${position[2].toFixed(1)})`
-    );
+    if (this.verboseColliderLogs()) {
+      console.log(
+        `🎨 Mesh collider created (three-to-cannon): ${id} with ${meshesProcessed} meshes at (${position[0].toFixed(
+          1
+        )}, ${position[1].toFixed(1)}, ${position[2].toFixed(1)})`
+      );
+    }
   }
 
   // 📦 Fallback: crear colliders de caja a partir del bounding box mundial de un Object3D (grupos completos)
@@ -2015,8 +2034,9 @@ export class CannonPhysics {
         }
       }
     });
-    if (count > 0)
+    if (count > 0 && this.verboseColliderLogs()) {
       console.log(`📦 BBox colliders creados: ${count} (${idPrefix})`);
+    }
     return count;
   }
 
@@ -2073,16 +2093,7 @@ export class CannonPhysics {
         // Convex Hull crea una "envoltura" que tapa los huecos de los escalones -> Rampa lisa
         const result = threeToCannon(mesh, { type: ShapeType.HULL });
         if (result?.shape) {
-          this.createBodyFromShape(
-            result.shape,
-            this.getVec3(mesh.position), // Usar posición local si es hijo directo, o world si threeToCannon lo maneja
-            this.getEuler(mesh.quaternion),
-            this.getVec3(mesh.scale), // Nota: threeToCannon suele aplicar escala al shape
-            id
-          );
-          // Corrección: threeToCannon devuelve offset/orientation relativos al mesh.
-          // createBodyFromShape asume posición del mesh.
-          // Mejor usar la implementación directa aquí para asegurar world coords correctas:
+          // Una sola vía: world transform desde el mesh (evita body duplicado en el mundo)
           this.createColliderFromResult(mesh, result, id);
           stats.stairs++;
           return;
@@ -2098,9 +2109,11 @@ export class CannonPhysics {
           if (result?.shape) {
             this.createColliderFromResult(mesh, result, id);
             stats.floors++; // Contarlo como piso optimizado
-            console.log(
-              `🛣️ Smart Optimization: Flat Terrain '${name}' -> Box Collider`
-            );
+            if (this.verboseColliderLogs()) {
+              console.log(
+                `🛣️ Smart Optimization: Flat Terrain '${name}' -> Box Collider`
+              );
+            }
             return;
           }
         }
@@ -2177,7 +2190,9 @@ export class CannonPhysics {
         if (result?.shape) {
           this.createColliderFromResult(mesh, result, id);
           stats.floors++;
-          console.log(`🛣️ Optimized Floor/Road: ${id}`);
+          if (this.verboseColliderLogs()) {
+            console.log(`🛣️ Optimized Floor/Road: ${id}`);
+          }
           return;
         }
       }
@@ -2199,11 +2214,13 @@ export class CannonPhysics {
         let sz = size.z;
 
         if (sy < sx || sy < sz) {
-          console.log(
-            `🔄 Auto-Rotating Traffic Light: ${id} (was ${sx.toFixed(
-              2
-            )}x${sy.toFixed(2)}x${sz.toFixed(2)})`
-          );
+          if (this.verboseColliderLogs()) {
+            console.log(
+              `🔄 Auto-Rotating Traffic Light: ${id} (was ${sx.toFixed(
+                2
+              )}x${sy.toFixed(2)}x${sz.toFixed(2)})`
+            );
+          }
           // Encontrar la dimensión más larga y asignarla a Y (altura)
           const maxDim = Math.max(sx, sy, sz);
           if (maxDim === sx) {
@@ -2224,7 +2241,9 @@ export class CannonPhysics {
 
         this.addStaticBody(body, id);
         stats.poles++;
-        console.log(`🚦 Traffic Light Optimized (AABB+Vertical): ${id}`);
+        if (this.verboseColliderLogs()) {
+          console.log(`🚦 Traffic Light Optimized (AABB+Vertical): ${id}`);
+        }
         return;
       }
 
@@ -2272,13 +2291,17 @@ export class CannonPhysics {
       if (/police|hospital|cityhall|firestation|cafe/i.test(name)) {
         if (this.createTrimeshColliderFromWorldMesh(mesh, id)) {
           stats.walls++;
-          console.log(`🏛️ Special Building Trimesh: ${id}`);
+          if (this.verboseColliderLogs()) {
+            console.log(`🏛️ Special Building Trimesh: ${id}`);
+          }
           return;
         }
       }
     });
 
-    console.log(`✨ Optimized Colliders Created (${idPrefix}):`, stats);
+    if (this.verboseColliderLogs()) {
+      console.log(`✨ Optimized Colliders Created (${idPrefix}):`, stats);
+    }
     return stats;
   }
 
@@ -2322,14 +2345,6 @@ export class CannonPhysics {
     body.addShape(result.shape, result.offset, result.orientation);
     this.setBodyTransformFromMesh(body, mesh);
     this.addStaticBody(body, id);
-  }
-
-  private getVec3(v: THREE.Vector3 | { x: number; y: number; z: number }) {
-    return { x: v.x, y: v.y, z: v.z };
-  }
-  private getEuler(q: THREE.Quaternion) {
-    const e = new THREE.Euler().setFromQuaternion(q);
-    return { x: e.x, y: e.y, z: e.z };
   }
 
   // Construir Trimesh robusto aplicando matrixWorld y limpiando triángulos degenerados
@@ -2393,20 +2408,22 @@ export class CannonPhysics {
     body.sleepTimeLimit = 1.0;
     body.collisionResponse = true;
 
-    // DEBUG: Log TODOS los Trimesh de árboles y edificios
-    if (id.includes("Tree_") || id.includes("Building") || id.includes("SM_")) {
-      console.log(
-        `🌳 Trimesh ${id}: pos=(${body.position.x.toFixed(
-          1
-        )}, ${body.position.y.toFixed(1)}, ${body.position.z.toFixed(
-          1
-        )}), group=${body.collisionFilterGroup}, mask=${
-          body.collisionFilterMask
-        }, vertices=${vertices.length / 3}, triangles=${filtered.length / 3}`
-      );
+    if (this.verboseColliderLogs()) {
+      if (id.includes("Tree_") || id.includes("Building") || id.includes("SM_")) {
+        console.log(
+          `🌳 Trimesh ${id}: pos=(${body.position.x.toFixed(
+            1
+          )}, ${body.position.y.toFixed(1)}, ${body.position.z.toFixed(
+            1
+          )}), group=${body.collisionFilterGroup}, mask=${
+            body.collisionFilterMask
+          }, vertices=${vertices.length / 3}, triangles=${filtered.length / 3}`
+        );
+      }
     }
 
     this.world.addBody(body);
+    (body as ICullableBody).isActive = true;
     this.bodies.set(id, body);
     return true;
   }
@@ -2489,11 +2506,14 @@ export class CannonPhysics {
     body.collisionFilterMask = -1;
 
     this.world.addBody(body);
+    (body as ICullableBody).isActive = true;
     this.bodies.set(id, body);
 
-    console.log(
-      `🏔️ Heightfield created for ${id}: ${nx}x${nz} points (Fixed Orientation)`
-    );
+    if (this.verboseColliderLogs()) {
+      console.log(
+        `🏔️ Heightfield created for ${id}: ${nx}x${nz} points (Fixed Orientation)`
+      );
+    }
     return true;
   }
 
