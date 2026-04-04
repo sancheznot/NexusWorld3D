@@ -1,157 +1,324 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { usePlayerStore } from '@/store/playerStore';
-import { useUIStore } from '@/store/uiStore';
+import { Mail, MessageCircle } from "lucide-react";
+import Link from "next/link";
+import { signIn, signOut, useSession } from "next-auth/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { GameButton } from "@/components/ui/GameButton";
+import { frameworkDefaultWorldId } from "@/lib/frameworkBranding";
+import {
+  DEFAULT_LANDING_CONFIG,
+  type LandingBrandingConfig,
+} from "@/types/landing.types";
+import type { PublicAuthFlags } from "@/lib/auth/publicAuthFlags";
+import { usePlayerStore } from "@/store/playerStore";
+import { useUIStore } from "@/store/uiStore";
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (username: string) => void;
+  /** ES: Tras sesión válida y jugador rellenado. EN: After session OK and player set. */
+  onLogin: () => void;
 }
 
-export default function LoginModal({ isOpen, onClose, onLogin }: LoginModalProps) {
-  const [username, setUsername] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+export default function LoginModal({
+  isOpen,
+  onClose,
+  onLogin,
+}: LoginModalProps) {
+  const router = useRouter();
+  const { data: session, status } = useSession();
   const { setPlayer } = usePlayerStore();
   const { addNotification } = useUIStore();
+  const appliedSessionRef = useRef(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const [cfg, setCfg] = useState<LandingBrandingConfig>(DEFAULT_LANDING_CONFIG);
+  const [authFlags, setAuthFlags] = useState<PublicAuthFlags | null>(null);
+  const [email, setEmail] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [cRes, aRes] = await Promise.all([
+          fetch("/api/public/landing-config"),
+          fetch("/api/public/auth-options"),
+        ]);
+        const cJson = await cRes.json();
+        const aJson = await aRes.json();
+        if (cancelled) return;
+        if (cJson?.config) setCfg(cJson.config as LandingBrandingConfig);
+        if (aJson && typeof aJson.discord === "boolean")
+          setAuthFlags(aJson as PublicAuthFlags);
+      } catch {
+        /* defaults */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  const applySessionToPlayer = useCallback(() => {
+    if (!session?.user?.id) return;
+    const name =
+      session.user.name?.trim() ||
+      session.user.email?.split("@")[0] ||
+      "Jugador";
+    setPlayer({
+      id: session.user.id,
+      username: name,
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      health: 100,
+      maxHealth: 100,
+      stamina: 100,
+      maxStamina: 100,
+      level: 1,
+      experience: 0,
+      worldId: frameworkDefaultWorldId,
+      isOnline: false,
+      lastSeen: new Date(),
+    });
+  }, [session?.user, setPlayer]);
+
+  useEffect(() => {
+    if (!isOpen || status !== "authenticated" || !session?.user?.id) return;
+    if (appliedSessionRef.current) return;
+    appliedSessionRef.current = true;
+    applySessionToPlayer();
+    onLogin();
+  }, [isOpen, status, session?.user?.id, applySessionToPlayer, onLogin]);
+
+  useEffect(() => {
+    if (!isOpen) appliedSessionRef.current = false;
+  }, [isOpen]);
+
+  const handleDiscord = () => {
+    void signIn("discord", { callbackUrl: `${window.location.origin}/game` });
+  };
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!username.trim()) {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes("@")) {
       addNotification({
-        id: `error-${Date.now()}`,
-        type: 'error',
-        title: 'Error',
-        message: 'Por favor ingresa un nombre de usuario',
-        duration: 3000,
+        id: `err-${Date.now()}`,
+        type: "error",
+        title: "Email",
+        message: "Introduce un email válido / Enter a valid email",
+        duration: 4000,
         timestamp: new Date(),
       });
       return;
     }
-
-    if (username.length < 3) {
+    const provider = authFlags?.emailProvider;
+    if (!provider) return;
+    setEmailSending(true);
+    try {
+      await signIn(provider, {
+        email: trimmed,
+        callbackUrl: `${window.location.origin}/game`,
+        redirect: true,
+      });
+    } catch {
       addNotification({
-        id: `error-${Date.now()}`,
-        type: 'error',
-        title: 'Error',
-        message: 'El nombre de usuario debe tener al menos 3 caracteres',
-        duration: 3000,
+        id: `err-${Date.now()}`,
+        type: "error",
+        title: "Email",
+        message: "No se pudo enviar el enlace. Revisa SMTP o Resend.",
+        duration: 5000,
         timestamp: new Date(),
       });
-      return;
+    } finally {
+      setEmailSending(false);
     }
+  };
 
-    setIsLoading(true);
-
-    // Simulate login process
-    setTimeout(() => {
-      const playerData = {
-        id: `player-${Date.now()}`,
-        username: username.trim(),
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0 },
-        health: 100,
-        maxHealth: 100,
-        stamina: 100,
-        maxStamina: 100,
-        level: 1,
-        experience: 0,
-        worldId: 'default',
-        isOnline: false, // Will be set to true when joining the game
-        lastSeen: new Date(),
-      };
-
-      setPlayer(playerData);
-      onLogin(username.trim());
-      setIsLoading(false);
-    }, 1000);
+  const handleLeave = () => {
+    void signOut({ redirect: false });
+    onClose();
+    router.push("/");
   };
 
   if (!isOpen) return null;
 
+  const hasAnyAuth =
+    authFlags && (authFlags.discord || authFlags.email);
+  const loadingFlags = authFlags === null;
+
   return (
-    <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center">
-      <div className="bg-gray-800 rounded-lg p-8 max-w-md w-full mx-4 relative">
-        {/* Close button */}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-3 sm:p-4 landscape:p-2 touch-manipulation">
+      <div
+        className="relative flex max-h-[min(92dvh,920px)] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-cyan-500/25 bg-slate-900/95 shadow-[0_0_40px_rgba(34,211,238,0.12)] backdrop-blur-md
+        landscape:max-h-[95dvh] landscape:max-w-3xl landscape:flex-row landscape:items-stretch"
+      >
         <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-white text-2xl"
-          disabled={isLoading}
+          type="button"
+          onClick={handleLeave}
+          className="absolute right-2 top-2 z-10 flex h-10 w-10 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-white"
+          aria-label="Salir al inicio / Back to home"
         >
           ×
         </button>
 
-        {/* Header */}
-        <div className="text-center mb-6">
-          <h2 className="text-3xl font-bold text-white mb-2">
-            🏨 Hotel Humboldt
-          </h2>
-          <p className="text-gray-300">
-            Ingresa tu nombre de usuario para comenzar
-          </p>
+        <div className="min-w-0 flex-1 p-5 pt-11 sm:p-7 landscape:py-5 landscape:pl-6 landscape:pr-4">
+          <header className="mb-5 text-center landscape:text-left">
+            <h2 className="bg-gradient-to-b from-white to-slate-400 bg-clip-text text-2xl font-black tracking-tight text-transparent sm:text-3xl">
+              {cfg.gameLoginTitle}
+            </h2>
+            <p className="mt-2 text-sm text-slate-400 sm:text-base">
+              {cfg.gameLoginSubtitle}
+            </p>
+          </header>
+
+          {status === "loading" || loadingFlags ? (
+            <div className="flex justify-center py-10">
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+            </div>
+          ) : !hasAnyAuth ? (
+            <div className="space-y-4 rounded-xl border border-amber-500/30 bg-amber-950/30 p-4 text-sm text-amber-100">
+              <p>
+                No hay proveedores de acceso configurados. Añade en{" "}
+                <code className="rounded bg-black/40 px-1">.env.local</code>{" "}
+                al menos{" "}
+                <code className="rounded bg-black/40 px-1">
+                  AUTH_DISCORD_ID
+                </code>{" "}
+                y{" "}
+                <code className="rounded bg-black/40 px-1">
+                  AUTH_DISCORD_SECRET
+                </code>
+                , o base de datos + migración{" "}
+                <code className="rounded bg-black/40 px-1">002_auth_nextauth</code>{" "}
+                +{" "}
+                <code className="rounded bg-black/40 px-1">AUTH_RESEND_KEY</code>{" "}
+                / SMTP.
+              </p>
+              <GameButton
+                type="button"
+                variant="neon"
+                className="w-full"
+                onClick={handleLeave}
+              >
+                Volver al portal
+              </GameButton>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {authFlags.discord && (
+                <GameButton
+                  type="button"
+                  variant="modern"
+                  className="w-full uppercase tracking-wide text-sm sm:text-base"
+                  onClick={handleDiscord}
+                >
+                  <MessageCircle className="shrink-0" size={22} aria-hidden />
+                  Continuar con Discord
+                </GameButton>
+              )}
+
+              {authFlags.email && authFlags.emailProvider && (
+                <form onSubmit={handleEmailSubmit} className="space-y-3">
+                  <label
+                    htmlFor="game-login-email"
+                    className="block text-xs font-semibold uppercase tracking-wider text-slate-400"
+                  >
+                    Email (enlace mágico)
+                  </label>
+                  <input
+                    id="game-login-email"
+                    type="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="tu@email.com"
+                    disabled={emailSending}
+                    className="w-full min-h-[48px] rounded-xl border border-cyan-500/40 bg-slate-950/80 px-4 py-3 text-white placeholder:text-slate-600 focus:border-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                  />
+                  <GameButton
+                    type="submit"
+                    variant="custom"
+                    style={{
+                      background:
+                        "linear-gradient(to right, #f59e0b, #ea580c)",
+                    }}
+                    className="w-full uppercase tracking-wide"
+                    disabled={emailSending || !email.trim()}
+                  >
+                    <Mail className="shrink-0" size={20} aria-hidden />
+                    {emailSending ? "Enviando…" : "Enviar enlace"}
+                  </GameButton>
+                </form>
+              )}
+
+              {session && (
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => void signOut({ callbackUrl: "/" })}
+                    className="text-xs text-slate-500 underline hover:text-slate-300"
+                  >
+                    Cerrar sesión
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-2">
-              Nombre de Usuario
-            </label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Ingresa tu nombre..."
-              className="w-full px-4 py-3 bg-gray-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-              disabled={isLoading}
-              autoFocus
-              maxLength={20}
-            />
-            <p className="text-xs text-gray-400 mt-1">
-              Mínimo 3 caracteres, máximo 20
-            </p>
-          </div>
-
-          <div className="flex space-x-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              disabled={isLoading}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-yellow-500 to-orange-600 text-white rounded-lg hover:from-yellow-600 hover:to-orange-700 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isLoading || !username.trim()}
-            >
-              {isLoading ? (
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                  Conectando...
-                </div>
-              ) : (
-                'Continuar'
-              )}
-            </button>
-          </div>
-        </form>
-
-        {/* Game Info */}
-        <div className="mt-6 p-4 bg-gray-700 rounded-lg">
-          <h3 className="text-sm font-bold text-yellow-400 mb-2">🎮 Controles del Juego</h3>
-          <div className="text-xs text-gray-300 space-y-1">
-            <div><kbd className="bg-gray-600 px-1 py-0.5 rounded">WASD</kbd> Mover</div>
-            <div><kbd className="bg-gray-600 px-1 py-0.5 rounded">Shift</kbd> Correr</div>
-            <div><kbd className="bg-gray-600 px-1 py-0.5 rounded">I</kbd> Inventario</div>
-            <div><kbd className="bg-gray-600 px-1 py-0.5 rounded">M</kbd> Mapa</div>
-            <div><kbd className="bg-gray-600 px-1 py-0.5 rounded">N</kbd> Minimapa</div>
-            <div><kbd className="bg-gray-600 px-1 py-0.5 rounded">Enter</kbd> Chat</div>
-          </div>
+        <div className="shrink-0 border-t border-white/10 p-4 sm:p-5 landscape:w-[min(42%,300px)] landscape:border-l landscape:border-t-0">
+          <h3 className="mb-3 text-sm font-bold text-cyan-300">
+            {cfg.gameLoginControlsTitle}
+          </h3>
+          <ul className="grid grid-cols-1 gap-1.5 text-xs text-slate-300 sm:text-sm">
+            <li>
+              <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-cyan-200">
+                WASD
+              </kbd>{" "}
+              Mover
+            </li>
+            <li>
+              <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-cyan-200">
+                Shift
+              </kbd>{" "}
+              Correr
+            </li>
+            <li>
+              <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-cyan-200">
+                I
+              </kbd>{" "}
+              Inventario
+            </li>
+            <li>
+              <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-cyan-200">
+                M
+              </kbd>{" "}
+              Mapa
+            </li>
+            <li>
+              <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-cyan-200">
+                N
+              </kbd>{" "}
+              Minimapa
+            </li>
+            <li>
+              <kbd className="rounded bg-slate-800 px-1.5 py-0.5 font-mono text-cyan-200">
+                Enter
+              </kbd>{" "}
+              Chat
+            </li>
+          </ul>
+          <p className="mt-4 text-[11px] leading-snug text-slate-500">
+            <Link href="/" className="text-cyan-500/90 hover:underline">
+              ← Portal
+            </Link>
+            {" · "}
+            Sesión con cookies HttpOnly (Auth.js).
+          </p>
         </div>
       </div>
     </div>

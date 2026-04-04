@@ -1,3 +1,7 @@
+# ES: Solo se usa si el servicio Railway está en builder NIXPACKS (no Dockerfile).
+# EN: Only used when the Railway service builder is NIXPACKS (not Dockerfile).
+# Ver README-RAILWAY.md · See README-RAILWAY.md
+
 [phases.setup]
 nixPkgs = ["nodejs", "npm"]
 
@@ -8,4 +12,4 @@ cmds = ["npm install"]
 cmds = ["npm run build"]
 
 [start]
-cmd = "npm run start:all"
+cmd = "npm run start"

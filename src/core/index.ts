@@ -17,4 +17,4 @@ export * from './auth';
 export * from './worlds';
 
 // Re-export the main config for convenience
-export { nexusWorld3DConfig as config } from '../../nexusworld3d.config';
+export { nexusWorld3DConfig as config } from '@repo/nexusworld3d.config';

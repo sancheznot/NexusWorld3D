@@ -5,7 +5,7 @@
  * throughout the application without importing the config file directly.
  */
 
-import { nexusWorld3DConfig, type NexusWorld3DConfig } from '../../nexusworld3d.config';
+import { nexusWorld3DConfig, type NexusWorld3DConfig } from '@repo/nexusworld3d.config';
 
 // Global config instance
 let config: NexusWorld3DConfig = nexusWorld3DConfig;
@@ -78,6 +78,16 @@ export function getUIConfig() {
  */
 export function getAdminConfig() {
   return config.admin;
+}
+
+/** ES: Marca / producto. EN: Branding / product name. */
+export function getBrandingConfig() {
+  return config.branding;
+}
+
+/** ES: Red (sala Colyseus, alias). EN: Networking (Colyseus room, aliases). */
+export function getNetworkingConfig() {
+  return config.networking;
 }
 
 /**

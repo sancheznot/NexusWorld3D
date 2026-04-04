@@ -22,7 +22,7 @@ export interface MapData {
 }
 
 export interface PortalEvent {
-  type: 'portal_enter' | 'portal_exit' | 'map_change';
+  type: "portal_enter" | "portal_exit" | "map_change";
   playerId: string;
   portalId?: string;
   fromMap: string;

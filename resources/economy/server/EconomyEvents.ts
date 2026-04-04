@@ -1,6 +1,6 @@
 import { Room, Client } from 'colyseus';
-import { GAME_CONFIG } from '../src/constants/game';
-import { money } from '../src/lib/utils/money';
+import { GAME_CONFIG } from '@/constants/game';
+import { money } from '@/lib/utils/money';
 
 interface EconomyState {
   walletMinor: Map<string, number>; // Monedero (HUD)

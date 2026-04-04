@@ -1,45 +1,62 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { isAdminEnabled } from '@/core/auth';
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
-export default function AdminLoginPage() {
+function safePostLoginPath(raw: string | null): string {
+  if (!raw || !raw.startsWith("/")) return "/admin/panel";
+  if (!raw.startsWith("/admin/panel")) return "/admin/panel";
+  return raw;
+}
+
+function AdminLoginForm() {
   const router = useRouter();
-  const [credentials, setCredentials] = useState({ username: '', password: '' });
+  const searchParams = useSearchParams();
+  const [credentials, setCredentials] = useState({ username: "", password: "" });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEnabled, setIsEnabled] = useState(true);
 
-  // Check if admin is enabled on mount
   useEffect(() => {
-    const checkAdminEnabled = () => {
-      const adminSettings = isAdminEnabled();
-      setIsEnabled(adminSettings);
-      
-      if (!adminSettings) {
-        setError('Admin panel is disabled');
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/status");
+        const data = await res.json();
+        if (cancelled) return;
+        if (!data.enabled) {
+          setIsEnabled(false);
+          setError("Admin panel is disabled");
+        } else if (!data.hasCredentials) {
+          setIsEnabled(false);
+          setError(
+            "Define ADMIN_USERNAME_ACCESS y ADMIN_PASSWORD_ACCESS en el entorno / Set admin env credentials"
+          );
+        }
+      } catch {
+        if (!cancelled) setError("Could not load admin status");
       }
+    })();
+    return () => {
+      cancelled = true;
     };
-
-    checkAdminEnabled();
   }, []);
 
-  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!isEnabled) return;
-    
+
     setIsLoading(true);
     setError(null);
 
     try {
-      // Call API to authenticate
-      const response = await fetch('/api/admin/login', {
-        method: 'POST',
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        credentials: "include",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(credentials),
       });
@@ -47,22 +64,21 @@ export default function AdminLoginPage() {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        // Redirect to admin panel
-        router.push('/admin');
+        const next = safePostLoginPath(searchParams.get("next"));
+        router.push(next);
       } else {
-        setError(data.error || 'Login failed');
+        setError(data.error || "Login failed");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setCredentials(prev => ({
+    setCredentials((prev) => ({
       ...prev,
       [name]: value,
     }));
@@ -75,10 +91,12 @@ export default function AdminLoginPage() {
           <div className="text-6xl text-gray-600 mb-4">🚫</div>
           <h1 className="text-2xl font-bold text-white mb-4">Admin Disabled</h1>
           <p className="text-gray-400 mb-6">
-            The admin panel is currently disabled. Please check your environment configuration.
+            The admin panel is currently disabled. Please check your environment
+            configuration.
           </p>
           <button
-            onClick={() => router.push('/')}
+            type="button"
+            onClick={() => router.push("/")}
             className="px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
             Go Home
@@ -89,17 +107,28 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
       <div className="max-w-md w-full bg-gray-800 rounded-lg p-8">
         <div className="text-center mb-8">
           <div className="text-6xl text-blue-500 mb-4">🌍</div>
-          <h1 className="text-2xl font-bold text-white mb-2">NexusWorld3D Admin</h1>
-          <p className="text-gray-400">Sign in to access the admin panel</p>
+          <h1 className="text-2xl font-bold text-white mb-2">Staff login</h1>
+          <p className="text-gray-400 text-sm">
+            Acceso al panel de mundos, assets y configuración del portal.
+          </p>
+          <Link
+            href="/admin"
+            className="text-cyan-400 hover:text-cyan-300 text-sm mt-3 inline-block"
+          >
+            ← Volver a la página del proyecto / Back to project page
+          </Link>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-2">
+            <label
+              htmlFor="username"
+              className="block text-sm font-medium text-gray-300 mb-2"
+            >
               Username
             </label>
             <input
@@ -115,7 +144,10 @@ export default function AdminLoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-gray-300 mb-2"
+            >
               Password
             </label>
             <input
@@ -141,19 +173,34 @@ export default function AdminLoginPage() {
             disabled={isLoading}
             className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Signing in...' : 'Sign In'}
+            {isLoading ? "Signing in..." : "Sign In"}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <button
-            onClick={() => router.push('/')}
+            type="button"
+            onClick={() => router.push("/")}
             className="text-gray-400 hover:text-white text-sm"
           >
-            ← Back to Home
+            ← Ir al portal del juego / Game portal
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-900 flex items-center justify-center text-white">
+          Loading…
+        </div>
+      }
+    >
+      <AdminLoginForm />
+    </Suspense>
   );
 }

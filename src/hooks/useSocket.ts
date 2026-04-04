@@ -5,6 +5,10 @@ import { usePlayerStore } from "@/store/playerStore";
 import { useWorldStore } from "@/store/worldStore";
 import { useUIStore } from "@/store/uiStore";
 import { inventoryService } from "@/lib/services/inventory";
+import {
+  frameworkColyseusRoomName,
+  frameworkDefaultWorldId,
+} from "@/lib/frameworkBranding";
 
 interface Player {
   id: string;
@@ -25,6 +29,8 @@ interface Player {
 export const useSocket = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  /** ES: Incrementa al unirse a una sala (re-registrar listeners al cambiar de room). EN: Bumps on room join. */
+  const [roomEpoch, setRoomEpoch] = useState(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
@@ -45,17 +51,16 @@ export const useSocket = () => {
   } = useWorldStore();
   const { addChatMessage, addNotification } = useUIStore();
 
-  // Connect to Colyseus server
-  const connect = async () => {
+  const connect = async (
+    roomName: string = frameworkColyseusRoomName
+  ) => {
     try {
       setConnectionError(null);
-      await colyseusClient.connect();
-
-      // Esperar un poco para que el servidor esté listo
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
+      await colyseusClient.connect(roomName);
+      await new Promise((resolve) => setTimeout(resolve, 500));
       setIsConnected(true);
-      console.log("✅ Conectado al servidor Colyseus");
+      setRoomEpoch((n) => n + 1);
+      console.log("✅ Conectado al servidor Colyseus — sala:", roomName);
     } catch (error) {
       console.error("❌ Error conectando al servidor:", error);
       setConnectionError(
@@ -69,7 +74,7 @@ export const useSocket = () => {
   const joinGame = (
     playerId: string,
     username: string,
-    worldId: string = "default"
+    worldId: string = frameworkDefaultWorldId
   ) => {
     console.log("🎮 joinGame llamado:", {
       playerId,
@@ -77,7 +82,7 @@ export const useSocket = () => {
       worldId,
       isConnected,
     });
-    if (isConnected) {
+    if (colyseusClient.isSocketConnected()) {
       colyseusClient.joinPlayer({
         playerId,
         username,
@@ -390,14 +395,7 @@ export const useSocket = () => {
       worldClient.off("map:changed", handleMapChanged);
       worldClient.off("map:update", handleMapUpdate);
     };
-  }, [isConnected]);
-
-  // Auto-reconnect logic
-  useEffect(() => {
-    if (!isConnected && !connectionError) {
-      connect();
-    }
-  }, [isConnected, connectionError]);
+  }, [isConnected, roomEpoch]);
 
   // Cleanup on unmount
   useEffect(() => {

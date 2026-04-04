@@ -1,8 +1,17 @@
+# ES: Despliegue recomendado = misma imagen que docker-compose (Dockerfile).
+# EN: Recommended deploy = same image as docker-compose (Dockerfile).
+#
+# ES: Alternativa sin Docker: en el dashboard cambia builder a Nixpacks o borra [build] y usa nixpacks.toml.
+# EN: Non-Docker alternative: in the dashboard switch builder to Nixpacks or rely on nixpacks.toml.
+
 [build]
-builder = "nixpacks"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "npm run start:all"
+# ES: Mismo proceso que Dockerfile CMD (`server/combined.ts`: Next + Colyseus en un solo puerto).
+# EN: Same as Dockerfile CMD (single-port Next + Colyseus).
+startCommand = "npm run start"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"

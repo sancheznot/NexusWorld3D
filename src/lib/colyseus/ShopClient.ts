@@ -14,10 +14,14 @@ export class ShopClient {
   }
 
   private constructor() {
-    colyseusClient.on('room:connected', () => this.setup());
+    colyseusClient.on('room:connected', () => {
+      if (!colyseusClient.isConnectedToWorldRoom()) return;
+      this.setup();
+    });
   }
 
   private setup() {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     if (!room) return;
     room.onMessage('shop:list', (data: ShopList) => this.emit('shop:list', data));
@@ -26,9 +30,18 @@ export class ShopClient {
     room.onMessage('shop:success', (data: { itemId: string; quantity: number; total: number }) => this.emit('shop:success', data));
   }
 
-  requestShops() { colyseusClient.getSocket()?.send('shop:list'); }
-  openShop(shopId: string) { colyseusClient.getSocket()?.send('shop:request', { shopId }); }
-  buy(shopId: string, itemId: string, quantity = 1) { colyseusClient.getSocket()?.send('shop:buy', { shopId, itemId, quantity }); }
+  requestShops() {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('shop:list');
+  }
+  openShop(shopId: string) {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('shop:request', { shopId });
+  }
+  buy(shopId: string, itemId: string, quantity = 1) {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('shop:buy', { shopId, itemId, quantity });
+  }
 
   on(event: 'shop:list' | 'shop:data' | 'shop:error' | 'shop:success', cb: (data: unknown) => void) {
     if (!this.listeners.has(event)) this.listeners.set(event, []);

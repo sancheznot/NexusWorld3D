@@ -69,7 +69,9 @@ export default function AdvancedWorldEditor({ worldId, onSave, onClose }: Advanc
   // Load assets
   const loadAssets = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/assets');
+      const response = await fetch("/api/admin/assets", {
+        credentials: "include",
+      });
       const data = await response.json();
       
       if (response.ok && data.success) {

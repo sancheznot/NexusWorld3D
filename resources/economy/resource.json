@@ -1,0 +1,6 @@
+{
+  "id": "economy",
+  "name": "Economy (wallet, bank, transfers)",
+  "version": "1.0.0",
+  "dependencies": []
+}

@@ -1,43 +1,52 @@
-import { Server } from 'colyseus';
-import { HotelHumboldtRoom } from './rooms/HotelHumboldtRoom';
-import dotenv from 'dotenv';
+import "@server/env-bootstrap";
+import { Server } from "colyseus";
+import { registerNexusWorldRooms } from "@server/colyseus/registerRooms";
+import { printGameServerDevBanner } from "@server/banners/nexusColyseusBanner";
+import { runPendingMigrations } from "@/lib/db/runMigrations";
+import { startDedicatedGameMonitorServer } from "@server/metrics/gameMonitorHttp";
+import "@/lib/services/redis";
 
-// Cargar variables de entorno PRIMERO
-dotenv.config({ path: '.env.local' });
+// ES: Puerto del servidor Colyseus (dev). No uses PORT aquí si Next corre en el mismo .env — usa COLYSEUS_PORT o SOCKET_PORT.
+// EN: Colyseus listen port (dev). Avoid PORT here when Next shares .env — use COLYSEUS_PORT or SOCKET_PORT.
+const PORT: number =
+  Number(process.env.COLYSEUS_PORT || process.env.SOCKET_PORT) || 3001;
+const CLIENT_URL =
+  process.env.CLIENT_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  "http://localhost:3000";
 
-// Importar Redis DESPUÉS de cargar las variables
-import { gameRedis } from '../src/lib/services/redis';
+const gameServer = new Server({ greet: false });
 
-const PORT: number = Number(process.env.PORT) || 3001;
-const CLIENT_URL = process.env.CLIENT_URL || process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000';
+registerNexusWorldRooms(gameServer);
 
-// Create Colyseus server
-const gameServer = new Server();
+void (async () => {
+  try {
+    const m = await runPendingMigrations({ quiet: false });
+    if (!m.ok) {
+      console.error("❌ migrations failed:", m.error);
+      process.exit(1);
+    }
+    await gameServer.listen(PORT);
+    const monPort = Number(process.env.NEXUS_GAME_MONITOR_PORT || 3020);
+    startDedicatedGameMonitorServer(monPort);
+    printGameServerDevBanner({ port: PORT, clientUrl: CLIENT_URL });
+    const redisNote = process.env.UPSTASH_REDIS_REST_TOKEN?.trim()
+      ? "Upstash Redis (REST)"
+      : "Mock Redis (in-memory)";
+    console.log(`🗄️  ${redisNote}\n`);
+  } catch (e) {
+    console.error("❌ Colyseus listen failed:", e);
+    process.exit(1);
+  }
+})();
 
-// Register the Hotel Humboldt room
-gameServer.define('hotel-humboldt', HotelHumboldtRoom)
-  .enableRealtimeListing();
-
-console.log('🚀 Iniciando servidor Colyseus...');
-
-// CORS is handled by Colyseus automatically
-
-// Start server
-gameServer.listen(PORT);
-console.log(`🚀 Servidor Colyseus ejecutándose en puerto ${PORT}`);
-console.log(`🌐 Cliente URL: ${CLIENT_URL}`);
-console.log(`📡 WebSocket disponible en: ws://localhost:${PORT}`);
-console.log(`🏨 Hotel Humboldt Room disponible`);
-console.log(`🔴 Redis conectado a Upstash`);
-
-// Graceful shutdown
-process.on('SIGINT', () => {
-  console.log('🛑 Cerrando servidor Colyseus...');
+process.on("SIGINT", () => {
+  console.log("🛑 Shutting down Colyseus…");
   gameServer.gracefullyShutdown();
 });
 
-process.on('SIGTERM', () => {
-  console.log('🛑 Cerrando servidor Colyseus...');
+process.on("SIGTERM", () => {
+  console.log("🛑 Shutting down Colyseus…");
   gameServer.gracefullyShutdown();
 });
 

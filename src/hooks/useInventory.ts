@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import economyClient from '@/lib/colyseus/EconomyClient';
+import { colyseusClient } from '@/lib/colyseus/client';
 import { inventoryService, DEFAULT_ITEMS } from '@/lib/services/inventory';
 import inventoryClient from '@/lib/colyseus/InventoryClient';
 import { InventoryItem, Inventory, Equipment, ItemType, ItemRarity } from '@/types/inventory.types';
@@ -57,18 +58,18 @@ export function useInventory() {
     
     // Esperar a que la conexión esté lista antes de solicitar inventario
     const requestInventory = () => {
+      if (!colyseusClient.isConnectedToWorldRoom()) {
+        setTimeout(requestInventory, 1000);
+        return;
+      }
       const room = inventoryClient.getRoom?.();
       if (room && room.connection.isOpen) {
-        // Primero enviar nuestro inventario actual al servidor
         const currentInventory = inventoryService.getInventory();
         room.send('inventory:update', { inventory: currentInventory });
         console.log('📦 Enviando inventario actual al servidor:', currentInventory);
-        
-        // Luego solicitar el inventario del servidor
         room.send('inventory:request');
         console.log('📦 Solicitando inventario del servidor');
       } else {
-        console.warn('⚠️ No hay room conectada para solicitar inventario, reintentando...');
         setTimeout(requestInventory, 1000);
       }
     };

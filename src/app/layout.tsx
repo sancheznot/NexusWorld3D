@@ -1,5 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import AuthSessionProvider from "@/components/providers/AuthSessionProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -12,9 +13,23 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const appTitle =
+  process.env.NEXT_PUBLIC_GAME_NAME ?? "NexusWorld3D";
+const appDescription =
+  process.env.NEXT_PUBLIC_GAME_DESCRIPTION ??
+  "Framework para mundos 2D/3D multijugador en el navegador.";
+
 export const metadata: Metadata = {
-  title: "Hotel Humboldt - MMORPG 3D",
-  description: "Un MMORPG 3D inspirado en el icónico Hotel Humboldt de Venezuela",
+  title: `${appTitle} — NexusWorld3D`,
+  description: appDescription,
+};
+
+/** ES/EN: Mobile-first, notch/safe-area, horizontal play in browser. */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0f172a",
 };
 
 export default function RootLayout({
@@ -28,7 +43,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning={true}
       >
-        {children}
+        <AuthSessionProvider>{children}</AuthSessionProvider>
       </body>
     </html>
   );

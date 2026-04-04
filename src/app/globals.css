@@ -25,6 +25,31 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* ES: Lobby /game — barra fina, discreta (WebKit + Firefox). EN: Thin subtle scrollbar. */
+.lobby-scrollbar {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(34, 211, 238, 0.35) transparent;
+}
+
+.lobby-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.lobby-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.lobby-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(34, 211, 238, 0.22);
+  border-radius: 9999px;
+}
+
+.lobby-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(34, 211, 238, 0.45);
+}
+
 /* Game Settings Modal Scrollbar */
 .settings-modal::-webkit-scrollbar {
   width: 8px;
@@ -42,4 +67,14 @@ body {
 
 .settings-modal::-webkit-scrollbar-thumb:hover {
   background: #6B7280;
+}
+
+/* ES: Scroll sin barra visible (sigue respondiendo a rueda / touchpad). EN: Scrollbar hidden, wheel still works. */
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
 }

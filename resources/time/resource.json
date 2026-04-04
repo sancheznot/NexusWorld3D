@@ -1,0 +1,6 @@
+{
+  "id": "time",
+  "name": "Server time & day-night sync",
+  "version": "1.0.0",
+  "dependencies": []
+}

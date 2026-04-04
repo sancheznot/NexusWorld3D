@@ -1,12 +1,22 @@
 import { Room, Client } from "colyseus";
-import { gameRedis } from "../../src/lib/services/redis";
-import { InventoryEvents } from "../InventoryEvents";
-import { ItemEvents } from "../ItemEvents";
-import { TimeEvents } from "../TimeEvents";
-import { ShopEvents } from "../ShopEvents";
-import { EconomyEvents } from "../EconomyEvents";
-import { JobsEvents } from "../JobsEvents";
-import type { ExtendedJobId } from "../../src/constants/jobs";
+import { nexusWorld3DConfig } from "@repo/nexusworld3d.config";
+import { gameRedis } from "@/lib/services/redis";
+import type { FrameworkServices } from "@resources/types";
+import type { EconomyEvents } from "@resources/economy/server/EconomyEvents";
+import type { InventoryEvents } from "@resources/inventory/server/InventoryEvents";
+import { ItemEvents } from "@server/modules/ItemEvents";
+import { ShopEvents } from "@server/modules/ShopEvents";
+import {
+  attachCoreFrameworkResources,
+  attachLateFrameworkResources,
+} from "@server/bootstrap/attachFrameworkResources";
+import { pushGameMonitorLog } from "@server/metrics/gameMonitor";
+import type { ExtendedJobId } from "@/constants/jobs";
+import {
+  fetchPlayerProfileByNorm,
+  normalizePlayerUsername,
+  upsertPlayerProfile,
+} from "@/lib/db/playerProfile";
 
 interface PlayerData {
   id: string;
@@ -19,6 +29,8 @@ interface PlayerData {
   maxHealth: number;
   stamina: number;
   maxStamina: number;
+  hunger: number;
+  maxHunger: number;
   level: number;
   experience: number;
   worldId: string;
@@ -40,19 +52,48 @@ interface ChatMessage {
   type: string;
 }
 
-export class HotelHumboldtRoom extends Room {
+export class NexusWorldRoom extends Room {
   private players = new Map<string, PlayerData>();
   private chatMessages: ChatMessage[] = [];
   private redis = gameRedis;
-  private inventoryEvents!: InventoryEvents;
-  private _itemEvents!: ItemEvents; // keep reference alive
-  private _timeEvents!: TimeEvents; // keep reference alive
-  private _economyEvents!: EconomyEvents; // keep reference alive
-  private _shopEvents!: ShopEvents; // keep reference alive
-  private _jobsEvents!: JobsEvents; // keep reference alive
+
+  /** ES: Rellenado por recursos core (economía, inventario). EN: Filled by core resources. */
+  frameworkServices: FrameworkServices = {};
+
+  private _itemEvents!: ItemEvents;
+  private _shopEvents!: ShopEvents;
+
+  /** ES: Limpieza registrada por resources/ (registerDisposable). EN: Cleanup from resources/. */
+  private resourceDisposables: Array<() => void> = [];
+
+  get economyEvents(): EconomyEvents {
+    const e = this.frameworkServices.economy;
+    if (!e) throw new Error("[NexusWorld3D] economy resource not mounted");
+    return e;
+  }
+
+  get inventoryEvents(): InventoryEvents {
+    const i = this.frameworkServices.inventory;
+    if (!i) throw new Error("[NexusWorld3D] inventory resource not mounted");
+    return i;
+  }
+
+  /**
+   * ES: Expuesto al CoreContext para recursos del framework.
+   * EN: Exposed on CoreContext for framework resources.
+   */
+  registerResourceDisposable(dispose: () => void): void {
+    this.resourceDisposables.push(dispose);
+  }
 
   onCreate(_options: { [key: string]: string }) {
-    console.log("🏨 Hotel Humboldt Room creada");
+    console.log(
+      `🌐 NexusWorldRoom creada (${nexusWorld3DConfig.branding.appName})`
+    );
+    pushGameMonitorLog("info", "room", "NexusWorldRoom created", {
+      roomId: this.roomId,
+      roomName: this.roomName,
+    });
 
     // Configurar la sala
     this.maxClients = 50;
@@ -72,53 +113,26 @@ export class HotelHumboldtRoom extends Room {
     // Configurar handlers de mensajes
     this.setupMessageHandlers();
 
-    // Inicializar economía (banca, transferencias) PRIMERO
-    this._economyEvents = new EconomyEvents(this);
-    // Inicializar eventos de inventario con referencia a economía
-    this.inventoryEvents = new InventoryEvents(this, this._economyEvents);
-    // Inicializar sistema de ítems del mundo
+    // ES: Recursos core (economía → inventario) antes de ítems/tienda.
+    // EN: Core resources (economy → inventory) before items/shop.
+    attachCoreFrameworkResources(this);
+
     this._itemEvents = new ItemEvents(
       this,
-      (clientId: string) => {
-        const p = this.players.get(clientId);
-        return p?.mapId || null;
-      },
+      (clientId: string) => this.getPlayerMapId(clientId),
       (playerId: string, baseItem) =>
         this.inventoryEvents.addItemFromWorld(playerId, baseItem)
     );
-    // Inicializar sistema de tiempo (día/noche)
-    this._timeEvents = new TimeEvents(this);
 
-    // Inicializar sistema de tiendas
     this._shopEvents = new ShopEvents(this, {
       grantItemToPlayer: (playerId, baseItem) =>
         this.inventoryEvents.addItemFromWorld(playerId, baseItem),
       getPlayerRole: (clientId: string) =>
-        this.getPlayerRole(clientId) || undefined,
-      getPlayerMapId: (clientId: string) => {
-        const p = this.players.get(clientId);
-        return p?.mapId || null;
-      },
+        this.resolvePlayerJobRole(clientId) ?? undefined,
+      getPlayerMapId: (clientId: string) => this.getPlayerMapId(clientId),
       economy: {
         chargeWalletMajor: (userId: string, amount: number, reason?: string) =>
-          this._economyEvents.chargeWalletMajor(userId, amount, reason),
-      },
-    });
-
-    // Inicializar sistema de trabajos
-    this._jobsEvents = new JobsEvents(this, {
-      grantItemToPlayer: (playerId, baseItem) =>
-        this.inventoryEvents.addItemFromWorld(playerId, baseItem),
-      getPlayerMapId: (clientId: string) => {
-        const p = this.players.get(clientId);
-        return p?.mapId || null;
-      },
-      getPlayerRole: (clientId: string) => this.getPlayerRole(clientId),
-      setPlayerRole: (playerId: string, roleId) =>
-        this.setPlayerRole(playerId, roleId),
-      economy: {
-        creditWalletMajor: (userId: string, amount: number, reason?: string) =>
-          this._economyEvents.creditWalletMajor(userId, amount, reason),
+          this.economyEvents.chargeWalletMajor(userId, amount, reason),
       },
     });
 
@@ -146,19 +160,25 @@ export class HotelHumboldtRoom extends Room {
         });
       }
     }, 30000);
+
+    // ES: Tiempo, jobs, ejemplo — tras ítems/tienda. EN: Time, jobs, example after items/shop.
+    attachLateFrameworkResources(this);
   }
 
   async onJoin(
     client: Client,
     options?: { username?: string; worldId?: string }
   ) {
-    console.log(`👤 Cliente ${client.sessionId} se unió al Hotel Humboldt`);
+    console.log(
+      `👤 Cliente ${client.sessionId} se unió a ${nexusWorld3DConfig.networking.colyseusRoomName}`
+    );
 
     const now = Date.now();
     const defaultPosition = { x: 0, y: 0, z: 0 };
     const defaultRotation = { x: 0, y: 0, z: 0 };
     const defaultMapId = "exterior";
-    const defaultWorldId = options?.worldId || "hotel-humboldt";
+    const defaultWorldId =
+      options?.worldId || nexusWorld3DConfig.worlds.default;
     const fallbackUsername =
       options?.username || `Jugador_${client.id.substring(0, 6)}`;
 
@@ -232,6 +252,8 @@ export class HotelHumboldtRoom extends Room {
     const maxHealth = parseNumber(storedData?.maxHealth, 100);
     const stamina = parseNumber(storedData?.stamina, 100);
     const maxStamina = parseNumber(storedData?.maxStamina, 100);
+    const hunger = parseNumber(storedData?.hunger, 100);
+    const maxHunger = parseNumber(storedData?.maxHunger, 100);
     const level = parseNumber(storedData?.level, 1);
     const experience = parseNumber(storedData?.experience, 0);
     const worldId = parseString(storedData?.worldId, defaultWorldId);
@@ -253,6 +275,8 @@ export class HotelHumboldtRoom extends Room {
       maxHealth,
       stamina,
       maxStamina,
+      hunger,
+      maxHunger,
       level,
       experience,
       worldId,
@@ -263,6 +287,34 @@ export class HotelHumboldtRoom extends Room {
       isMoving,
       isRunning,
     };
+
+    // ES: Perfil persistente MariaDB (fuente de verdad entre sesiones).
+    // EN: MariaDB profile (source of truth across sessions).
+    try {
+      const row = await fetchPlayerProfileByNorm(
+        normalizePlayerUsername(player.username)
+      );
+      if (row) {
+        player.username = row.username || player.username;
+        player.worldId = row.world_id || player.worldId;
+        player.health = row.health;
+        player.maxHealth = row.max_health;
+        player.stamina = row.stamina;
+        player.maxStamina = row.max_stamina;
+        player.hunger = row.hunger;
+        player.maxHunger = row.max_hunger;
+        player.level = row.level;
+        player.experience = row.experience;
+        player.position = { x: row.pos_x, y: row.pos_y, z: row.pos_z };
+        player.rotation = { x: row.rot_x, y: row.rot_y, z: row.rot_z };
+        player.mapId = row.map_id || player.mapId;
+        player.roleId = row.role_id
+          ? (row.role_id as ExtendedJobId)
+          : null;
+      }
+    } catch (e) {
+      console.warn("⚠️ MariaDB player_profile (join):", e);
+    }
 
     // Agregar jugador
     this.players.set(client.sessionId, player);
@@ -283,6 +335,8 @@ export class HotelHumboldtRoom extends Room {
       maxHealth: player.maxHealth,
       stamina: player.stamina,
       maxStamina: player.maxStamina,
+      hunger: player.hunger,
+      maxHunger: player.maxHunger,
       level: player.level,
       experience: player.experience,
       animation: player.animation || "idle",
@@ -324,19 +378,28 @@ export class HotelHumboldtRoom extends Room {
     // Enviar mensaje de bienvenida solo al jugador que se conectó
     this.sendSystemMessageToClient(
       client,
-      `¡Bienvenido al Hotel Humboldt, ${player.username}!`
+      `¡Bienvenido a ${nexusWorld3DConfig.branding.appName}, ${player.username}!`
     );
 
     console.log(
       `✅ Jugador ${player.username} agregado. Total: ${this.players.size}`
     );
+    pushGameMonitorLog("info", "player", `Player joined: ${player.username}`, {
+      sessionId: client.sessionId,
+      roomId: this.roomId,
+      total: this.players.size,
+    });
   }
 
   onLeave(client: Client, consented: boolean) {
-    console.log(`👋 Cliente ${client.sessionId} salió del Hotel Humboldt`);
+    console.log(`👋 Cliente ${client.sessionId} salió de la sala`);
 
     const player = this.players.get(client.sessionId);
     if (player) {
+      pushGameMonitorLog("info", "player", `Player leaving: ${player.username}`, {
+        sessionId: client.sessionId,
+        consented,
+      });
       // Marcar como offline
       player.isOnline = false;
       player.lastSeen = new Date();
@@ -378,7 +441,18 @@ export class HotelHumboldtRoom extends Room {
   }
 
   onDispose() {
-    console.log("🏨 Hotel Humboldt Room cerrada");
+    for (const dispose of this.resourceDisposables) {
+      try {
+        dispose();
+      } catch (e) {
+        console.warn("⚠️ Error en dispose de recurso:", e);
+      }
+    }
+    this.resourceDisposables = [];
+    console.log("🌐 NexusWorldRoom cerrada");
+    pushGameMonitorLog("info", "room", "NexusWorldRoom disposed", {
+      roomId: this.roomId,
+    });
   }
 
   private setupMessageHandlers() {
@@ -662,9 +736,11 @@ export class HotelHumboldtRoom extends Room {
         maxHealth: player.maxHealth,
         stamina: player.stamina,
         maxStamina: player.maxStamina,
+        hunger: player.hunger,
+        maxHunger: player.maxHunger,
         level: player.level,
         experience: player.experience,
-        worldId: "hotel-humboldt",
+        worldId: player.worldId,
         isOnline: player.isOnline,
         lastSeen: player.lastSeen.getTime(),
         lastUpdate: player.lastUpdate,
@@ -676,13 +752,45 @@ export class HotelHumboldtRoom extends Room {
     } catch (error) {
       console.warn("⚠️ Error guardando jugador en Redis:", error);
     }
+
+    try {
+      await upsertPlayerProfile({
+        username: player.username,
+        worldId: player.worldId,
+        position: player.position,
+        rotation: player.rotation,
+        mapId: player.mapId,
+        roleId: player.roleId,
+        health: player.health,
+        maxHealth: player.maxHealth,
+        stamina: player.stamina,
+        maxStamina: player.maxStamina,
+        hunger: player.hunger,
+        maxHunger: player.maxHunger,
+        level: player.level,
+        experience: player.experience,
+      });
+    } catch (e) {
+      console.warn("⚠️ MariaDB player_profile (save):", e);
+    }
   }
 
-  private getPlayerRole(playerId: string): ExtendedJobId | null {
+  /** ES: Mapa actual del jugador (sessionId Colyseus). EN: Player map by Colyseus session id. */
+  getPlayerMapId(clientId: string): string | null {
+    return this.players.get(clientId)?.mapId ?? null;
+  }
+
+  /** ES: Rol de trabajo (jobs) para mensajes/red. EN: Job role for networking. */
+  resolvePlayerJobRole(playerId: string): ExtendedJobId | null {
     return this.players.get(playerId)?.roleId ?? null;
   }
 
-  private setPlayerRole(playerId: string, roleId: ExtendedJobId | null) {
+  /** ES: Asignar rol de trabajo y sincronizar. EN: Assign job role and sync. */
+  assignPlayerJobRole(playerId: string, roleId: ExtendedJobId | null): void {
+    this.applyPlayerJobRole(playerId, roleId);
+  }
+
+  private applyPlayerJobRole(playerId: string, roleId: ExtendedJobId | null) {
     const player = this.players.get(playerId);
     if (!player) return;
     if (player.roleId === roleId) return;
@@ -696,6 +804,14 @@ export class HotelHumboldtRoom extends Room {
     this.broadcast("players:updated", {
       players: Array.from(this.players.values()),
     });
+  }
+
+  private getPlayerRole(playerId: string): ExtendedJobId | null {
+    return this.resolvePlayerJobRole(playerId);
+  }
+
+  private setPlayerRole(playerId: string, roleId: ExtendedJobId | null) {
+    this.applyPlayerJobRole(playerId, roleId);
   }
 
   private async saveChatMessageToRedis(message: ChatMessage) {

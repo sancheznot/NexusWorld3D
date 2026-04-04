@@ -2,6 +2,10 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { World, WorldObject } from '@/types/world.types';
 import { Player } from '@/types/player.types';
+import {
+  frameworkDefaultWorldDisplayName,
+  frameworkDefaultWorldId,
+} from '@/lib/frameworkBranding';
 
 interface WorldState {
   // Current world
@@ -36,8 +40,8 @@ interface WorldState {
 }
 
 const initialWorld: World = {
-  id: 'default',
-  name: 'Hotel Humboldt',
+  id: frameworkDefaultWorldId,
+  name: frameworkDefaultWorldDisplayName,
   type: 'hotel',
   maxPlayers: 50,
   currentPlayers: 0,
@@ -55,7 +59,7 @@ export const useWorldStore = create<WorldState>()(
     (set, get) => ({
       // Initial state
       currentWorld: null,
-      worldId: 'default',
+      worldId: frameworkDefaultWorldId,
       players: [],
       playerCount: 0,
       objects: [],
@@ -174,7 +178,7 @@ export const useWorldStore = create<WorldState>()(
       clearWorld: () => {
         set({
           currentWorld: null,
-          worldId: 'default',
+          worldId: frameworkDefaultWorldId,
           players: [],
           playerCount: 0,
           objects: [],

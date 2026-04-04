@@ -38,6 +38,7 @@ export class WorldClient {
   }
 
   private setupEventListeners() {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     if (!room) return;
 
@@ -52,10 +53,12 @@ export class WorldClient {
 
   // Métodos de envío
   public changeMap(data: MapChangeRequest): void {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     colyseusClient.getSocket()?.send('map:change', data);
   }
 
   public requestMapData(data: MapRequestData): void {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     colyseusClient.getSocket()?.send('map:request', data);
   }
 

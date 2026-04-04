@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useState, useEffect, useCallback, useMemo } from 'react';
+import { useSession } from 'next-auth/react';
 import { Canvas } from '@react-three/fiber';
 import { useSocket } from '@/hooks/useSocket';
 import { usePlayerStore } from '@/store/playerStore';
@@ -20,11 +21,16 @@ import { useTestingCamera } from '@/hooks/useTestingCamera';
 import { useKeyboard } from '@/hooks/useKeyboard';
 import { getPhysicsInstance } from '@/hooks/useCannonPhysics';
 import LoginModal from '@/components/game/LoginModal';
+import GameLobby, {
+  readLobbyDisplayFromStorage,
+  type GameLobbyMeProfile,
+} from '@/components/game/GameLobby';
 import CharacterCreatorV2 from '@/components/game/CharacterCreatorV2';
 import GameSettings from '@/components/game/GameSettings';
 import ModelInfo from '@/components/ui/ModelInfo';
 import FPSCounter from '@/components/ui/FPSCounter';
-import PlayerStatsHUD from '@/components/ui/PlayerStatsHUD';
+import GameHUD from '@/components/ui/GameHUD';
+import PauseMenu from '@/components/game/PauseMenu';
 import VehicleHUD from '@/components/ui/VehicleHUD';
 import AdminTeleportUI from '@/components/ui/AdminTeleportUI';
 import ChatWindow from '@/components/chat/ChatWindow';
@@ -37,8 +43,8 @@ import PortalUI from '@/components/ui/PortalUI';
 import HotelInterior from '@/components/world/HotelInterior';
 import Supermarket from '@/components/world/Supermarket';
 import { usePortalSystem } from '@/hooks/usePortalSystem';
-import ServerClock from '@/components/ui/ServerClock';
 import timeClient from '@/lib/colyseus/TimeClient';
+import { GAME_KEYBINDINGS, MOVEMENT_HELP_ROWS } from '@/config/gameKeybindings';
 import BankUI from '@/components/ui/BankUI';
 import ShopUI from '@/components/ui/ShopUI';
 import NPCShopTrigger from '@/components/world/NPCShopTrigger';
@@ -53,21 +59,39 @@ import Minimap from '@/components/ui/Minimap';
 import LiveCameraCapture from '@/components/cameras/LiveCameraCapture';
 import DebugInfo from '@/components/ui/DebugInfo';
 import TruckSpawner from '@/components/game/TruckSpawner';
+import { loadAllClientResources } from '@/lib/resources/loadClientResources';
+import { frameworkColyseusRoomName, frameworkDefaultWorldId } from '@/lib/frameworkBranding';
+import type { PublicPortalRoom } from '@/types/gamePortal.types';
 
 export default function GameCanvas() {
+  const { data: session, status } = useSession();
+  const isAuthenticated = status === 'authenticated';
   const { isConnected, connectionError, connect, joinGame } = useSocket();
-  const { player } = usePlayerStore();
+  const { player, setPlayer } = usePlayerStore();
   const { players } = useWorldStore();
-  const { isInventoryOpen, isMapOpen, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals } = useUIStore();
+  const {
+    isInventoryOpen,
+    isMapOpen,
+    isChatOpen,
+    isPauseMenuOpen,
+    toggleInventory,
+    toggleMap,
+    toggleChat,
+    closeAllModals,
+  } = useUIStore();
   const { settings, isLoaded } = useGameSettings();
   
   // Game settings state
   const [showSettings, setShowSettings] = useState(false);
   const { isActive: isTestingCameraActive, height: testingHeight, distance: testingDistance } = useTestingCamera();
   
-  // Game flow state
-  const [showLogin, setShowLogin] = useState(true);
+  // Game flow state — lobby primero; login solo si la sala exige cuenta
+  const [showLobby, setShowLobby] = useState(true);
+  const [showLogin, setShowLogin] = useState(false);
   const [showCharacterCreator, setShowCharacterCreator] = useState(false);
+  const [pendingRoom, setPendingRoom] = useState<PublicPortalRoom | null>(null);
+  const [brightness, setBrightness] = useState(100);
+  const [contrast, setContrast] = useState(100);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentMap, setCurrentMap] = useState('exterior');
   const [isDriving, setIsDriving] = useState(false);
@@ -76,6 +100,94 @@ export default function GameCanvas() {
   const [vehSpawn, setVehSpawn] = useState<{ x: number; y: number; z: number; yaw: number } | null>(null);
   const [vehicleModel, setVehicleModel] = useState('/models/vehicles/cars/City_Car_07.glb');
   const [showModelInfo, setShowModelInfo] = useState(false);
+  const [meProfile, setMeProfile] = useState<GameLobbyMeProfile>(null);
+
+  const refreshMeProfile = useCallback(() => {
+    if (status !== 'authenticated') return;
+    void fetch('/api/me/profile', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data || typeof data !== 'object') return;
+        const d = data as Record<string, unknown>;
+        setMeProfile({
+          displayName: String(d.displayName ?? 'Jugador'),
+          bio: String(d.bio ?? ''),
+          image: d.image != null ? String(d.image) : null,
+          email: d.email != null ? String(d.email) : null,
+          hasSavedProfile: Boolean(d.hasSavedProfile),
+        });
+      })
+      .catch(() => {});
+  }, [status]);
+
+  // ES: Recursos extensibles (resources/*/client). EN: Extensible resources.
+  useEffect(() => {
+    loadAllClientResources();
+  }, []);
+
+  useEffect(() => {
+    const { brightness: b, contrast: c } = readLobbyDisplayFromStorage();
+    setBrightness(b);
+    setContrast(c);
+  }, []);
+
+  useEffect(() => {
+    if (status !== 'authenticated' || !session?.user?.id) {
+      setMeProfile(null);
+      return;
+    }
+    const fallback =
+      session.user.name?.trim() ||
+      session.user.email?.split('@')[0] ||
+      'Jugador';
+    setMeProfile({
+      displayName: fallback,
+      bio: '',
+      image: session.user.image ?? null,
+      email: session.user.email ?? null,
+      hasSavedProfile: false,
+    });
+    refreshMeProfile();
+  }, [
+    status,
+    session?.user?.id,
+    session?.user?.name,
+    session?.user?.email,
+    session?.user?.image,
+    refreshMeProfile,
+  ]);
+
+  /** ES: Jugador en lobby — nombre desde perfil DB si existe. EN: Lobby player — name from DB profile when set. */
+  useEffect(() => {
+    if (status !== 'authenticated' || !session?.user?.id) return;
+    const name =
+      meProfile?.displayName?.trim() ||
+      session.user.name?.trim() ||
+      session.user.email?.split('@')[0] ||
+      'Jugador';
+    setPlayer({
+      id: session.user.id,
+      username: name,
+      position: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0 },
+      health: 100,
+      maxHealth: 100,
+      stamina: 100,
+      maxStamina: 100,
+      level: 1,
+      experience: 0,
+      worldId: frameworkDefaultWorldId,
+      isOnline: false,
+      lastSeen: new Date(),
+    });
+  }, [
+    status,
+    session?.user?.id,
+    session?.user?.name,
+    session?.user?.email,
+    meProfile?.displayName,
+    setPlayer,
+  ]);
   
   // Enable keyboard for movement when game is started (menus can be open)
   const keyboardEnabled = isGameStarted;
@@ -295,6 +407,7 @@ export default function GameCanvas() {
   // Debug: Log current state (only when there are issues)
   if (isGameStarted && !keyboardEnabled) {
     console.log('⚠️ Keyboard disabled but game started:', {
+      showLobby,
       showLogin,
       showCharacterCreator,
       isGameStarted,
@@ -338,39 +451,96 @@ export default function GameCanvas() {
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, [isGameStarted, isChatOpen, toggleInventory, toggleMap, toggleChat, closeAllModals, showSettings]);
 
-  // Handlers
-  const handleLogin = async () => {
+  const handleAuthSuccess = () => {
     setShowLogin(false);
-    setShowCharacterCreator(true);
-    
-    // Connect to server after login
-    if (!isConnected) {
-      await connect();
-    }
   };
 
-  const handleCharacterComplete = () => {
+  const handleLobbyEnterRoom = useCallback(
+    (room: PublicPortalRoom) => {
+      if (room.requiresAuth && !isAuthenticated) {
+        setShowLogin(true);
+        return;
+      }
+      if (room.requiresAuth && session?.user?.id) {
+        const name =
+          meProfile?.displayName?.trim() ||
+          session.user.name?.trim() ||
+          session.user.email?.split('@')[0] ||
+          'Jugador';
+        setPlayer({
+          id: session.user.id,
+          username: name,
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          health: 100,
+          maxHealth: 100,
+          stamina: 100,
+          maxStamina: 100,
+          level: 1,
+          experience: 0,
+          worldId: frameworkDefaultWorldId,
+          isOnline: false,
+          lastSeen: new Date(),
+        });
+      }
+      if (!room.requiresAuth) {
+        const gid = `guest-${crypto.randomUUID().slice(0, 10)}`;
+        setPlayer({
+          id: gid,
+          username: 'Invitado',
+          position: { x: 0, y: 0, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+          health: 100,
+          maxHealth: 100,
+          stamina: 100,
+          maxStamina: 100,
+          level: 1,
+          experience: 0,
+          worldId: frameworkDefaultWorldId,
+          isOnline: false,
+          lastSeen: new Date(),
+        });
+      }
+      setPendingRoom(room);
+      setShowLobby(false);
+      setShowCharacterCreator(true);
+    },
+    [isAuthenticated, session?.user, meProfile?.displayName, setPlayer]
+  );
+
+  const handleCharacterComplete = async () => {
     setShowCharacterCreator(false);
     setIsGameStarted(true);
-    
-    // Join the game with player data after a short delay to ensure event listeners are registered
-    if (player && isConnected) {
-      // Debug: Llamando joinGame
+    const roomName =
+      pendingRoom?.colyseusRoomName ?? frameworkColyseusRoomName;
+    try {
+      await connect(roomName);
+    } catch {
+      /* connectionError en useSocket */
+    }
+    const p = usePlayerStore.getState().player;
+    if (p) {
       setTimeout(() => {
-        joinGame(player.id, player.username, player.worldId);
-      }, 1000);
+        joinGame(p.id, p.username, p.worldId);
+      }, 800);
     } else {
-      console.log('⚠️ No se puede unir al juego:', { hasPlayer: !!player, isConnected });
+      console.warn('⚠️ No hay jugador tras crear personaje');
     }
   };
 
-  const handleBackToLogin = () => {
+  const handleBackToLobby = () => {
     setShowCharacterCreator(false);
-    setShowLogin(true);
+    setShowLobby(true);
+    setPendingRoom(null);
   };
 
   return (
-    <div className="relative w-full h-screen bg-gray-900">
+    <div
+      className="relative h-screen w-full bg-gray-900"
+      style={{
+        filter: `brightness(${brightness}%) contrast(${contrast}%)`,
+      }}
+    >
       {/* 3D Game Canvas - Only show when game is started */}
       {isGameStarted && (
         <Canvas
@@ -385,7 +555,7 @@ export default function GameCanvas() {
             ],
           }}
           shadows
-          className={`w-full h-full cursor-crosshair ${showSettings ? 'pointer-events-none' : 'pointer-events-auto'}`}
+          className={`w-full h-full cursor-crosshair ${showSettings || isPauseMenuOpen ? 'pointer-events-none' : 'pointer-events-auto'}`}
         >
         <Suspense fallback={null}>
             {/* Physics stepper for Cannon.js */}
@@ -599,24 +769,12 @@ export default function GameCanvas() {
         onClose={closePortalUI}
       />
 
-      {/* FPS Counter - Esquina izquierda superior */}
-      {isLoaded && settings.showFPS && (
-        <div className="absolute top-4 left-4 z-10">
-          <FPSCounter className="text-xs" />
-        </div>
+      {isGameStarted && (
+        <GameHUD isDriving={isDriving} currentMapId={currentMap} />
       )}
-
-      {/* Server Clock - Esquina izquierda superior debajo de FPS */}
-      <ServerClock className="absolute top-4 left-[48%] z-10" />
-      
-      {/* Player Stats HUD - Reorganizado */}
-      <PlayerStatsHUD className="absolute top-4 right-4 z-10" isDriving={isDriving} />
       
       {/* Vehicle HUD - Mostrar solo cuando está conduciendo */}
       {isDriving && <VehicleHUD vehicleId="playerCar" visible={isDriving} />}
-      
-      {/* Server Clock HUD */}
-      {/* <ServerClock /> */}
 
       {/* Testing Camera Info Panel */}
       {isTestingCameraActive && (
@@ -639,46 +797,65 @@ export default function GameCanvas() {
         </div>
       )}
       
-      {/* Debug Info - Solo en desarrollo */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="absolute top-16 left-4 z-10 space-y-2">
-          <div className="bg-black bg-opacity-50 text-white text-xs p-2 rounded">
-            <div>Login: {showLogin ? 'Sí' : 'No'}</div>
-            <div>Creator: {showCharacterCreator ? 'Sí' : 'No'}</div>
-            <div>Game: {isGameStarted ? 'Sí' : 'No'}</div>
-            <div>Keyboard: {keyboardEnabled ? 'Sí' : 'No'}</div>
-            <div>Player: {player?.username || 'N/A'}</div>
-          </div>
-          {connectionError && (
-            <div className="mt-2 px-3 py-1 bg-red-600 text-white text-sm rounded">
-              Error: {connectionError}
-            </div>
+      {((isLoaded && settings.showFPS) ||
+        process.env.NODE_ENV === "development") && (
+        <div
+          className={`pointer-events-none absolute z-30 left-4 flex max-w-[220px] flex-col gap-2 ${
+            isGameStarted ? "top-52 sm:top-56" : "top-4"
+          }`}
+        >
+          {isLoaded && settings.showFPS && (
+            <FPSCounter className="text-xs" />
+          )}
+          {process.env.NODE_ENV === "development" && (
+            <>
+              <div className="rounded bg-black/65 p-2 text-xs text-white backdrop-blur-sm">
+                <div>Login: {showLogin ? "Sí" : "No"}</div>
+                <div>Creator: {showCharacterCreator ? "Sí" : "No"}</div>
+                <div>Game: {isGameStarted ? "Sí" : "No"}</div>
+                <div>Keyboard: {keyboardEnabled ? "Sí" : "No"}</div>
+                <div>Player: {player?.username || "N/A"}</div>
+              </div>
+              {connectionError && (
+                <div className="rounded bg-red-600 px-3 py-1 text-sm text-white">
+                  Error: {connectionError}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
 
-
-
-        <div className="absolute bottom-4 right-4 z-10 bg-black bg-opacity-50 rounded-lg p-3 text-white text-sm">
-          <div className="space-y-1">
-            <div><kbd className="bg-gray-700 px-2 py-1 rounded">WASD</kbd> Mover</div>
-            <div><kbd className="bg-gray-700 px-2 py-1 rounded">Shift</kbd> Correr</div>
-            <div><kbd className="bg-gray-700 px-2 py-1 rounded">I</kbd> Inventario</div>
-            <div><kbd className="bg-gray-700 px-2 py-1 rounded">M</kbd> Mapa</div>
-            <div><kbd className="bg-gray-700 px-2 py-1 rounded">N</kbd> Minimapa</div>
-            <div><kbd className="bg-gray-700 px-2 py-1 rounded">Enter</kbd> Chat</div>
-            <div><kbd className="bg-gray-700 px-2 py-1 rounded">ESC</kbd> Cerrar</div>
+      {process.env.NODE_ENV === "development" && isGameStarted && (
+        <div
+          data-game-scroll-region
+          className="scrollbar-hidden absolute bottom-40 left-4 z-20 max-h-48 max-w-[200px] overflow-y-auto overscroll-y-contain rounded-lg border border-white/10 bg-black/60 p-2 text-[10px] text-white backdrop-blur-sm [-webkit-overflow-scrolling:touch]"
+          onWheelCapture={(e) => e.stopPropagation()}
+        >
+          <p className="mb-1 font-bold text-cyan-300">Teclas (dev)</p>
+          <div className="space-y-0.5">
+            {MOVEMENT_HELP_ROWS.map((r) => (
+              <div key={r.keys} className="flex justify-between gap-2">
+                <kbd className="rounded bg-white/15 px-1 font-mono">{r.keys}</kbd>
+                <span className="text-slate-300">{r.descriptionEs}</span>
+              </div>
+            ))}
+            {GAME_KEYBINDINGS.map((b) => (
+              <div key={b.id} className="flex justify-between gap-2">
+                <kbd className="rounded bg-white/15 px-1 font-mono">{b.label}</kbd>
+                <span className="truncate text-slate-300">{b.descriptionEs}</span>
+              </div>
+            ))}
           </div>
-      {/* Controls Info - Solo en desarrollo */}
-      {process.env.NODE_ENV === 'development' && (
           <button
+            type="button"
             onClick={() => setShowModelInfo(true)}
-            className="mt-3 w-full px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 transition-colors"
+            className="mt-2 w-full rounded bg-purple-600 px-2 py-1 text-[10px] hover:bg-purple-700"
           >
-            🎨 Ver Modelos
+            Ver modelos
           </button>
-      )}
         </div>
+      )}
 
       {/* UI Modals */}
       {/* Inventory UI */}
@@ -741,27 +918,47 @@ export default function GameCanvas() {
       {/* Admin Teleport UI */}
       <AdminTeleportUI />
 
-      {/* Minimap */}
-      {isGameStarted && <Minimap />}
+      {isGameStarted && <Minimap placement="top-right" />}
 
-      {/* Login Modal */}
+      {showLobby && !isGameStarted && (
+        <GameLobby
+          onEnterRoom={handleLobbyEnterRoom}
+          onOpenAuth={() => setShowLogin(true)}
+          isAuthenticated={isAuthenticated}
+          accountUserId={session?.user?.id ?? null}
+          meProfile={meProfile}
+          onProfileUpdated={refreshMeProfile}
+          brightness={brightness}
+          contrast={contrast}
+          onBrightnessChange={setBrightness}
+          onContrastChange={setContrast}
+        />
+      )}
+
       <LoginModal
         isOpen={showLogin}
         onClose={() => setShowLogin(false)}
-        onLogin={handleLogin}
+        onLogin={handleAuthSuccess}
       />
 
-      {/* Character Creator Modal */}
       <CharacterCreatorV2
         isOpen={showCharacterCreator}
-        onClose={handleBackToLogin}
-        onComplete={handleCharacterComplete}
+        onClose={handleBackToLobby}
+        onComplete={() => {
+          void handleCharacterComplete();
+        }}
       />
 
       {/* Model Info Modal */}
       <ModelInfo
         isOpen={showModelInfo}
         onClose={() => setShowModelInfo(false)}
+      />
+
+      <PauseMenu
+        isOpen={isPauseMenuOpen}
+        onResume={() => {}}
+        onOpenSettings={() => setShowSettings(true)}
       />
 
       {/* Game Settings Modal */}

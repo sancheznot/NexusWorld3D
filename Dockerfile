@@ -27,6 +27,14 @@ COPY --from=deps /app/node_modules ./node_modules
 # Copy source code
 COPY . .
 
+# ES: Next inyecta NEXT_PUBLIC_* en build. EN: Next bakes NEXT_PUBLIC_* at build time.
+ARG NEXT_PUBLIC_GAME_NAME=NexusWorld3D
+ARG NEXT_PUBLIC_COLYSEUS_ROOM=nexus-world
+ARG NEXT_PUBLIC_SOCKET_URL=
+ENV NEXT_PUBLIC_GAME_NAME=$NEXT_PUBLIC_GAME_NAME
+ENV NEXT_PUBLIC_COLYSEUS_ROOM=$NEXT_PUBLIC_COLYSEUS_ROOM
+ENV NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
+
 # Build the application
 RUN npm run build
 
@@ -44,6 +52,12 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/src ./src
+COPY --from=builder /app/resources ./resources
+COPY --from=builder /app/worlds ./worlds
+COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/nexusworld3d.config.ts ./
+COPY --from=builder /app/next.config.ts ./
+COPY --from=builder /app/postcss.config.mjs ./
 
 # Expose port (Railway will override with $PORT)
 EXPOSE 3000

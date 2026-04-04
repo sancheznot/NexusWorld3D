@@ -16,10 +16,14 @@ export class JobsClient {
   }
 
   private constructor() {
-    colyseusClient.on('room:connected', () => this.setup());
+    colyseusClient.on('room:connected', () => {
+      if (!colyseusClient.isConnectedToWorldRoom()) return;
+      this.setup();
+    });
   }
 
   private setup() {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     if (!room) return;
     room.onMessage('jobs:list', (data: JobsList) => this.emit('jobs:list', data));
@@ -34,14 +38,38 @@ export class JobsClient {
     room.onMessage('jobs:role:assigned', (data: { jobId: string }) => this.emit('jobs:role:assigned', data));
   }
 
-  requestJobs() { colyseusClient.getSocket()?.send('jobs:list'); }
-  openJob(jobId: string) { colyseusClient.getSocket()?.send('jobs:request', { jobId }); }
-  assignRole(jobId: string) { colyseusClient.getSocket()?.send('jobs:role:assign', { jobId }); }
-  start(jobId: string) { colyseusClient.getSocket()?.send('jobs:start', { jobId }); }
-  updateProgress(progress: number) { colyseusClient.getSocket()?.send('jobs:progress', { progress }); }
-  hitWaypoint(waypointId: string) { colyseusClient.getSocket()?.send('jobs:waypointHit', { waypointId }); }
-  cancel() { colyseusClient.getSocket()?.send('jobs:cancel'); }
-  complete() { colyseusClient.getSocket()?.send('jobs:complete'); }
+  requestJobs() {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('jobs:list');
+  }
+  openJob(jobId: string) {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('jobs:request', { jobId });
+  }
+  assignRole(jobId: string) {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('jobs:role:assign', { jobId });
+  }
+  start(jobId: string) {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('jobs:start', { jobId });
+  }
+  updateProgress(progress: number) {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('jobs:progress', { progress });
+  }
+  hitWaypoint(waypointId: string) {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('jobs:waypointHit', { waypointId });
+  }
+  cancel() {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('jobs:cancel');
+  }
+  complete() {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('jobs:complete');
+  }
 
   on(event: 'jobs:list' | 'jobs:data' | 'jobs:error' | 'jobs:started' | 'jobs:progress' | 'jobs:completed' | 'jobs:cancelled' | 'jobs:wait' | 'jobs:next' | 'jobs:role:assigned', cb: (data: unknown) => void) {
     if (!this.listeners.has(event)) this.listeners.set(event, []);

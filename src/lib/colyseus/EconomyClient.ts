@@ -38,12 +38,14 @@ export class EconomyClient {
 
   private bindLifecycle() {
     colyseusClient.on('room:connected', () => {
+      if (!colyseusClient.isConnectedToWorldRoom()) return;
       this.setupListeners();
       this.requestState();
     });
   }
 
   private setupListeners() {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     if (!room) return;
     room.onMessage('economy:wallet', (data: { amount: number } | unknown) => {
@@ -92,18 +94,22 @@ export class EconomyClient {
   }
 
   requestState() {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     colyseusClient.getSocket()?.send('economy:request');
   }
 
   deposit(amount: number, reason?: string) {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     colyseusClient.getSocket()?.send('economy:deposit', { amount, reason });
   }
 
   withdraw(amount: number, reason?: string) {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     colyseusClient.getSocket()?.send('economy:withdraw', { amount, reason });
   }
 
   transfer(toUserId: string, amount: number, reason?: string) {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     colyseusClient.getSocket()?.send('economy:transfer', { toUserId, amount, reason });
   }
 

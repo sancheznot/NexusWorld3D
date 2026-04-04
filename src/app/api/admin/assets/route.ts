@@ -1,13 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSessionIdFromRequest } from '@/core/auth';
-import { assetStorage } from '@/core/storage';
+import { NextRequest, NextResponse } from "next/server";
+import { isValidAdminSession } from "@/core/auth";
+import { assetStorage } from "@/core/storage";
 
 export async function GET(request: NextRequest) {
   try {
-    // Check admin authentication
-    const sessionId = getSessionIdFromRequest(request);
-    if (!sessionId || !sessionId.startsWith('admin_')) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    if (!isValidAdminSession(request)) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
     // Get assets from storage (S3 + default assets)

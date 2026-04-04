@@ -1,7 +1,7 @@
 {
-  "name": "hotel-humboldt-client",
+  "name": "nexusworld3d-client",
   "version": "1.0.0",
-  "description": "Next.js client for Hotel Humboldt game",
+  "description": "Next.js client for NexusWorld3D framework",
   "scripts": {
     "start": "next start",
     "build": "next build"

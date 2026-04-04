@@ -17,32 +17,26 @@ export default function DebugInfo({ vehSpawn }: DebugInfoProps) {
     setMounted(true);
   }, []);
 
-  if (!mounted || process.env.NODE_ENV !== 'development') return null;
+  if (!mounted || process.env.NODE_ENV !== "development" || !vehSpawn)
+    return null;
 
   return (
-    <div className="absolute bottom-32 left-4 z-20 bg-blue-900/80 text-white text-xs p-2 rounded pointer-events-none">
-      {vehSpawn && (
-        <>
-          <div className="font-bold mb-1">🚗 Vehículo:</div>
-          <div>X: {vehSpawn.x.toFixed(1)}</div>
-          <div>Y: {vehSpawn.y.toFixed(1)}</div>
-          <div>Z: {vehSpawn.z.toFixed(1)}</div>
-        </>
-      )}
-      
-      <div className="mt-1 font-bold">📍 Tu posición:</div>
-      <div>X: {position.x.toFixed(1)}</div>
-      <div>Y: {position.y.toFixed(1)}</div>
-      <div>Z: {position.z.toFixed(1)}</div>
-      
-      {vehSpawn && (
-        <div className="mt-1 font-bold">
-          📏 Distancia: {Math.sqrt(
-            Math.pow(vehSpawn.x - position.x, 2) + 
-            Math.pow(vehSpawn.z - position.z, 2)
-          ).toFixed(1)}m
+    <div className="pointer-events-none absolute bottom-32 left-4 z-20 rounded bg-blue-900/80 p-2 text-xs text-white">
+      <>
+        <div className="mb-1 font-bold">🚗 Vehículo (dev)</div>
+        <div>
+          X: {vehSpawn.x.toFixed(1)} · Y: {vehSpawn.y.toFixed(1)} · Z:{" "}
+          {vehSpawn.z.toFixed(1)}
         </div>
-      )}
+        <div className="mt-1 font-bold">
+          📏 Dist. al coche:{" "}
+          {Math.sqrt(
+            Math.pow(vehSpawn.x - position.x, 2) +
+              Math.pow(vehSpawn.z - position.z, 2)
+          ).toFixed(1)}
+          m
+        </div>
+      </>
     </div>
   );
 }

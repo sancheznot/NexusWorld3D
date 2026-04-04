@@ -1,0 +1,6 @@
+{
+  "id": "inventory",
+  "name": "Player inventory sync",
+  "version": "1.0.0",
+  "dependencies": ["economy"]
+}

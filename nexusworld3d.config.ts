@@ -1,11 +1,33 @@
 /**
  * NexusWorld3D Framework Configuration
- * 
- * This is the central configuration file for the framework.
- * All game settings, server options, and asset paths are defined here.
+ * ES: Configuración central del framework (servidor, branding, red).
+ * EN: Central framework configuration (server, branding, networking).
  */
 
 export interface NexusWorld3DConfig {
+  /**
+   * ES: Nombre del producto y textos de UI por defecto.
+   * EN: Product name and default UI copy.
+   */
+  branding: {
+    appName: string;
+    shortName: string;
+    description: string;
+    /** ES: Nombre mostrado del mundo por defecto en cliente. EN: Default world label in client UI. */
+    defaultWorldDisplayName: string;
+  };
+
+  /**
+   * ES: Sala Colyseus canónica + alias legacy (clientes antiguos).
+   * EN: Canonical Colyseus room + legacy aliases for older clients.
+   */
+  networking: {
+    colyseusRoomName: string;
+    colyseusLegacyRoomNames: string[];
+    /** ES: Sala solo lobby (chat / presencia, sin mundo 3D). EN: Lobby-only room (chat / presence). */
+    colyseusLobbyRoomName: string;
+  };
+
   // Server configuration
   server: {
     maxPlayers: number;
@@ -88,8 +110,22 @@ export interface NexusWorld3DConfig {
   };
 }
 
-// Default configuration
+// ES: Valores por defecto del framework. EN: Framework default values.
 const defaultConfig: NexusWorld3DConfig = {
+  branding: {
+    appName: "NexusWorld3D",
+    shortName: "Nexus",
+    description:
+      "Framework para mundos 2D/3D multijugador en el navegador. / Framework for 2D/3D multiplayer browser worlds.",
+    defaultWorldDisplayName: "NexusWorld3D",
+  },
+
+  networking: {
+    colyseusRoomName: "nexus-world",
+    colyseusLegacyRoomNames: [],
+    colyseusLobbyRoomName: "nexus-lobby",
+  },
+
   server: {
     maxPlayers: 50,
     tickRate: 60,
@@ -195,7 +231,48 @@ function getConfig(): NexusWorld3DConfig {
   if (process.env.PROJECT_NAME) {
     config.assets.projectName = process.env.PROJECT_NAME;
   }
-  
+
+  // ES: Branding desde entorno. EN: Branding from environment.
+  if (process.env.NEXT_PUBLIC_GAME_NAME) {
+    config.branding.appName = process.env.NEXT_PUBLIC_GAME_NAME;
+    if (!process.env.NEXT_PUBLIC_WORLD_DISPLAY_NAME) {
+      config.branding.defaultWorldDisplayName = process.env.NEXT_PUBLIC_GAME_NAME;
+    }
+  }
+  if (process.env.NEXT_PUBLIC_GAME_SHORT_NAME) {
+    config.branding.shortName = process.env.NEXT_PUBLIC_GAME_SHORT_NAME;
+  }
+  if (process.env.NEXT_PUBLIC_GAME_DESCRIPTION) {
+    config.branding.description = process.env.NEXT_PUBLIC_GAME_DESCRIPTION;
+  }
+  if (process.env.NEXT_PUBLIC_WORLD_DISPLAY_NAME) {
+    config.branding.defaultWorldDisplayName = process.env.NEXT_PUBLIC_WORLD_DISPLAY_NAME;
+  }
+
+  // ES: Sala Colyseus — COLYSEUS_ROOM gana en servidor; NEXT_PUBLIC en build cliente.
+  // EN: Colyseus room — COLYSEUS_ROOM wins on server; NEXT_PUBLIC for client bundle.
+  const roomFromEnv =
+    process.env.COLYSEUS_ROOM?.trim() ||
+    process.env.NEXT_PUBLIC_COLYSEUS_ROOM?.trim();
+  if (roomFromEnv) {
+    config.networking.colyseusRoomName = roomFromEnv;
+  }
+
+  const legacyCsv = process.env.COLYSEUS_LEGACY_ROOMS?.trim();
+  if (legacyCsv) {
+    config.networking.colyseusLegacyRoomNames = legacyCsv
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  const lobbyRoom =
+    process.env.COLYSEUS_LOBBY_ROOM?.trim() ||
+    process.env.NEXT_PUBLIC_COLYSEUS_LOBBY_ROOM?.trim();
+  if (lobbyRoom) {
+    config.networking.colyseusLobbyRoomName = lobbyRoom;
+  }
+
   return config;
 }
 
@@ -211,6 +288,8 @@ export const charactersConfig = nexusWorld3DConfig.characters;
 export const worldsConfig = nexusWorld3DConfig.worlds;
 export const uiConfig = nexusWorld3DConfig.ui;
 export const adminConfig = nexusWorld3DConfig.admin;
+export const brandingConfig = nexusWorld3DConfig.branding;
+export const networkingConfig = nexusWorld3DConfig.networking;
 
 // Helper functions
 export function getAnimationName(action: string, availableAnimations: string[]): string {

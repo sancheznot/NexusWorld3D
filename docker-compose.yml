@@ -1,0 +1,93 @@
+# ES: App + MariaDB en red interna (estilo dedicado / FiveM-host).
+# EN: App + MariaDB on internal network (dedicated-server style).
+#
+# ES: ¿Qué arranca Docker? — NO es `npm run dev`.
+#     Al hacer `docker compose up --build`, la imagen corre `next build` (producción)
+#     y al iniciar el contenedor ejecuta `npm run start` → `server/combined.ts`:
+#     un solo proceso en el puerto 3000 con Next (prod) + Colyseus en el mismo HTTP.
+# EN: What does Docker run? — NOT `npm run dev`.
+#     `docker compose up --build` runs `next build` inside the image, then
+#     `npm run start` → `server/combined.ts`: one process on port 3000 with
+#     Next (production) + Colyseus on the same HTTP server.
+#
+# ES: Desarrollo local (hot reload, Next y Colyseus separados): `npm run dev` o ./launch.sh
+# EN: Local dev (hot reload, split servers): `npm run dev` or ./launch.sh
+#
+# ES: Migraciones SQL (primera vez), contenedores arriba →
+#     bash scripts/compose-with-env.sh -f docker-compose.yml exec app npm run db:migrate
+# EN: First-time DB migrations, containers up →
+#     bash scripts/compose-with-env.sh -f docker-compose.yml exec app npm run db:migrate
+#
+# Uso / Usage:
+#   Poner MARIADB_* (y el resto) en .env.local o .env — ver env.docker.example
+#   Put MARIADB_* (and the rest) in .env.local or .env — see env.docker.example
+#   npm run docker:up   (usa scripts/compose-with-env.sh → --env-file .env.local si existe)
+#
+# ES: Interpolación ${...}: usa --env-file (prioridad .env.local, luego .env).
+# EN: ${...} interpolation: use --env-file (.env.local first, then .env).
+#
+# Seguridad / Security: MariaDB no expone 3306 al host por defecto.
+# Para DBeaver local, descomenta ports en el servicio mariadb.
+
+services:
+  mariadb:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      # ES: Imagen MariaDB exige root. Default solo dev — en prod define MARIADB_ROOT_PASSWORD en .env.local.
+      # EN: MariaDB image needs root. Default is dev-only — set MARIADB_ROOT_PASSWORD in prod.
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-nexusworld3d_dev_root}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-nexusworld3d}
+      MARIADB_USER: ${MARIADB_USER:-nexus}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?Set MARIADB_PASSWORD in .env.local or .env}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 40s
+    networks:
+      - nexus_internal
+    # ES: Solo localhost si necesitas cliente SQL en tu PC.
+    # EN: Localhost only if you need a SQL GUI on your machine.
+    # ports:
+    #   - "127.0.0.1:3306:3306"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_GAME_NAME: ${NEXT_PUBLIC_GAME_NAME:-NexusWorld3D}
+        NEXT_PUBLIC_COLYSEUS_ROOM: ${NEXT_PUBLIC_COLYSEUS_ROOM:-nexus-world}
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-}
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    env_file:
+      - path: .env.local
+        required: false
+      - path: .env
+        required: false
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      MARIADB_HOST: mariadb
+      MARIADB_PORT: "3306"
+      MARIADB_USER: ${MARIADB_USER:-nexus}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?Set MARIADB_PASSWORD in .env.local or .env}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-nexusworld3d}
+    networks:
+      - nexus_internal
+
+volumes:
+  mariadb_data:
+
+networks:
+  nexus_internal:
+    driver: bridge

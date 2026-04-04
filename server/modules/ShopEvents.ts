@@ -1,7 +1,7 @@
 import { Room, Client } from 'colyseus';
-import { SHOPS, ShopId } from '../src/constants/shops';
-import { ITEMS_CATALOG } from '../src/constants/items';
-import { InventoryItem } from '../src/types/inventory.types';
+import { SHOPS, ShopId } from '@/constants/shops';
+import { ITEMS_CATALOG } from '@/constants/items';
+import { InventoryItem } from '@/types/inventory.types';
 
 export class ShopEvents {
   private room: Room;

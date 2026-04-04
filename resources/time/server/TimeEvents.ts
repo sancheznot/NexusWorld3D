@@ -1,20 +1,32 @@
-import { Room, Client } from 'colyseus';
+/**
+ * ES: Sincronización hora del servidor / fases día-noche vía mensajes Colyseus.
+ * EN: Server time sync / day-night phases via Colyseus messages.
+ */
 
-function getPhase(hour: number): 'night' | 'dawn' | 'day' | 'dusk' {
-  if (hour < 5) return 'night';
-  if (hour < 7) return 'dawn';
-  if (hour < 18) return 'day';
-  if (hour < 20) return 'dusk';
-  return 'night';
+import { Room, Client } from "colyseus";
+
+function getPhase(hour: number): "night" | "dawn" | "day" | "dusk" {
+  if (hour < 5) return "night";
+  if (hour < 7) return "dawn";
+  if (hour < 18) return "day";
+  if (hour < 20) return "dusk";
+  return "night";
 }
 
-function getLightFactors(hour: number): { ambientFactor: number; sunFactor: number } {
+function getLightFactors(hour: number): {
+  ambientFactor: number;
+  sunFactor: number;
+} {
   const phase = getPhase(hour);
   switch (phase) {
-    case 'night': return { ambientFactor: 0.15, sunFactor: 0.0 };
-    case 'dawn': return { ambientFactor: 0.5, sunFactor: 0.4 };
-    case 'day': return { ambientFactor: 1.0, sunFactor: 1.0 };
-    case 'dusk': return { ambientFactor: 0.5, sunFactor: 0.4 };
+    case "night":
+      return { ambientFactor: 0.15, sunFactor: 0.0 };
+    case "dawn":
+      return { ambientFactor: 0.5, sunFactor: 0.4 };
+    case "day":
+      return { ambientFactor: 1.0, sunFactor: 1.0 };
+    case "dusk":
+      return { ambientFactor: 0.5, sunFactor: 0.4 };
   }
 }
 
@@ -48,18 +60,18 @@ export class TimeEvents {
   }
 
   private setupHandlers() {
-    this.room.onMessage('time:request', (client: Client) => {
+    this.room.onMessage("time:request", (client: Client) => {
       const state = currentTimeState();
       const now = Date.now();
       const msUntilNextMinute = 60000 - (now % 60000);
-      client.send('time:state', { ...state, msUntilNextMinute });
+      client.send("time:state", { ...state, msUntilNextMinute });
     });
   }
 
   private startBroadcasts() {
     const tick = () => {
       const state = currentTimeState();
-      this.room.broadcast('time:update', state);
+      this.room.broadcast("time:update", state);
     };
     const now = Date.now();
     const initialDelay = 60000 - (now % 60000) + 50;

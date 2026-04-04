@@ -1,7 +1,7 @@
 import { Room, Client } from 'colyseus';
-import { InventoryItem, Inventory } from '../src/types/inventory.types';
-import { ITEMS_CATALOG } from '../src/constants/items';
-import { GAME_CONFIG } from '../src/constants/game';
+import { InventoryItem, Inventory } from '@/types/inventory.types';
+import { ITEMS_CATALOG } from '@/constants/items';
+import { GAME_CONFIG } from '@/constants/game';
 
 /**
  * Eventos de Inventario para Colyseus

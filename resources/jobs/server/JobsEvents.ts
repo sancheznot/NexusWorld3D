@@ -1,6 +1,6 @@
 import { Room, Client } from "colyseus";
-import { JOBS, ExtendedJobId } from "../src/constants/jobs";
-import { InventoryItem } from "../src/types/inventory.types";
+import { JOBS, ExtendedJobId } from "@/constants/jobs";
+import { InventoryItem } from "@/types/inventory.types";
 
 interface ActiveJobState {
   userId: string;

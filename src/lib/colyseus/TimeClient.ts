@@ -26,6 +26,7 @@ export class TimeClient {
   }
 
   private setupEventListeners() {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     if (!room) return;
 
@@ -34,6 +35,7 @@ export class TimeClient {
   }
 
   public requestTime(data?: TimeRequest): void {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     colyseusClient.getSocket()?.send('time:request', data || {});
   }
 

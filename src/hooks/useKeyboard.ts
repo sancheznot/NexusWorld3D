@@ -2,6 +2,11 @@ import { useEffect, useCallback, useRef } from 'react';
 import { usePlayerStore } from '@/store/playerStore';
 import { useUIStore } from '@/store/uiStore';
 import { colyseusClient } from '@/lib/colyseus/client';
+import {
+  MOVEMENT_KEYS,
+  normalizeKeyboardKey,
+  isMovementKey,
+} from '@/config/gameKeybindings';
 
 interface KeyboardState {
   keys: Set<string>;
@@ -39,12 +44,16 @@ export const useKeyboard = (enabled: boolean = true) => {
     isChatOpen,
     isShopOpen,
     isSettingsOpen,
+    isBankOpen,
+    isJobsOpen,
+    isPauseMenuOpen,
     isMinimapVisible,
     toggleInventory,
     toggleMap,
     toggleChat,
-    toggleShop,
-    toggleSettings,
+    togglePauseMenu,
+    setPauseMenuOpen,
+    setHotbarSelectedSlot,
     setMinimapVisible,
     closeAllModals,
   } = useUIStore();
@@ -57,9 +66,16 @@ export const useKeyboard = (enabled: boolean = true) => {
   // Handle key down
   const handleKeyDown = useCallback((event: KeyboardEvent) => {
     if (!enabled || !event.key) return;
-    
-    const key = event.key.toLowerCase();
-    
+
+    const key = normalizeKeyboardKey(event);
+
+    if (isPauseMenuOpen) {
+      if (key === "escape") {
+        setPauseMenuOpen(false);
+      }
+      return;
+    }
+
     // Si el chat está abierto, solo permitir teclas específicas del chat
     if (isChatOpen) {
       // Permitir solo teclas del chat: Enter, Escape, letras, números, etc.
@@ -84,37 +100,48 @@ export const useKeyboard = (enabled: boolean = true) => {
     
     keysRef.current.add(key);
 
-    // Prevent default for game keys
-    if (['w', 'a', 's', 'd', 'shift', ' '].includes(key)) {
+    if (isMovementKey(key)) {
       event.preventDefault();
     }
 
     // Handle special keys (solo si el chat NO está abierto)
     if (!isChatOpen) {
       switch (key) {
-        case 'i':
+        case "i":
           toggleInventory();
           break;
-        case 'm':
+        case "m":
           toggleMap();
           break;
-        case 'n':
-          // Toggle minimapa
+        case "n":
           setMinimapVisible(!isMinimapVisible);
           break;
-        case 'enter':
+        case "enter":
           toggleChat();
           break;
-        case 'escape':
-          // Si hay algún modal abierto, cerrarlo. Si no, abrir menú de pausa
-          if (isInventoryOpen || isMapOpen || isShopOpen || isSettingsOpen) {
+        case "escape":
+          if (
+            isInventoryOpen ||
+            isMapOpen ||
+            isShopOpen ||
+            isSettingsOpen ||
+            isBankOpen ||
+            isJobsOpen
+          ) {
             closeAllModals();
           } else {
-            toggleSettings();
+            togglePauseMenu();
           }
           break;
-        case 'tab':
-          // Handle tab for targeting (future feature)
+        case "tab":
+          event.preventDefault();
+          break;
+        case "1":
+        case "2":
+        case "3":
+        case "4":
+        case "5":
+          setHotbarSelectedSlot(Number(key) - 1);
           event.preventDefault();
           break;
       }
@@ -129,23 +156,40 @@ export const useKeyboard = (enabled: boolean = true) => {
           break;
       }
     }
-  }, [enabled, isChatOpen, isInventoryOpen, isMapOpen, isShopOpen, isSettingsOpen, isMinimapVisible, toggleInventory, toggleMap, toggleChat, toggleSettings, setMinimapVisible, closeAllModals]);
+  }, [
+    enabled,
+    isChatOpen,
+    isInventoryOpen,
+    isMapOpen,
+    isShopOpen,
+    isSettingsOpen,
+    isBankOpen,
+    isJobsOpen,
+    isPauseMenuOpen,
+    isMinimapVisible,
+    toggleInventory,
+    toggleMap,
+    toggleChat,
+    togglePauseMenu,
+    setPauseMenuOpen,
+    setHotbarSelectedSlot,
+    setMinimapVisible,
+    closeAllModals,
+  ]);
 
   // Handle key up
   const handleKeyUp = useCallback((event: KeyboardEvent) => {
     if (!enabled || !event.key) return;
     
-    const key = event.key.toLowerCase();
-    
-    // Si el chat está abierto, no procesar teclas de movimiento
+    const key = normalizeKeyboardKey(event);
+
     if (isChatOpen) {
       return;
     }
-    
+
     keysRef.current.delete(key);
 
-    // Prevent default for game keys
-    if (['w', 'a', 's', 'd', 'shift', ' '].includes(key)) {
+    if (isMovementKey(key)) {
       event.preventDefault();
     }
   }, [enabled, isChatOpen]);
@@ -165,8 +209,7 @@ export const useKeyboard = (enabled: boolean = true) => {
   const calculateMovement = useCallback(() => {
     if (!enabled) return;
     
-    // BLOQUEAR MOVIMIENTO SI EL CHAT ESTÁ ABIERTO
-    if (isChatOpen) {
+    if (isChatOpen || isPauseMenuOpen) {
       // Detener movimiento si el chat está abierto
       setMoving(false);
       setRunning(false);
@@ -187,29 +230,28 @@ export const useKeyboard = (enabled: boolean = true) => {
     let isMoving = false;
 
     // Check for running (Shift key)
-    const isRunningKeyPressed = keys.has('shift');
+    const mk = MOVEMENT_KEYS;
+    const isRunningKeyPressed = keys.has(mk.run);
     const speed = isRunningKeyPressed ? RUN_SPEED : MOVE_SPEED;
 
-    // Calculate movement based on pressed keys
-    if (keys.has('w')) {
+    if (keys.has(mk.forward)) {
       velocity.z -= speed;
       isMoving = true;
     }
-    if (keys.has('s')) {
+    if (keys.has(mk.back)) {
       velocity.z += speed;
       isMoving = true;
     }
-    if (keys.has('a')) {
+    if (keys.has(mk.left)) {
       velocity.x -= speed;
       isMoving = true;
     }
-    if (keys.has('d')) {
+    if (keys.has(mk.right)) {
       velocity.x += speed;
       isMoving = true;
     }
 
-    // Check for jumping (Space key)
-    const isJumping = keys.has(' ');
+    const isJumping = keys.has(mk.jump);
 
     // Update player state
     setMoving(isMoving);
@@ -238,8 +280,12 @@ export const useKeyboard = (enabled: boolean = true) => {
       // Después de 1.5s (duración del salto), enviar transición automática a idle/walking
       setTimeout(() => {
         const currentKeys = keysRef.current;
-        const stillMoving = currentKeys.has('w') || currentKeys.has('s') || currentKeys.has('a') || currentKeys.has('d');
-        const stillRunning = currentKeys.has('shift');
+        const stillMoving =
+          currentKeys.has(mk.forward) ||
+          currentKeys.has(mk.back) ||
+          currentKeys.has(mk.left) ||
+          currentKeys.has(mk.right);
+        const stillRunning = currentKeys.has(mk.run);
         colyseusClient.movePlayer({
           position,
           rotation,
@@ -294,7 +340,17 @@ export const useKeyboard = (enabled: boolean = true) => {
     lastWasMovingRef.current = isMoving;
 
     lastMovementRef.current = now;
-  }, [enabled, isChatOpen, position, rotation, setMoving, setRunning, setJumping, updateVelocity]);
+  }, [
+    enabled,
+    isChatOpen,
+    isPauseMenuOpen,
+    position,
+    rotation,
+    setMoving,
+    setRunning,
+    setJumping,
+    updateVelocity,
+  ]);
 
   // Game loop for movement
   useEffect(() => {
@@ -341,6 +397,12 @@ export const useKeyboard = (enabled: boolean = true) => {
       window.removeEventListener('contextmenu', (e) => e.preventDefault());
     };
   }, [enabled, handleKeyDown, handleKeyUp, handleMouseClick]);
+
+  useEffect(() => {
+    if (isPauseMenuOpen || !enabled) {
+      keysRef.current.clear();
+    }
+  }, [isPauseMenuOpen, enabled]);
 
   // Cleanup on unmount
   useEffect(() => {

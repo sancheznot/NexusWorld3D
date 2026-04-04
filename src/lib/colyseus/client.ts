@@ -1,10 +1,12 @@
 import { Client, Room } from "colyseus.js";
+import { frameworkColyseusRoomName } from "@/lib/frameworkBranding";
 
 class ColyseusClient {
   private static instance: ColyseusClient;
   private client: Client | null = null;
   private room: Room | null = null;
   private isConnected: boolean = false;
+  private currentJoinedRoom: string | null = null;
   private eventListeners: Map<string, ((data: unknown) => void)[]> = new Map();
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
@@ -19,58 +21,109 @@ class ColyseusClient {
     return ColyseusClient.instance;
   }
 
-  public connect(): Promise<void> {
+  /** ES: Acepta ws(s):// o http(s):// (muchos .env usan http para el puerto Colyseus). */
+  private normalizeWsUrl(raw: string): string | null {
+    const t = raw.trim();
+    if (!t) return null;
+    if (/^wss?:\/\//i.test(t)) return t;
+    if (/^https:\/\//i.test(t)) return `wss://${t.slice(8)}`;
+    if (/^http:\/\//i.test(t)) return `ws://${t.slice(7)}`;
+    return null;
+  }
+
+  private getServerUrl(): string {
+    const fromEnv =
+      process.env.NEXT_PUBLIC_COLYSEUS_URL || process.env.NEXT_PUBLIC_SOCKET_URL;
+    const normalized = fromEnv ? this.normalizeWsUrl(fromEnv) : null;
+    if (normalized) return normalized;
+
+    if (process.env.NODE_ENV === "production") {
+      if (typeof window !== "undefined") {
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+        return `${protocol}://${window.location.host}`;
+      }
+      return "wss://localhost";
+    }
+    return "ws://localhost:3001";
+  }
+
+  /**
+   * ES: Une o crea la sala Colyseus indicada (lobby elige `roomName`).
+   * EN: Join or create the given Colyseus room (lobby passes `roomName`).
+   */
+  public connect(
+    roomName: string = frameworkColyseusRoomName,
+    joinOptions: Record<string, unknown> = {},
+    forceReconnect = false
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (this.room?.connection.isOpen) {
+      if (
+        !forceReconnect &&
+        this.room?.connection.isOpen &&
+        this.currentJoinedRoom === roomName
+      ) {
         resolve();
         return;
       }
 
-      // Resolve WebSocket server URL
-      let serverUrl: string;
-      if (process.env.NODE_ENV === "production") {
-        const envUrl = process.env.NEXT_PUBLIC_SOCKET_URL;
-        if (envUrl && /^wss?:\/\//.test(envUrl)) {
-          serverUrl = envUrl;
-        } else if (typeof window !== "undefined") {
-          const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-          serverUrl = `${protocol}://${window.location.host}`; // same domain/port as frontend (unified server)
-        } else {
-          serverUrl = "wss://localhost";
+      const serverUrl = this.getServerUrl();
+      console.log("🔌 Conectando a Colyseus server:", serverUrl, "→ sala:", roomName);
+
+      const join = () => {
+        if (!this.client) {
+          this.client = new Client(serverUrl);
         }
-      } else {
-        serverUrl = "ws://localhost:3001"; // dev: separate Colyseus server
+        this.client
+          .joinOrCreate(roomName, joinOptions)
+          .then((room) => {
+            this.room = room;
+            this.currentJoinedRoom = roomName;
+            this.isConnected = true;
+            this.reconnectAttempts = 0;
+
+            console.log("✅ Conectado a Colyseus — sala:", roomName);
+
+            this.setupRoomListeners();
+            this.emit("room:connected", { sessionId: this.room?.sessionId });
+
+            resolve();
+          })
+          .catch((error) => {
+            console.error("❌ Error conectando a Colyseus:", error);
+            this.isConnected = false;
+            this.currentJoinedRoom = null;
+            reject(error);
+          });
+      };
+
+      if (this.room) {
+        try {
+          this.room.leave();
+        } catch {
+          /* ignore */
+        }
+        this.room = null;
+        this.isConnected = false;
+        this.currentJoinedRoom = null;
       }
 
-      console.log("🔌 Conectando a Colyseus server:", serverUrl);
-
-      if (!this.client) {
-        this.client = new Client(serverUrl);
-      }
-
-      // Intentar conectar a la sala del Hotel Humboldt
-      this.client
-        .joinOrCreate("hotel-humboldt", {})
-        .then((room) => {
-          this.room = room;
-          this.isConnected = true;
-          this.reconnectAttempts = 0;
-
-          console.log("✅ Conectado a Colyseus - Hotel Humboldt Room");
-
-          // Configurar event listeners una sola vez por room
-          this.setupRoomListeners();
-          // Notificar a consumidores externos que hay una room conectada
-          this.emit("room:connected", { sessionId: this.room?.sessionId });
-
-          resolve();
-        })
-        .catch((error) => {
-          console.error("❌ Error conectando a Colyseus:", error);
-          this.isConnected = false;
-          reject(error);
-        });
+      join();
     });
+  }
+
+  public getJoinedRoomName(): string | null {
+    return this.currentJoinedRoom;
+  }
+
+  /**
+   * ES: La sala de juego 3D (`frameworkColyseusRoomName`), no el lobby de chat.
+   * EN: The 3D game room — not the lobby chat room.
+   */
+  public isConnectedToWorldRoom(): boolean {
+    return (
+      !!this.room?.connection.isOpen &&
+      this.currentJoinedRoom === frameworkColyseusRoomName
+    );
   }
 
   public disconnect(): void {
@@ -79,6 +132,7 @@ class ColyseusClient {
       this.room.leave();
       this.room = null;
       this.isConnected = false;
+      this.currentJoinedRoom = null;
     }
   }
 
@@ -101,6 +155,8 @@ class ColyseusClient {
     this.room.onLeave((code) => {
       console.log("🔌 Desconectado de la sala:", code);
       this.isConnected = false;
+      this.currentJoinedRoom = null;
+      this.room = null;
       this.emit("room:left", { code });
     });
 
@@ -130,11 +186,11 @@ class ColyseusClient {
       "Room conectada:",
       this.room?.connection.isOpen
     );
-    if (this.room?.connection.isOpen) {
-      this.room.send("player:join", data);
-    } else {
-      console.log("❌ Room no conectada, no se puede enviar player:join");
+    if (!this.isConnectedToWorldRoom()) {
+      console.log("❌ No estás en la sala mundo, no se puede enviar player:join");
+      return;
     }
+    this.room!.send("player:join", data);
   }
 
   public leavePlayer(): void {
@@ -195,9 +251,23 @@ class ColyseusClient {
 
   // Heartbeat to keep session alive
   public sendHeartbeat(): void {
+    if (!this.isConnectedToWorldRoom()) return;
+    this.room!.send("player:heartbeat", { t: Date.now() });
+  }
+
+  /**
+   * ES: Mensaje genérico (p. ej. lobby:chat). `false` = sala cerrada o aún conectando.
+   * EN: Generic room message. `false` = room closed or still connecting.
+   */
+  public sendRoomMessage(
+    type: string,
+    payload: Record<string, unknown>
+  ): boolean {
     if (this.room?.connection.isOpen) {
-      this.room.send("player:heartbeat", { t: Date.now() });
+      this.room.send(type, payload);
+      return true;
     }
+    return false;
   }
 
   // Event listeners - manteniendo la misma interfaz

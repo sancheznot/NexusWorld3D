@@ -1,21 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { assetStorage } from '@/core/storage';
-import { getSessionIdFromRequest } from '@/core/auth';
+import { NextRequest, NextResponse } from "next/server";
+import { assetStorage } from "@/core/storage";
+import { isValidAdminSession } from "@/core/auth";
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication via cookie
-    const sessionId = getSessionIdFromRequest(request);
-    if (!sessionId) {
-      return NextResponse.json({ error: 'No session found' }, { status: 401 });
+    if (!isValidAdminSession(request)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    // Basic session validation - check if it looks like a valid session
-    if (!sessionId.startsWith('admin_')) {
-      return NextResponse.json({ error: 'Invalid session format' }, { status: 401 });
-    }
-
-    console.log('Upload request with session:', sessionId);
 
     // Get form data
     const formData = await request.formData();

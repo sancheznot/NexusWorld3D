@@ -32,6 +32,7 @@ export class InventoryClient {
    * Configurar event listeners para respuestas del servidor
    */
   private setupEventListeners() {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     if (!room) return;
 
@@ -57,6 +58,7 @@ export class InventoryClient {
   private bindToRoomLifecycle() {
     // Al conectar una room
     colyseusClient.on('room:connected', () => {
+      if (!colyseusClient.isConnectedToWorldRoom()) return;
       this.setupEventListeners();
     });
 
@@ -70,8 +72,8 @@ export class InventoryClient {
    * Enviar inventario completo al servidor
    */
   public updateInventory(inventory: Inventory): void {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
-    // Enviar snapshot completo para que el servidor pueda validar correctamente
     room?.send('inventory:update', { inventory });
   }
 
@@ -79,6 +81,7 @@ export class InventoryClient {
    * Usar item (envía id único y itemId lógico)
    */
   public useItem(id: string, itemId: string, slot: number): void {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     room?.send('inventory:use-item', { id, itemId, slot });
   }
@@ -87,6 +90,7 @@ export class InventoryClient {
    * Dropear item
    */
   public dropItem(itemId: string, position: any): void {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     room?.send('inventory:drop-item', { itemId, position });
   }

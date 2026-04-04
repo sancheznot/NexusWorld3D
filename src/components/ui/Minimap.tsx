@@ -10,9 +10,16 @@ interface MinimapProps {
   size?: number;
   zoom?: number;
   className?: string;
+  /** ES: `bottom-center` clásico · `top-right` alineado con el HUD nuevo. */
+  placement?: "bottom-center" | "top-right";
 }
 
-export default function Minimap({ size = 200, zoom = 3, className = '' }: MinimapProps) {
+export default function Minimap({
+  size = 200,
+  zoom = 3,
+  className = "",
+  placement = "bottom-center",
+}: MinimapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { position, rotation } = usePlayerStore();
   const { players } = useWorldStore();
@@ -221,9 +228,14 @@ export default function Minimap({ size = 200, zoom = 3, className = '' }: Minima
 
   if (!isMinimapVisible) return null;
 
+  const positionClass =
+    placement === "top-right"
+      ? "fixed right-4 top-[7.5rem] z-40 sm:right-6 sm:top-[8.5rem]"
+      : "fixed bottom-4 left-1/2 -translate-x-1/2 z-40";
+
   return (
-    <div 
-      className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-40 transition-all duration-300 ${className}`}
+    <div
+      className={`${positionClass} transition-all duration-300 ${className}`}
       style={{ width: actualSize, height: actualSize }}
     >
       {/* Canvas */}

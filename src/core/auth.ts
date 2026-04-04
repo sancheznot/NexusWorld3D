@@ -18,8 +18,18 @@ export interface LoginCredentials {
   password: string;
 }
 
-// In-memory session storage (in production, you might want to use Redis)
-const sessions = new Map<string, AdminSession>();
+/**
+ * ES: Un solo Map en `globalThis` para que HMR y bundles distintos de rutas API
+ * no vacíen las sesiones (cookie válida pero 401 en /worlds, /assets, etc.).
+ * EN: Single Map on globalThis so dev HMR / split route bundles don't drop sessions.
+ */
+const globalForAdminSessions = globalThis as typeof globalThis & {
+  __nexusAdminSessions?: Map<string, AdminSession>;
+};
+
+const sessions: Map<string, AdminSession> =
+  globalForAdminSessions.__nexusAdminSessions ??
+  (globalForAdminSessions.__nexusAdminSessions = new Map<string, AdminSession>());
 
 /**
  * Check if admin credentials are valid
@@ -161,7 +171,13 @@ export function getSessionIdFromRequest(req: Request): string | null {
       return acc;
     }, {} as Record<string, string>);
 
-    return cookies['admin_session'] || null;
+    const raw = cookies["admin_session"];
+    if (!raw) return null;
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
   }
 
   // Try to get from Authorization header
@@ -174,20 +190,34 @@ export function getSessionIdFromRequest(req: Request): string | null {
 }
 
 /**
+ * ES: Secure solo en prod (en http://localhost sin TLS algunos navegadores no guardan la cookie).
+ * EN: Secure only in prod (some browsers skip the cookie on http://localhost without TLS).
+ */
+function cookieSecureDirective(): string {
+  return process.env.NODE_ENV === "production" ? "; Secure" : "";
+}
+
+/**
  * Set session cookie
  */
 export function setSessionCookie(sessionId: string): string {
   const config = getAdminConfig();
   const expires = new Date(Date.now() + config.sessionTimeout * 60 * 1000);
-  
-  return `admin_session=${sessionId}; HttpOnly; Secure; SameSite=Strict; Expires=${expires.toUTCString()}`;
+  const enc = encodeURIComponent(sessionId);
+  return `admin_session=${enc}; Path=/; HttpOnly; SameSite=Lax${cookieSecureDirective()}; Expires=${expires.toUTCString()}`;
 }
 
 /**
  * Clear session cookie
  */
 export function clearSessionCookie(): string {
-  return 'admin_session=; HttpOnly; Secure; SameSite=Strict; Expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  return `admin_session=; Path=/; HttpOnly; SameSite=Lax${cookieSecureDirective()}; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+}
+
+/** ES: Sesión admin válida (cookie + entrada en memoria, no expirada). EN: Valid admin session. */
+export function isValidAdminSession(request: Request): boolean {
+  const sessionId = getSessionIdFromRequest(request);
+  return Boolean(sessionId && isAdminAuthenticated(sessionId));
 }
 
 /**

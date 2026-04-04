@@ -1,6 +1,6 @@
 import { Room, Client } from 'colyseus';
-import { InventoryItem } from '../src/types/inventory.types';
-import { ITEM_SPAWNS, ItemSpawnConfig, ITEMS_CATALOG } from '../src/constants/items';
+import { InventoryItem } from '@/types/inventory.types';
+import { ITEM_SPAWNS, ItemSpawnConfig, ITEMS_CATALOG } from '@/constants/items';
 
 export interface WorldItemState {
   id: string; // spawn id

@@ -12,6 +12,10 @@ interface UIState {
   selectedJobId: ExtendedJobId | null;
   isBankOpen: boolean;
   isSettingsOpen: boolean;
+  /** ES: Menú de pausa (Esc). EN: Pause menu (Esc). */
+  isPauseMenuOpen: boolean;
+  /** ES: Ranura rápida seleccionada 0–4. EN: Selected quick slot 0–4. */
+  hotbarSelectedSlot: number;
   showCharacterCreator: boolean;
   
   // HUD visibility
@@ -40,6 +44,9 @@ interface UIState {
   closeJobs: () => void;
   toggleBank: () => void;
   toggleSettings: () => void;
+  togglePauseMenu: () => void;
+  setPauseMenuOpen: (open: boolean) => void;
+  setHotbarSelectedSlot: (slot: number) => void;
   setInventoryOpen: (isOpen: boolean) => void;
   setShowCharacterCreator: (show: boolean) => void;
   setMapOpen: (isOpen: boolean) => void;
@@ -93,6 +100,8 @@ export const useUIStore = create<UIState>()(
       selectedJobId: null,
       isBankOpen: false,
       isSettingsOpen: false,
+      isPauseMenuOpen: false,
+      hotbarSelectedSlot: 0,
       showCharacterCreator: false,
       isHUDVisible: true,
       isMinimapVisible: true,
@@ -107,20 +116,20 @@ export const useUIStore = create<UIState>()(
       toggleInventory: () => {
         set((state) => ({
           isInventoryOpen: !state.isInventoryOpen,
-          // Close other modals when opening inventory
           isMapOpen: state.isInventoryOpen ? state.isMapOpen : false,
           isShopOpen: state.isInventoryOpen ? state.isShopOpen : false,
           isSettingsOpen: state.isInventoryOpen ? state.isSettingsOpen : false,
+          isPauseMenuOpen: state.isInventoryOpen ? state.isPauseMenuOpen : false,
         }));
       },
 
       toggleMap: () => {
         set((state) => ({
           isMapOpen: !state.isMapOpen,
-          // Close other modals when opening map
           isInventoryOpen: state.isMapOpen ? state.isInventoryOpen : false,
           isShopOpen: state.isMapOpen ? state.isShopOpen : false,
           isSettingsOpen: state.isMapOpen ? state.isSettingsOpen : false,
+          isPauseMenuOpen: state.isMapOpen ? state.isPauseMenuOpen : false,
         }));
       },
 
@@ -133,10 +142,10 @@ export const useUIStore = create<UIState>()(
       toggleShop: () => {
         set((state) => ({
           isShopOpen: !state.isShopOpen,
-          // Close other modals when opening shop
           isInventoryOpen: state.isShopOpen ? state.isInventoryOpen : false,
           isMapOpen: state.isShopOpen ? state.isMapOpen : false,
           isSettingsOpen: state.isShopOpen ? state.isSettingsOpen : false,
+          isPauseMenuOpen: state.isShopOpen ? state.isPauseMenuOpen : false,
         }));
       },
 
@@ -146,11 +155,11 @@ export const useUIStore = create<UIState>()(
           return {
             isJobsOpen: willOpen,
             selectedJobId: willOpen ? state.selectedJobId : null,
-            // Close other modals when opening jobs
             isInventoryOpen: willOpen ? false : state.isInventoryOpen,
             isMapOpen: willOpen ? false : state.isMapOpen,
             isSettingsOpen: willOpen ? false : state.isSettingsOpen,
             isShopOpen: willOpen ? false : state.isShopOpen,
+            isPauseMenuOpen: willOpen ? false : state.isPauseMenuOpen,
           };
         });
       },
@@ -163,6 +172,7 @@ export const useUIStore = create<UIState>()(
           isMapOpen: false,
           isSettingsOpen: false,
           isShopOpen: false,
+          isPauseMenuOpen: false,
         }));
       },
 
@@ -180,17 +190,62 @@ export const useUIStore = create<UIState>()(
           isMapOpen: state.isBankOpen ? state.isMapOpen : false,
           isShopOpen: state.isBankOpen ? state.isShopOpen : false,
           isSettingsOpen: state.isBankOpen ? state.isSettingsOpen : false,
+          isPauseMenuOpen: state.isBankOpen ? state.isPauseMenuOpen : false,
         }));
       },
 
       toggleSettings: () => {
         set((state) => ({
           isSettingsOpen: !state.isSettingsOpen,
-          // Close other modals when opening settings
           isInventoryOpen: state.isSettingsOpen ? state.isInventoryOpen : false,
           isMapOpen: state.isSettingsOpen ? state.isMapOpen : false,
           isShopOpen: state.isSettingsOpen ? state.isShopOpen : false,
+          isPauseMenuOpen: state.isSettingsOpen ? state.isPauseMenuOpen : false,
         }));
+      },
+
+      togglePauseMenu: () => {
+        set((state) => {
+          const next = !state.isPauseMenuOpen;
+          return {
+            isPauseMenuOpen: next,
+            ...(next
+              ? {
+                  isInventoryOpen: false,
+                  isMapOpen: false,
+                  isShopOpen: false,
+                  isJobsOpen: false,
+                  selectedJobId: null,
+                  isBankOpen: false,
+                  isChatOpen: false,
+                  isSettingsOpen: false,
+                }
+              : {}),
+          };
+        });
+      },
+
+      setPauseMenuOpen: (open) => {
+        set((state) => ({
+          isPauseMenuOpen: open,
+          ...(open
+            ? {
+                isInventoryOpen: false,
+                isMapOpen: false,
+                isShopOpen: false,
+                isJobsOpen: false,
+                selectedJobId: null,
+                isBankOpen: false,
+                isChatOpen: false,
+                isSettingsOpen: false,
+              }
+            : {}),
+        }));
+      },
+
+      setHotbarSelectedSlot: (slot) => {
+        const s = Math.max(0, Math.min(4, Math.floor(slot)));
+        set({ hotbarSelectedSlot: s });
       },
 
       setInventoryOpen: (isOpen) => {
@@ -295,6 +350,7 @@ export const useUIStore = create<UIState>()(
           selectedJobId: null,
           isBankOpen: false,
           isSettingsOpen: false,
+          isPauseMenuOpen: false,
           showCharacterCreator: false,
         });
       },

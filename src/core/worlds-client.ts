@@ -12,12 +12,14 @@ export type { WorldData, WorldObject };
 export class WorldManagerClient {
   private baseUrl = '/api/admin/worlds';
 
+  private readonly cred = { credentials: "include" } as const;
+
   /**
    * List all worlds
    */
   async listWorlds(): Promise<WorldData[]> {
     try {
-      const response = await fetch(this.baseUrl);
+      const response = await fetch(this.baseUrl, this.cred);
       const data = await response.json();
       
       if (response.ok) {
@@ -42,6 +44,7 @@ export class WorldManagerClient {
   ): Promise<{ success: boolean; world?: WorldData; error?: string }> {
     try {
       const response = await fetch(this.baseUrl, {
+        ...this.cred,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -69,7 +72,7 @@ export class WorldManagerClient {
    */
   async loadWorld(id: string): Promise<{ success: boolean; world?: WorldData; error?: string }> {
     try {
-      const response = await fetch(`${this.baseUrl}/${id}`);
+      const response = await fetch(`${this.baseUrl}/${id}`, this.cred);
       const data = await response.json();
 
       if (response.ok) {
@@ -91,6 +94,7 @@ export class WorldManagerClient {
   async saveWorld(world: WorldData): Promise<{ success: boolean; error?: string }> {
     try {
       const response = await fetch(`${this.baseUrl}/${world.id}`, {
+        ...this.cred,
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -119,6 +123,7 @@ export class WorldManagerClient {
   async deleteWorld(id: string): Promise<{ success: boolean; error?: string }> {
     try {
       const response = await fetch(`${this.baseUrl}/${id}`, {
+        ...this.cred,
         method: 'DELETE',
       });
 

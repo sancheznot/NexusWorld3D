@@ -29,7 +29,9 @@ export default function AssetPanel({ onAssetSelect }: AssetPanelProps) {
     setError(null);
     
     try {
-      const response = await fetch('/api/admin/assets');
+      const response = await fetch("/api/admin/assets", {
+        credentials: "include",
+      });
       const data = await response.json();
       
       if (response.ok && data.success) {
@@ -66,8 +68,9 @@ export default function AssetPanel({ onAssetSelect }: AssetPanelProps) {
         formData.append('file', file);
         
         // Upload via API
-        const response = await fetch('/api/admin/assets/upload', {
-          method: 'POST',
+        const response = await fetch("/api/admin/assets/upload", {
+          method: "POST",
+          credentials: "include",
           body: formData,
         });
         

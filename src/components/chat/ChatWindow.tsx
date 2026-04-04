@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useSocket } from '@/hooks/useSocket';
 import { usePlayerStore } from '@/store/playerStore';
+import { frameworkAppName } from '@/lib/frameworkBranding';
 
 interface ChatMessage {
   id: string;
@@ -87,7 +88,7 @@ export default function ChatWindow() {
         <div className="bg-gray-800 rounded p-3 mb-3 h-48 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
           {chatMessages.length === 0 ? (
             <div className="text-sm text-gray-400 text-center py-4">
-              <div>Bienvenido al Hotel Humboldt!</div>
+              <div>¡Bienvenido a {frameworkAppName}!</div>
               <div className="mt-1">Usa WASD para moverte</div>
               <div className="mt-1">Presiona Enter para enviar mensaje</div>
             </div>

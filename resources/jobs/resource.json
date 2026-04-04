@@ -1,0 +1,6 @@
+{
+  "id": "jobs",
+  "name": "Jobs and roles",
+  "version": "1.0.0",
+  "dependencies": ["economy", "inventory"]
+}

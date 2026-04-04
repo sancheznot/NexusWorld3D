@@ -31,6 +31,7 @@ export class ItemsClient {
   }
 
   private setupEventListeners() {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     if (!room) return;
 
@@ -41,9 +42,11 @@ export class ItemsClient {
 
   // Send
   public requestItems(data: ItemsRequest): void {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     colyseusClient.getSocket()?.send('items:request', data);
   }
   public collectItem(data: ItemCollectRequest): void {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
     colyseusClient.getSocket()?.send('items:collect', data);
   }
 
