@@ -37,6 +37,7 @@ import ChatWindow from '@/components/chat/ChatWindow';
 import InventoryUI from '@/components/inventory/InventoryUI';
 import { ItemSpawner } from '@/components/world/ItemCollector';
 import { THREE_CONFIG } from '@/config/three.config';
+import createWebGPUGameRenderer from '@/lib/three/createWebGPUGameRenderer';
 import { Vector3 } from 'three';
 import PortalTrigger from '@/components/world/PortalTrigger';
 import PortalUI from '@/components/ui/PortalUI';
@@ -545,6 +546,9 @@ export default function GameCanvas() {
       {/* 3D Game Canvas - Only show when game is started */}
       {isGameStarted && (
         <Canvas
+          {...(THREE_CONFIG.rendering.preferWebGPU
+            ? { gl: createWebGPUGameRenderer }
+            : {})}
           camera={{
             fov: THREE_CONFIG.camera.fov,
             near: THREE_CONFIG.camera.near,

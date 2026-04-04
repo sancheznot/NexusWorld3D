@@ -4,7 +4,24 @@ import { useEffect, useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
+import type { WebGLRenderer } from 'three';
+import type { WebGPURenderer } from 'three/webgpu';
 import { cameraSystem } from '@/lib/cameras/CameraSystem';
+
+type GameGL = WebGLRenderer | WebGPURenderer;
+
+function isWebGPURenderer(gl: GameGL): gl is WebGPURenderer {
+  return (gl as WebGPURenderer).isWebGPURenderer === true;
+}
+
+/** Tipos de setRenderTarget divergen entre WebGLRenderer y WebGPURenderer en @types/three. */
+function setGlRenderTarget(gl: GameGL, target: THREE.RenderTarget | null) {
+  if (isWebGPURenderer(gl)) {
+    gl.setRenderTarget(target);
+  } else {
+    gl.setRenderTarget(target as THREE.WebGLRenderTarget | null);
+  }
+}
 
 interface CameraCaptureProps {
   cameraId: string;
@@ -18,113 +35,142 @@ interface CameraCaptureProps {
  * y actualiza el CameraSystem con las imágenes
  */
 export function CameraCapture({ cameraId, position, lookAt, fov = 60 }: CameraCaptureProps) {
-  const { gl, scene } = useThree();
+  const { gl, scene } = useThree() as { gl: GameGL; scene: THREE.Scene };
   const cameraRef = useRef<THREE.PerspectiveCamera>(null);
-  const renderTargetRef = useRef<THREE.WebGLRenderTarget | null>(null);
+  const renderTargetRef = useRef<THREE.RenderTarget | THREE.WebGLRenderTarget | null>(
+    null
+  );
   const lastCaptureTime = useRef(0);
-  const captureInterval = 2000; // Capturar cada 2 segundos
+  const captureInterval = 2000;
+  const captureBusyRef = useRef(false);
+  const fpsRollingRef = useRef({ t: performance.now(), n: 0, fps: 60 });
 
-  // Crear RenderTarget una sola vez
+  const rtOptions = {
+    minFilter: THREE.LinearFilter,
+    magFilter: THREE.LinearFilter,
+    format: THREE.RGBAFormat,
+  } as const;
+
   useEffect(() => {
     console.log(`🎥 Inicializando cámara de captura: ${cameraId}`);
-    
-    // Resolución reducida para mejor performance (640x360)
-    renderTargetRef.current = new THREE.WebGLRenderTarget(640, 360, {
-      minFilter: THREE.LinearFilter,
-      magFilter: THREE.LinearFilter,
-      format: THREE.RGBAFormat,
-    });
+
+    renderTargetRef.current = isWebGPURenderer(gl)
+      ? new THREE.RenderTarget(640, 360, { ...rtOptions })
+      : new THREE.WebGLRenderTarget(640, 360, { ...rtOptions });
 
     return () => {
       console.log(`🗑️ Limpiando cámara: ${cameraId}`);
       renderTargetRef.current?.dispose();
+      renderTargetRef.current = null;
     };
-  }, [cameraId]);
+  }, [gl, cameraId]);
 
-  // Capturar frame en cada render
   useFrame(() => {
+    const fr = fpsRollingRef.current;
+    fr.n += 1;
+    const tick = performance.now();
+    if (tick - fr.t >= 500) {
+      fr.fps = Math.round((fr.n * 1000) / (tick - fr.t));
+      fr.n = 0;
+      fr.t = tick;
+    }
+
     const now = Date.now();
     if (now - lastCaptureTime.current < captureInterval) return;
     if (!cameraRef.current || !renderTargetRef.current) return;
+    if (captureBusyRef.current) return;
 
-    console.log(`📹 Capturando cámara ${cameraId}...`);
+    const rt = renderTargetRef.current;
+    const camera = cameraRef.current;
+    camera.position.set(...position);
+    camera.lookAt(...lookAt);
+    camera.updateMatrixWorld();
 
-    try {
-      // Configurar cámara
-      const camera = cameraRef.current;
-      camera.position.set(...position);
-      camera.lookAt(...lookAt);
-      camera.updateMatrixWorld();
+    captureBusyRef.current = true;
+    const prevRt = gl.getRenderTarget();
 
-      // Renderizar a texture
-      const currentRenderTarget = gl.getRenderTarget();
-      gl.setRenderTarget(renderTargetRef.current);
-      gl.render(scene, camera);
-      gl.setRenderTarget(currentRenderTarget);
+    void (async () => {
+      try {
+        console.log(`📹 Capturando cámara ${cameraId}...`);
 
-      // Leer pixels y convertir a imagen
-      const width = renderTargetRef.current.width;
-      const height = renderTargetRef.current.height;
-      const pixels = new Uint8Array(width * height * 4);
-      
-      gl.readRenderTargetPixels(
-        renderTargetRef.current,
-        0,
-        0,
-        width,
-        height,
-        pixels
-      );
+        setGlRenderTarget(gl, rt);
+        gl.render(scene, camera);
+        setGlRenderTarget(gl, prevRt);
 
-      // Crear canvas temporal para convertir a base64
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      
-      if (ctx) {
-        const imageData = ctx.createImageData(width, height);
-        
-        // Voltear imagen verticalmente (WebGL renderiza al revés)
-        for (let y = 0; y < height; y++) {
-          for (let x = 0; x < width; x++) {
-            const srcIdx = (y * width + x) * 4;
-            const dstIdx = ((height - 1 - y) * width + x) * 4;
-            imageData.data[dstIdx] = pixels[srcIdx];
-            imageData.data[dstIdx + 1] = pixels[srcIdx + 1];
-            imageData.data[dstIdx + 2] = pixels[srcIdx + 2];
-            imageData.data[dstIdx + 3] = pixels[srcIdx + 3];
+        const width = rt.width;
+        const height = rt.height;
+        const pixels = new Uint8Array(width * height * 4);
+
+        if (isWebGPURenderer(gl)) {
+          const read = await gl.readRenderTargetPixelsAsync(rt, 0, 0, width, height);
+          const view =
+            read instanceof Uint8Array ? read : new Uint8Array(read.buffer, read.byteOffset, read.byteLength);
+          pixels.set(view.subarray(0, width * height * 4));
+        } else {
+          (gl as WebGLRenderer).readRenderTargetPixels(
+            rt as THREE.WebGLRenderTarget,
+            0,
+            0,
+            width,
+            height,
+            pixels
+          );
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+
+        if (ctx) {
+          const imageData = ctx.createImageData(width, height);
+
+          for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+              const srcIdx = (y * width + x) * 4;
+              const dstIdx = ((height - 1 - y) * width + x) * 4;
+              imageData.data[dstIdx] = pixels[srcIdx]!;
+              imageData.data[dstIdx + 1] = pixels[srcIdx + 1]!;
+              imageData.data[dstIdx + 2] = pixels[srcIdx + 2]!;
+              imageData.data[dstIdx + 3] = pixels[srcIdx + 3]!;
+            }
+          }
+
+          ctx.putImageData(imageData, 0, 0);
+          const imageDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+
+          console.log(`✅ Imagen capturada para ${cameraId}: ${imageDataUrl.substring(0, 50)}...`);
+
+          const cam = cameraSystem.getCamera(cameraId);
+          if (cam) {
+            const snapshot = cam.getSnapshot();
+            cameraSystem.updateCameraSnapshot(cameraId, {
+              id: cameraId,
+              name: cam.name,
+              description: cam.description,
+              timestamp: now,
+              imageData: imageDataUrl,
+              players: snapshot?.players ?? 0,
+              fps: fpsRollingRef.current.fps,
+            });
+            console.log(`🔄 Snapshot actualizado para ${cameraId}`);
+          } else {
+            console.error(`❌ No se encontró la cámara ${cameraId} en el sistema`);
           }
         }
-        
-        ctx.putImageData(imageData, 0, 0);
-        const imageDataUrl = canvas.toDataURL('image/jpeg', 0.7);
 
-        console.log(`✅ Imagen capturada para ${cameraId}: ${imageDataUrl.substring(0, 50)}...`);
-
-        // Actualizar snapshot en el sistema de cámaras
-        const camera = cameraSystem.getCamera(cameraId);
-        if (camera) {
-          const snapshot = camera.getSnapshot();
-          cameraSystem.updateCameraSnapshot(cameraId, {
-            id: cameraId,
-            name: camera.name,
-            description: camera.description,
-            timestamp: now,
-            imageData: imageDataUrl,
-            players: snapshot?.players ?? 0, // Mantener contador actual
-            fps: Math.round(1000 / gl.info.render.frame),
-          });
-          console.log(`🔄 Snapshot actualizado para ${cameraId}`);
-        } else {
-          console.error(`❌ No se encontró la cámara ${cameraId} en el sistema`);
+        lastCaptureTime.current = now;
+      } catch (error) {
+        console.error(`❌ Error capturando cámara ${cameraId}:`, error);
+        try {
+          setGlRenderTarget(gl, prevRt);
+        } catch {
+          /* ignore */
         }
+      } finally {
+        captureBusyRef.current = false;
       }
-
-      lastCaptureTime.current = now;
-    } catch (error) {
-      console.error(`❌ Error capturando cámara ${cameraId}:`, error);
-    }
+    })();
   });
 
   return (
@@ -151,7 +197,6 @@ export default function LiveCameraCapture() {
 
   return (
     <group name="live-cameras">
-      {/* Cámara 1: Vista Aérea */}
       <CameraCapture
         cameraId="aerial-city"
         position={[0, 100, 0]}
@@ -159,7 +204,6 @@ export default function LiveCameraCapture() {
         fov={75}
       />
 
-      {/* Cámara 2: Entrada del Hotel */}
       <CameraCapture
         cameraId="hotel-entrance"
         position={[10, 5, -95]}
@@ -167,7 +211,6 @@ export default function LiveCameraCapture() {
         fov={60}
       />
 
-      {/* Cámara 3: Plaza Central */}
       <CameraCapture
         cameraId="central-plaza"
         position={[50, 15, 50]}
@@ -177,4 +220,3 @@ export default function LiveCameraCapture() {
     </group>
   );
 }
-

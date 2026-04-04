@@ -52,6 +52,8 @@ export const THREE_CONFIG = {
 
   // Rendering settings
   rendering: {
+    /** WebGPURenderer (Three r180); sin soporte WebGPU Three usa WebGL2 en el mismo renderer. */
+    preferWebGPU: true,
     antialias: true,
     shadowMap: {
       enabled: true,
