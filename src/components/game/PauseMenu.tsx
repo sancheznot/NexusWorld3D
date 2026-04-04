@@ -78,7 +78,7 @@ export default function PauseMenu({
             >
               Pausa
             </h2>
-            <p className="text-xs text-slate-400">Pause · NexusWorld3D</p>
+            <p className="text-xs text-slate-400">Pause · Hotel Humboldt</p>
           </div>
         </div>
 

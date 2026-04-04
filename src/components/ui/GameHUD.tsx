@@ -15,7 +15,7 @@ import ServerClock from "@/components/ui/ServerClock";
 
 const MAP_LOCATIONS: Record<string, string> = {
   exterior: "Sector urbano",
-  "hotel-interior": "Interior hotel",
+  "hotel-interior": "Hotel Humboldt",
   "police-station": "Comisaría",
   bank: "Banco Central",
   hospital: "Hospital",
