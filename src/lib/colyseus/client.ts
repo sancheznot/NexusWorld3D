@@ -9,6 +9,8 @@ import {
   ChatMessages,
   MonsterMessages,
   SystemMessages,
+  JOIN_OPTION_PROTOCOL_VERSION_KEY,
+  PROTOCOL_VERSION,
 } from "@nexusworld3d/protocol";
 import { frameworkColyseusRoomName } from "@/lib/frameworkBranding";
 import { useHousingStore } from "@/store/housingStore";
@@ -86,8 +88,15 @@ class ColyseusClient {
         if (!this.client) {
           this.client = new Client(serverUrl);
         }
+        const mergedJoinOptions =
+          roomName === frameworkColyseusRoomName
+            ? {
+                ...joinOptions,
+                [JOIN_OPTION_PROTOCOL_VERSION_KEY]: PROTOCOL_VERSION,
+              }
+            : joinOptions;
         this.client
-          .joinOrCreate(roomName, joinOptions)
+          .joinOrCreate(roomName, mergedJoinOptions)
           .then((room) => {
             this.room = room;
             this.currentJoinedRoom = roomName;

@@ -1,5 +1,5 @@
 # @nexusworld3d/content-schema (placeholder)
 
-**ES.** Fase 2 del roadmap: esquema Zod/JSON Schema para `items`, `recipes`, `worldSpawns`, etc. + CLI `npm run validate-content`.
+**ES.** El manifest vive en **`content/manifest.json`** (raíz del repo). `npm run validate-content` aplica comprobaciones v1 (estructura + ids únicos). Aquí puede colocarse más adelante JSON Schema / Zod compartido.
 
-**EN.** Phase 2: shared schema for data-driven content; `validate-content` will enforce it.
+**EN.** Content manifest is **`content/manifest.json`**. `npm run validate-content` enforces v1 checks. This package can later hold shared JSON Schema / Zod definitions.

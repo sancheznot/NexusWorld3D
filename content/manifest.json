@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    { "id": "coin_gold" },
+    { "id": "potion_health" },
+    { "id": "food_apple" },
+    { "id": "food_bread" },
+    { "id": "food_water" },
+    { "id": "food_meat" },
+    { "id": "food_cheese" },
+    { "id": "food_fish" },
+    { "id": "seed_lettuce" },
+    { "id": "food_lettuce" },
+    { "id": "food_salad" },
+    { "id": "material_cloth" },
+    { "id": "consumable_bandage" },
+    { "id": "sword_iron" },
+    { "id": "tool_axe" },
+    { "id": "tool_pickaxe" },
+    { "id": "material_wood_log" },
+    { "id": "material_wood_plank" },
+    { "id": "material_stone_raw" },
+    { "id": "placeable_cabin_kit" }
+  ],
+  "recipes": [],
+  "worldSpawns": [],
+  "buildingPieces": [],
+  "shops": []
+}

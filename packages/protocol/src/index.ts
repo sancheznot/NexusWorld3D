@@ -1,4 +1,9 @@
-export { PROTOCOL_VERSION, type ProtocolVersion } from "./version";
+export {
+  PROTOCOL_VERSION,
+  type ProtocolVersion,
+  JOIN_OPTION_PROTOCOL_VERSION_KEY,
+  readJoinProtocolVersion,
+} from "./version";
 export {
   WorldMessages,
   HousingMessages,

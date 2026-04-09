@@ -1,5 +1,10 @@
 import { Room, Client } from "colyseus";
-import { ChatMessages, PlayerMessages } from "@nexusworld3d/protocol";
+import {
+  ChatMessages,
+  PlayerMessages,
+  PROTOCOL_VERSION,
+  readJoinProtocolVersion,
+} from "@nexusworld3d/protocol";
 import { nexusWorld3DConfig } from "@repo/nexusworld3d.config";
 import { gameRedis } from "@/lib/services/redis";
 import type { FrameworkServices } from "@resources/types";
@@ -270,6 +275,21 @@ export class NexusWorldRoom extends Room {
     console.log(
       `👤 Cliente ${client.sessionId} se unió a ${nexusWorld3DConfig.networking.colyseusRoomName}`
     );
+
+    const clientPv = readJoinProtocolVersion(options as unknown);
+    if (clientPv !== PROTOCOL_VERSION) {
+      const detail =
+        clientPv === null
+          ? "missing protocolVersion in join options"
+          : `client=${clientPv}`;
+      const msg = `Protocol mismatch (${detail}; server=${PROTOCOL_VERSION}). Update the game client or deploy a matching server.`;
+      pushGameMonitorLog("warn", "room", "join rejected: protocol mismatch", {
+        sessionId: client.sessionId,
+        clientProtocolVersion: clientPv,
+        serverProtocolVersion: PROTOCOL_VERSION,
+      });
+      throw new Error(msg);
+    }
 
     const now = Date.now();
     const defaultPosition = { x: 0, y: 0, z: 0 };

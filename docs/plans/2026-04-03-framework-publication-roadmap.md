@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 1.2  
+**Versión:** 1.3  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -12,7 +12,9 @@
 - [x] **Plugins de sala:** `NexusRoomPlugin`, `attachNexusRoomPlugins`, plugin piloto **`core:world-resource-nodes`** (`server/room/nexusRoomPlugins.ts`).
 - [x] **Demo mode:** `NEXT_PUBLIC_FRAMEWORK_DEMO=1` + `FrameworkDemoGround` (sin `city.glb` ni capas pesadas en exterior).
 - [x] **Docs:** `docs/GETTING_STARTED.md`, `ARCHITECTURE.md`, `ADDING_CONTENT.md`; **`apps/demo/README.md`** explica el demo; **`npm run validate-content`** (stub Fase 2).
-- [ ] Pendiente Fase 1: paquetes `engine-server` / `engine-client` separados del juego; más plugins; economía completa en `EconomyMessages`; handshake `protocolVersion` estricto.
+- [x] Handshake **`protocolVersion`**: opción de join `protocolVersion` (ver `JOIN_OPTION_PROTOCOL_VERSION_KEY` en `@nexusworld3d/protocol`); `NexusWorldRoom` rechaza join si no coincide con `PROTOCOL_VERSION`.
+- [x] **`content/manifest.json`** + `npm run validate-content` (validación estructural v1, no stub).
+- [ ] Pendiente Fase 1: paquetes `engine-server` / `engine-client` separados del juego; más plugins.
 
 ---
 
@@ -97,8 +99,8 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 **Incluye / Includes**
 
-- [ ] Esquema: `items[]`, `recipes[]`, `worldSpawns[]`, `interactables[]`, `shops[]`, `buildingPieces[]` (según alcance).
-- [x] Script **`npm run validate-content`** (stub que sale 0; sustituir por validación real en Fase 2).
+- [x] Esquema v1 en **`content/manifest.json`**: `items[]`, `recipes[]`, `worldSpawns[]`, `shops[]`, `buildingPieces[]` (extensible).
+- [x] Script **`npm run validate-content`** (validación real: JSON, `schemaVersion`, ids únicos).
 - [ ] Loader en servidor que **hidrate** catálogos en memoria al iniciar sala (o en build-time codegen TS opcional).
 
 **Beneficio / Benefit:** el tercero “solo” edita datos; no abre diez archivos TS.
@@ -132,7 +134,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 **EN.** Centralize message names and payloads.
 
 - [x] Constantes de mensajes en **`@nexusworld3d/protocol`** (`WorldMessages`, etc.); tipos de payload aún dispersos (mejora incremental).
-- [ ] Campo `protocolVersion` en handshake o primer mensaje; servidor rechaza clientes incompatibles con mensaje claro.
+- [x] Campo `protocolVersion` en **opciones de join** a la sala mundo; servidor rechaza con error claro si falta o no coincide.
 - [ ] Convención de nombres: prefijos `core:` vs `game:` para que el juego privado añada mensajes sin colisionar con el núcleo.
 
 ---

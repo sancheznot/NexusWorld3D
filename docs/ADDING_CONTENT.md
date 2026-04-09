@@ -27,7 +27,9 @@ Regístralo en `NexusWorldRoom` con `attachNexusRoomPlugins(this, [createMyGameP
 
 ## 3. Contenido data-driven / Data-driven content (Fase 2)
 
-Pendiente: manifest JSON + `npm run validate-content`. Hoy el catálogo sigue en `src/constants/*.ts`.
+- **Manifest:** `content/manifest.json` — `schemaVersion`, `items[]` con `{ id }`, y arrays opcionales (`recipes`, `worldSpawns`, `buildingPieces`, `shops`).
+- **Validación:** `npm run validate-content` (falla si falta el archivo, JSON inválido, o ids duplicados).
+- El catálogo en runtime sigue en `src/constants/items.ts` hasta que un loader hidrate desde el manifest (roadmap).
 
 ## 4. Demo sin arte del juego / Demo without game art
 
