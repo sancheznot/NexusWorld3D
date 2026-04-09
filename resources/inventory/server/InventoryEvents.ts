@@ -2,6 +2,7 @@ import { Room, Client } from 'colyseus';
 import { InventoryItem, Inventory } from '@/types/inventory.types';
 import { ITEMS_CATALOG } from '@/constants/items';
 import { isChopAxeItemId } from '@/constants/choppableTrees';
+import { isMinePickaxeItemId } from '@/constants/mineableRocks';
 import {
   applyCatalogStackCapsToItems,
   canMergeIntoStack,
@@ -233,6 +234,34 @@ export class InventoryEvents {
   }
 
   /**
+   * ES: Consume pilas por itemId (no equipados); broadcast inventario si tuvo éxito.
+   * EN: Consume stacks by catalog itemId (non-equipped); broadcast on success.
+   */
+  public tryConsumeCatalogItems(
+    playerId: string,
+    ingredients: { itemId: string; quantity: number }[]
+  ): boolean {
+    const pseudo: CraftRecipe = {
+      id: "__housing_consume",
+      nameEs: "",
+      nameEn: "",
+      ingredients,
+      output: { itemId: "__void", quantity: 1 },
+    };
+    const inv = this.playerInventories.get(playerId);
+    if (!inv || !this.canAffordRecipe(inv, pseudo)) return false;
+    if (!this.consumeRecipeIngredients(playerId, pseudo)) return false;
+    const normalized = this.ensureSlots(this.playerInventories.get(playerId)!);
+    this.playerInventories.set(playerId, normalized);
+    this.room.broadcast("inventory:updated", {
+      playerId,
+      inventory: normalized,
+      timestamp: Date.now(),
+    } as InventoryEventData);
+    return true;
+  }
+
+  /**
    * ES: Añade ítem desde mundo/craft/tienda. Devuelve unidades realmente añadidas (0 si falló peso/ranuras).
    * EN: Add item from world/craft/shop; returns units actually added (0 if weight/slots block).
    */
@@ -284,7 +313,7 @@ export class InventoryEvents {
     let maxDurability = (baseItem as any).maxDurability as number | undefined;
     let durability = (baseItem as any).durability as number | undefined;
     const catMd = catalogMaxDurability(itemId);
-    if (isChopAxeItemId(itemId)) {
+    if (isChopAxeItemId(itemId) || isMinePickaxeItemId(itemId)) {
       maxDurability = maxDurability ?? 80;
       durability = typeof durability === 'number' ? durability : maxDurability;
     } else if (catMd) {
@@ -422,6 +451,43 @@ export class InventoryEvents {
   }
 
   /**
+   * ES: Desgaste del pico por golpe de mina; si llega a 0 se elimina el ítem.
+   * EN: Pickaxe durability per mine swing; removes item at 0.
+   */
+  public applyPickaxeSwingWear(playerId: string): void {
+    const inv = this.playerInventories.get(playerId);
+    if (!inv) return;
+    const pick = inv.items.find(
+      (i) => isMinePickaxeItemId(i.itemId) && (i.quantity ?? 1) > 0
+    );
+    if (!pick || (pick.quantity ?? 0) <= 0) return;
+
+    const maxD = pick.maxDurability ?? 80;
+    const cur =
+      typeof pick.durability === 'number' ? pick.durability : maxD;
+    const next = cur - 1;
+
+    if (next <= 0) {
+      const idx = inv.items.indexOf(pick);
+      if (idx !== -1) {
+        inv.items.splice(idx, 1);
+        inv.usedSlots = Math.max(0, (inv.usedSlots || 1) - 1);
+      }
+    } else {
+      pick.durability = next;
+    }
+
+    inv.currentWeight = this.calculateTotalWeight(inv);
+    const normalized = this.ensureSlots(inv);
+    this.playerInventories.set(playerId, normalized);
+    this.room.broadcast('inventory:updated', {
+      playerId,
+      inventory: normalized,
+      timestamp: Date.now(),
+    } as InventoryEventData);
+  }
+
+  /**
    * ES: Desgaste del arma equipada al atacar (el hacha se desgasta al talar, no aquí).
    * EN: Equipped weapon wear on attack (axes wear on chop, not here).
    */
@@ -430,7 +496,8 @@ export class InventoryEvents {
     if (!inv) return;
     const weapon = inv.items.find((i) => i.isEquipped && i.type === 'weapon');
     if (!weapon) return;
-    if (isChopAxeItemId(weapon.itemId)) return;
+    if (isChopAxeItemId(weapon.itemId) || isMinePickaxeItemId(weapon.itemId))
+      return;
 
     const maxD =
       typeof weapon.maxDurability === 'number' && weapon.maxDurability > 0
@@ -527,7 +594,7 @@ export class InventoryEvents {
       currentWeight: 0,
     };
     for (const it of copy.items) {
-      if (isChopAxeItemId(it.itemId)) {
+      if (isChopAxeItemId(it.itemId) || isMinePickaxeItemId(it.itemId)) {
         it.maxDurability = it.maxDurability ?? 80;
         it.durability =
           typeof it.durability === 'number' ? it.durability : it.maxDurability;
@@ -1002,6 +1069,30 @@ export class InventoryEvents {
     if (!inventory) return null;
     const usable = (i: InventoryItem) =>
       isChopAxeItemId(i.itemId) && (i.quantity ?? 1) > 0;
+    const equipped = inventory.items.find((i) => i.isEquipped && usable(i));
+    if (equipped) return equipped.itemId;
+    const any = inventory.items.find(usable);
+    return any?.itemId ?? null;
+  }
+
+  /** ES: Cualquier pico de mina en inventario. EN: Any mining pickaxe in inventory. */
+  public playerHasAnyMinePickaxe(playerId: string): boolean {
+    const inventory = this.playerInventories.get(playerId);
+    if (!inventory) return false;
+    return inventory.items.some(
+      (i) => isMinePickaxeItemId(i.itemId) && (i.quantity ?? 1) > 0
+    );
+  }
+
+  /**
+   * ES: `itemId` del pico para recompensa por golpe (equipada primero).
+   * EN: Pickaxe catalog id for per-hit rewards (equipped preferred).
+   */
+  public getMineToolCatalogId(playerId: string): string | null {
+    const inventory = this.playerInventories.get(playerId);
+    if (!inventory) return null;
+    const usable = (i: InventoryItem) =>
+      isMinePickaxeItemId(i.itemId) && (i.quantity ?? 1) > 0;
     const equipped = inventory.items.find((i) => i.isEquipped && usable(i));
     if (equipped) return equipped.itemId;
     const any = inventory.items.find(usable);

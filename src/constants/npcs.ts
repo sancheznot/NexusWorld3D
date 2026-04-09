@@ -8,7 +8,8 @@ export type NPCId =
   | "npc_bank_clerk"
   | "npc_super_grocer"
   | "npc_delivery_manager"
-  | "npc_trucker_boss";
+  | "npc_trucker_boss"
+  | "npc_builder";
 
 export interface NPCConfig {
   id: NPCId;
@@ -93,6 +94,18 @@ export const NPCS: Record<NPCId, NPCConfig> = {
     jobId: "delivery",
     visual: {
       path: "/models/characters/men/men_02.glb",
+      type: "glb",
+      scale: 1,
+    },
+  },
+  npc_builder: {
+    id: "npc_builder",
+    name: "Maestro de obras",
+    mapId: "exterior",
+    zone: { position: { x: 46, y: 1, z: -11 }, radius: 2.5 },
+    opensShopId: "builders_yard",
+    visual: {
+      path: "/models/characters/men/men_03.glb",
       type: "glb",
       scale: 1,
     },

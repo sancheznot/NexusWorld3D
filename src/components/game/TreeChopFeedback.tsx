@@ -42,5 +42,26 @@ export default function TreeChopFeedback() {
     };
   }, [addNotification]);
 
+  useEffect(() => {
+    const onRock = (raw: unknown) => {
+      const d = raw as { ok?: boolean; rockId?: string; message?: string };
+      if (d?.ok) return;
+      if (d?.message) {
+        addNotification({
+          id: `mine-err-${Date.now()}`,
+          type: "warning",
+          title: "Minar",
+          message: d.message,
+          duration: 4000,
+          timestamp: new Date(),
+        });
+      }
+    };
+    colyseusClient.on("world:rock-mine-result", onRock);
+    return () => {
+      colyseusClient.off("world:rock-mine-result", onRock);
+    };
+  }, [addNotification]);
+
   return null;
 }

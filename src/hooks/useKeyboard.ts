@@ -11,6 +11,8 @@ import { tryPickupNearestWorldItem } from '@/lib/gameplay/pickupActions';
 import { tryDropSelectedHotbarItem } from '@/lib/gameplay/dropActions';
 import { tryUseSelectedHotbarConsumable } from '@/lib/gameplay/hotbarUseActions';
 import { triggerMeleeClick } from '@/lib/gameplay/meleeActionBridge';
+import { placeBuildPieceAtPlayer } from '@/lib/housing/housingClient';
+import { useBuildPreviewStore } from '@/store/buildPreviewStore';
 
 interface KeyboardState {
   keys: Set<string>;
@@ -160,7 +162,17 @@ export const useKeyboard = (enabled: boolean = true) => {
           setHotbarSelectedSlot(Number(key) - 1);
           event.preventDefault();
           break;
-        case "e":
+        case "e": {
+          const previewId = useBuildPreviewStore.getState().previewPieceId;
+          if (
+            previewId &&
+            !uiBlocksWorldActions &&
+            colyseusClient.isConnectedToWorldRoom()
+          ) {
+            placeBuildPieceAtPlayer(previewId);
+            event.preventDefault();
+            break;
+          }
           if (
             !uiBlocksWorldActions &&
             tryPickupNearestWorldItem()
@@ -168,6 +180,7 @@ export const useKeyboard = (enabled: boolean = true) => {
             event.preventDefault();
           }
           break;
+        }
         case "g":
           if (
             !uiBlocksWorldActions &&

@@ -6,9 +6,10 @@ import * as THREE from 'three';
 import type { WebGLRenderer } from 'three';
 import { useUIStore } from '@/store/uiStore';
 import { inventoryService } from '@/lib/services/inventory';
-import { isToolAxeActiveForWorldActions } from '@/lib/gameplay/inventoryHotbar';
+import { getWorldGatherMode } from '@/lib/gameplay/inventoryHotbar';
 import { registerMeleeClickHandler } from '@/lib/gameplay/meleeActionBridge';
 import { sendTreeChopAttempt } from '@/lib/gameplay/treeChopActions';
+import { sendRockMineAttempt } from '@/lib/gameplay/rockMineActions';
 import { colyseusClient } from '@/lib/colyseus/client';
 import { usePlayerStore } from '@/store/playerStore';
 
@@ -58,9 +59,25 @@ function resolveChoppableTreeId(obj: THREE.Object3D): string | null {
   return null;
 }
 
+function resolveMineableRockId(obj: THREE.Object3D): string | null {
+  let o: THREE.Object3D | null = obj;
+  while (o) {
+    const id = o.userData?.mineableRockId;
+    if (
+      typeof id === 'string' &&
+      id.length > 0 &&
+      o.userData?.mineableProp === true
+    ) {
+      return id;
+    }
+    o = o.parent;
+  }
+  return null;
+}
+
 /**
- * ES: Click → raycast; solo props con `choppableProp` o id `ext_*` (no mallas ct_* del city.glb).
- * EN: Raycast; only explicit props (`choppableProp` or `ext_*` ids).
+ * ES: Click → raycast; hacha (árboles) o pico (rocas) según herramienta activa.
+ * EN: Raycast; axe for trees or pickaxe for rocks by active gather tool.
  */
 export default function ChopRaycastBridge() {
   const { camera, scene, gl } = useThree();
@@ -70,15 +87,12 @@ export default function ChopRaycastBridge() {
   useEffect(() => {
     const run = (event: MouseEvent) => {
       if (!colyseusClient.isConnectedToWorldRoom()) return;
-      if (
-        !isToolAxeActiveForWorldActions(
-          inventoryService.getInventory(),
-          inventoryService.getEquipment(),
-          hotbarSlot
-        )
-      ) {
-        return;
-      }
+      const gather = getWorldGatherMode(
+        inventoryService.getInventory(),
+        inventoryService.getEquipment(),
+        hotbarSlot
+      );
+      if (!gather) return;
 
       const now = performance.now();
       if (now - lastSwingRef.current < 650) return;
@@ -93,6 +107,14 @@ export default function ChopRaycastBridge() {
       const hits = ray.intersectObjects(scene.children, true);
       for (const h of hits) {
         if (isUnderPlayerMesh(h.object)) continue;
+        if (gather === 'rock') {
+          const rockId = resolveMineableRockId(h.object);
+          if (!rockId) continue;
+          lastSwingRef.current = now;
+          const p = usePlayerStore.getState().position;
+          sendRockMineAttempt(rockId, { x: p.x, y: p.y, z: p.z });
+          break;
+        }
         const treeId = resolveChoppableTreeId(h.object);
         if (!treeId) continue;
         lastSwingRef.current = now;

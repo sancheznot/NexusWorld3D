@@ -9,7 +9,9 @@ import { AnimationAction } from 'three';
 import { GAME_CONFIG } from '@/constants/game';
 import { useAnimationDurations } from '@/hooks/useAnimationDurations';
 import HeldAxe from '@/components/world/HeldAxe';
+import HeldPickaxe from '@/components/world/HeldPickaxe';
 import { isChopAxeItemId } from '@/constants/choppableTrees';
+import { isMinePickaxeItemId } from '@/constants/mineableRocks';
 
   // Mapeo de animaciones - mapear estados a nombres reales de animaciones
   const getAnimationName = (animationState: string, actions: Record<string, AnimationAction | null>) => {
@@ -254,6 +256,12 @@ export default function AnimatedCharacter({
             skinnedRoot={clonedScene}
             visible={
               heldToolItemId != null && isChopAxeItemId(heldToolItemId)
+            }
+          />
+          <HeldPickaxe
+            skinnedRoot={clonedScene}
+            visible={
+              heldToolItemId != null && isMinePickaxeItemId(heldToolItemId)
             }
           />
         </group>

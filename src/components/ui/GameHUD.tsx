@@ -298,7 +298,7 @@ export default function GameHUD({
           <span className="text-slate-300">G</span> soltar ·{" "}
           <span className="text-slate-300">E</span> recoger ·{" "}
           <span className="text-slate-300">C</span> craft ·{" "}
-          <span className="text-slate-300">click en el árbol</span> (hacha equipada)
+          <span className="text-slate-300">click árbol/roca</span> (hacha / pico en hotbar)
         </p>
       </div>
 

@@ -73,6 +73,75 @@ export default function ItemGainHud() {
   }, []);
 
   useEffect(() => {
+    const onMine = (raw: unknown) => {
+      const d = raw as {
+        ok?: boolean | number | string;
+        rockId?: string;
+        stoneGranted?: number;
+        stoneQty?: number;
+        stoneThisHit?: number;
+        rockHealthRemainingPct?: number;
+        depleted?: boolean;
+      };
+      if (!chopHitOk(d)) return;
+      const qty = Math.floor(
+        Number(d.stoneGranted ?? d.stoneQty ?? d.stoneThisHit ?? 0)
+      );
+      if (!Number.isFinite(qty) || qty <= 0) return;
+      const cat = ITEMS_CATALOG.material_stone_raw;
+      const hp =
+        typeof d.rockHealthRemainingPct === 'number'
+          ? Math.max(0, Math.min(100, Math.round(d.rockHealthRemainingPct)))
+          : null;
+      const subtitle =
+        hp != null
+          ? d.depleted
+            ? '¡Yacimiento agotado!'
+            : `Roca · ${hp}% restante`
+          : undefined;
+      useUIStore.getState().pushItemGainToast({
+        itemId: 'material_stone_raw',
+        name: cat?.name ?? 'Piedra bruta',
+        icon: cat?.icon ?? '🪨',
+        quantity: qty,
+        subtitle,
+        variant: 'chop',
+      });
+    };
+    colyseusClient.on('world:rock-mine-result', onMine);
+    return () => {
+      colyseusClient.off('world:rock-mine-result', onMine);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onHarvest = (raw: unknown) => {
+      const d = raw as {
+        ok?: boolean;
+        grants?: { itemId: string; quantity: number }[];
+      };
+      if (!d?.ok || !Array.isArray(d.grants)) return;
+      for (const g of d.grants) {
+        const qty = Math.max(0, Math.floor(Number(g.quantity) || 0));
+        const itemId = typeof g.itemId === 'string' ? g.itemId : '';
+        if (qty <= 0 || !itemId) continue;
+        const cat = ITEMS_CATALOG[itemId as keyof typeof ITEMS_CATALOG];
+        pushItemGainToast({
+          itemId,
+          name: cat?.name ?? itemId,
+          icon: cat?.icon ?? '📦',
+          quantity: qty,
+          variant: 'chop',
+        });
+      }
+    };
+    colyseusClient.on('world:harvest-node-result', onHarvest);
+    return () => {
+      colyseusClient.off('world:harvest-node-result', onHarvest);
+    };
+  }, [pushItemGainToast]);
+
+  useEffect(() => {
     const onCollected = (data: ItemCollectedResponse) => {
       const it = data.item;
       if (!it) return;
@@ -87,6 +156,34 @@ export default function ItemGainHud() {
     itemsClient.onItemsCollected(onCollected);
     return () => {
       itemsClient.off('items:collected', onCollected);
+    };
+  }, [pushItemGainToast]);
+
+  useEffect(() => {
+    const onFarm = (raw: unknown) => {
+      const d = raw as {
+        ok?: boolean;
+        action?: string;
+        itemId?: string;
+        quantity?: number;
+      };
+      if (!d?.ok || d.action !== 'harvested') return;
+      const itemId = typeof d.itemId === 'string' ? d.itemId : '';
+      const qty = Math.max(1, Math.floor(Number(d.quantity) || 0));
+      if (!itemId || qty <= 0) return;
+      const cat = ITEMS_CATALOG[itemId as keyof typeof ITEMS_CATALOG];
+      pushItemGainToast({
+        itemId,
+        name: cat?.name ?? itemId,
+        icon: cat?.icon ?? '📦',
+        quantity: qty,
+        subtitle: 'Cosecha / Harvest',
+        variant: 'chop',
+      });
+    };
+    colyseusClient.on('farm:result', onFarm);
+    return () => {
+      colyseusClient.off('farm:result', onFarm);
     };
   }, [pushItemGainToast]);
 

@@ -38,8 +38,10 @@ import ChatWindow from '@/components/chat/ChatWindow';
 import InventoryUI from '@/components/inventory/InventoryUI';
 import CraftingUI from '@/components/inventory/CraftingUI';
 import { useGameWorldStore } from '@/store/gameWorldStore';
+import { useBuildPreviewStore } from '@/store/buildPreviewStore';
 import { ItemSpawner } from '@/components/world/ItemCollector';
 import ChoppableTreesLayer from '@/components/world/ChoppableTreesLayer';
+import MineableRocksLayer from '@/components/world/MineableRocksLayer';
 import ChopRaycastBridge from '@/components/world/ChopRaycastBridge';
 import ChopCityTreeSync from '@/components/world/ChopCityTreeSync';
 import { THREE_CONFIG } from '@/config/three.config';
@@ -64,7 +66,22 @@ import CannonCar from '@/components/vehicles/CannonCar';
 import CannonStepper from '@/components/physics/CannonStepper';
 import Minimap from '@/components/ui/Minimap';
 import TreeChopFeedback from '@/components/game/TreeChopFeedback';
+import WorldResourceHarvestFeedback from '@/components/game/WorldResourceHarvestFeedback';
+import FarmFeedback from '@/components/game/FarmFeedback';
+import StallFeedback from '@/components/game/StallFeedback';
 import ItemGainHud from '@/components/game/ItemGainHud';
+import HousingLayer from '@/components/world/HousingLayer';
+import BuildPiecesLayer from '@/components/world/BuildPiecesLayer';
+import BuildPreviewLayer from '@/components/world/BuildPreviewLayer';
+import HousingPlotTriggerLayer from '@/components/world/HousingPlotTriggerLayer';
+import HousingPlotBoundsLayer from '@/components/world/HousingPlotBoundsLayer';
+import PlotDebrisLayer from '@/components/world/PlotDebrisLayer';
+import WorldResourceNodesLayer from '@/components/world/WorldResourceNodesLayer';
+import FarmPlotsLayer from '@/components/world/FarmPlotsLayer';
+import PlayerStallTriggerLayer from '@/components/world/PlayerStallTriggerLayer';
+import HousingPlotModal from '@/components/ui/HousingPlotModal';
+import PlayerStallModal from '@/components/ui/PlayerStallModal';
+import { requestHousingSync } from '@/lib/housing/housingClient';
 import WebGlContextRecovery from '@/components/game/WebGlContextRecovery';
 import LiveCameraCapture from '@/components/cameras/LiveCameraCapture';
 import DebugInfo from '@/components/ui/DebugInfo';
@@ -89,6 +106,7 @@ export default function GameCanvas() {
     toggleMap,
     toggleChat,
     closeAllModals,
+    addNotification,
   } = useUIStore();
   const { settings, isLoaded } = useGameSettings();
   
@@ -110,6 +128,90 @@ export default function GameCanvas() {
   useEffect(() => {
     setActiveMapId(currentMap);
   }, [currentMap, setActiveMapId]);
+
+  useEffect(() => {
+    useBuildPreviewStore.getState().setBuildPreviewPieceId(null);
+  }, [currentMap]);
+
+  useEffect(() => {
+    if (!isGameStarted || currentMap !== 'exterior') return;
+    const id = window.setTimeout(() => {
+      if (colyseusClient.isConnectedToWorldRoom()) {
+        requestHousingSync('exterior');
+      }
+    }, 800);
+    return () => window.clearTimeout(id);
+  }, [isGameStarted, currentMap]);
+
+  useEffect(() => {
+    const onHousingErr = (data: unknown) => {
+      const msg =
+        typeof (data as { message?: string })?.message === 'string'
+          ? (data as { message: string }).message
+          : 'Acción de vivienda rechazada';
+      addNotification({
+        id: `housing-err-${Date.now()}`,
+        type: 'warning',
+        title: 'Vivienda',
+        message: msg,
+        timestamp: new Date(),
+        duration: 5500,
+      });
+    };
+    const onHousingUp = (data: unknown) => {
+      const d = data as { tier?: number; mode?: string };
+      const tier = typeof d?.tier === 'number' ? d.tier : '?';
+      const mode =
+        d?.mode === 'cash' ? 'créditos' : d?.mode === 'materials' ? 'materiales' : '';
+      addNotification({
+        id: `housing-up-${Date.now()}`,
+        type: 'success',
+        title: 'Vivienda',
+        message:
+          mode !== ''
+            ? `Cabaña mejorada — tier ${tier} (${mode}).`
+            : `Cabaña mejorada — tier ${tier}.`,
+        timestamp: new Date(),
+        duration: 4500,
+      });
+    };
+    const onPieceRemoved = (data: unknown) => {
+      const d = data as { pieceId?: string };
+      const pid = typeof d?.pieceId === 'string' ? d.pieceId : 'pieza';
+      addNotification({
+        id: `housing-rm-${Date.now()}`,
+        type: 'success',
+        title: 'Construcción',
+        message: `Pieza desmontada (${pid}) — materiales devueltos al inventario.`,
+        timestamp: new Date(),
+        duration: 4000,
+      });
+    };
+    colyseusClient.on('housing:error', onHousingErr);
+    colyseusClient.on('housing:upgraded', onHousingUp);
+    const onDebrisCleared = (data: unknown) => {
+      const d = data as { debrisId?: string };
+      const id = typeof d?.debrisId === 'string' ? d.debrisId : 'escombro';
+      addNotification({
+        id: `housing-debris-${Date.now()}`,
+        type: 'success',
+        title: 'Parcela',
+        message: `Escombro retirado (${id}) — recompensa en el inventario.`,
+        timestamp: new Date(),
+        duration: 4000,
+      });
+    };
+    colyseusClient.on('housing:error', onHousingErr);
+    colyseusClient.on('housing:upgraded', onHousingUp);
+    colyseusClient.on('housing:pieceRemoved', onPieceRemoved);
+    colyseusClient.on('housing:debrisCleared', onDebrisCleared);
+    return () => {
+      colyseusClient.off('housing:error', onHousingErr);
+      colyseusClient.off('housing:upgraded', onHousingUp);
+      colyseusClient.off('housing:pieceRemoved', onPieceRemoved);
+      colyseusClient.off('housing:debrisCleared', onDebrisCleared);
+    };
+  }, [addNotification]);
   const [isDriving, setIsDriving] = useState(false);
   const [hidePlayerWhileDriving, setHidePlayerWhileDriving] = useState(false);
   const [canEnterVehicle, setCanEnterVehicle] = useState(false);
@@ -678,6 +780,27 @@ export default function GameCanvas() {
             {currentMap === 'exterior' && (
               <ChoppableTreesLayer mapId={currentMap} />
             )}
+            {currentMap === 'exterior' && (
+              <MineableRocksLayer mapId={currentMap} />
+            )}
+            {currentMap === 'exterior' && (
+              <WorldResourceNodesLayer mapId={currentMap} />
+            )}
+            {currentMap === 'exterior' && (
+              <FarmPlotsLayer mapId={currentMap} />
+            )}
+            {currentMap === 'exterior' && (
+              <PlayerStallTriggerLayer mapId={currentMap} />
+            )}
+
+            {currentMap === 'exterior' && <HousingLayer />}
+            {currentMap === 'exterior' && <BuildPiecesLayer />}
+            {currentMap === 'exterior' && <PlotDebrisLayer />}
+            {currentMap === 'exterior' && <BuildPreviewLayer />}
+            {currentMap === 'exterior' && (
+              <HousingPlotTriggerLayer mapId={currentMap} />
+            )}
+            {currentMap === 'exterior' && <HousingPlotBoundsLayer />}
 
             <ChopRaycastBridge />
             <ChopCityTreeSync />
@@ -815,6 +938,9 @@ export default function GameCanvas() {
       {isGameStarted && (
         <>
           <TreeChopFeedback />
+          <WorldResourceHarvestFeedback />
+          <FarmFeedback />
+          <StallFeedback />
           <ItemGainHud />
           <GameHUD isDriving={isDriving} currentMapId={currentMap} />
         </>
@@ -929,6 +1055,8 @@ export default function GameCanvas() {
       {isCraftingOpen && <CraftingUI />}
       {currentMap === 'bank' && <BankUI />}
       <ShopUI />
+      <HousingPlotModal />
+      <PlayerStallModal />
       <JobProgressUI />
 
       {/* Hint para conducir */}

@@ -1,5 +1,7 @@
 import { Client, Room } from "colyseus.js";
 import { frameworkColyseusRoomName } from "@/lib/frameworkBranding";
+import { useHousingStore } from "@/store/housingStore";
+import type { HousingSyncPayload } from "@/types/housing.types";
 
 class ColyseusClient {
   private static instance: ColyseusClient;
@@ -177,12 +179,61 @@ class ColyseusClient {
       this.emit("world:tree-chop-result", data);
     });
 
+    this.room.onMessage("world:rock-mine-result", (data: unknown) => {
+      this.emit("world:rock-mine-result", data);
+    });
+
+    this.room.onMessage("world:harvest-node-result", (data: unknown) => {
+      this.emit("world:harvest-node-result", data);
+    });
+
     this.room.onMessage("rpg:sync", (data: unknown) => {
       this.emit("rpg:sync", data);
     });
 
     this.room.onMessage("rpg:error", (data: unknown) => {
       this.emit("rpg:error", data);
+    });
+
+    this.room.onMessage("housing:sync", (data: unknown) => {
+      const p = data as HousingSyncPayload;
+      if (!p?.mapId) return;
+      useHousingStore
+        .getState()
+        .setFromSync(
+          p.structures ?? [],
+          p.pieces ?? [],
+          p.ownedPlotId ?? null,
+          Array.isArray(p.clearedPlotDebrisIds) ? p.clearedPlotDebrisIds : [],
+          Array.isArray(p.farmSlots) ? p.farmSlots : [],
+          p.produceStall && typeof p.produceStall === "object"
+            ? p.produceStall
+            : null
+        );
+    });
+
+    this.room.onMessage("housing:error", (data: unknown) => {
+      this.emit("housing:error", data);
+    });
+
+    this.room.onMessage("housing:upgraded", (data: unknown) => {
+      this.emit("housing:upgraded", data);
+    });
+
+    this.room.onMessage("housing:pieceRemoved", (data: unknown) => {
+      this.emit("housing:pieceRemoved", data);
+    });
+
+    this.room.onMessage("housing:debrisCleared", (data: unknown) => {
+      this.emit("housing:debrisCleared", data);
+    });
+
+    this.room.onMessage("farm:result", (data: unknown) => {
+      this.emit("farm:result", data);
+    });
+
+    this.room.onMessage("stall:result", (data: unknown) => {
+      this.emit("stall:result", data);
     });
 
     // ES: El servidor manda `rpg:sync` en onJoin antes de que exista este handler (carrera).

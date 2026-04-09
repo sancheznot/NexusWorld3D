@@ -14,6 +14,7 @@ import {
 } from '@/constants';
 import { ITEMS_CATALOG } from '@/constants/items';
 import { isChopAxeItemId } from '@/constants/choppableTrees';
+import { isMinePickaxeItemId } from '@/constants/mineableRocks';
 import {
   applyCatalogStackCapsToItems,
   canMergeIntoStack,
@@ -132,7 +133,7 @@ export class InventoryService {
     let maxDurability = item.maxDurability;
     let durability = item.durability;
     const catMd = catalogMaxDurability(item.itemId);
-    if (isChopAxeItemId(item.itemId)) {
+    if (isChopAxeItemId(item.itemId) || isMinePickaxeItemId(item.itemId)) {
       maxDurability = maxDurability ?? 80;
       durability = typeof durability === 'number' ? durability : maxDurability;
     } else if (catMd) {

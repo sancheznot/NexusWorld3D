@@ -7,6 +7,9 @@ import type { InventoryEvents } from "@resources/inventory/server/InventoryEvent
 import { ItemEvents } from "@server/modules/ItemEvents";
 import { ShopEvents } from "@server/modules/ShopEvents";
 import { TreeChopEvents } from "@server/modules/TreeChopEvents";
+import { RockMineEvents } from "@server/modules/RockMineEvents";
+import { WorldResourceNodeEvents } from "@server/modules/WorldResourceNodeEvents";
+import { HousingEvents } from "@server/modules/HousingEvents";
 import { RpgProgression } from "@server/modules/RpgProgression";
 import { RPG_XP_ITEM_PICKUP } from "@/constants/rpgProgression";
 import {
@@ -69,6 +72,7 @@ export class NexusWorldRoom extends Room {
   private _itemEvents!: ItemEvents;
   private _shopEvents!: ShopEvents;
   private rpgProgression!: RpgProgression;
+  private housingEvents!: HousingEvents;
 
   /** ES: Limpieza registrada por resources/ (registerDisposable). EN: Cleanup from resources/. */
   private resourceDisposables: Array<() => void> = [];
@@ -173,6 +177,41 @@ export class NexusWorldRoom extends Room {
       },
       inventory: this.inventoryEvents,
       awardExperience: (pid, amount) => this.rpgProgression.addXp(pid, amount),
+    });
+
+    new RockMineEvents(this, {
+      getPlayerMapId: (clientId: string) => this.getPlayerMapId(clientId),
+      getPlayerPosition: (id: string) => {
+        const p = this.players.get(id);
+        return p ? { ...p.position } : null;
+      },
+      inventory: this.inventoryEvents,
+      awardExperience: (pid, amount) => this.rpgProgression.addXp(pid, amount),
+    });
+
+    new WorldResourceNodeEvents(this, {
+      inventory: this.inventoryEvents,
+      getPlayerMapId: (clientId: string) => this.getPlayerMapId(clientId),
+      getPlayerPosition: (id: string) => {
+        const p = this.players.get(id);
+        return p ? { ...p.position } : null;
+      },
+      awardExperience: (pid, amount) =>
+        this.rpgProgression.addXp(pid, amount),
+    });
+
+    this.housingEvents = new HousingEvents(this, {
+      inventory: this.inventoryEvents,
+      economy: this.economyEvents,
+      getPlayer: (id) => this.players.get(id),
+      getPlayerMapId: (id) => this.getPlayerMapId(id),
+      getPlayerPosition: (id) => {
+        const p = this.players.get(id);
+        return p ? { ...p.position } : null;
+      },
+      normalizeUsername: normalizePlayerUsername,
+      awardExperience: (pid, amount) =>
+        this.rpgProgression.addXp(pid, amount),
     });
 
     this._shopEvents = new ShopEvents(this, {
@@ -473,6 +512,13 @@ export class NexusWorldRoom extends Room {
       profileRow?.stats_json ?? null,
       player
     );
+
+    this.housingEvents.hydrateFromProfile(
+      normalizePlayerUsername(player.username),
+      player.username,
+      profileRow?.housing_json ?? null
+    );
+    this.housingEvents.afterPlayerJoined(client);
     const spSync = this.state.players.get(client.sessionId);
     if (spSync) {
       spSync.level = player.level;
@@ -904,6 +950,9 @@ export class NexusWorldRoom extends Room {
             : undefined,
         inventoryJson:
           invSnapshot !== undefined ? invSnapshot : undefined,
+        housingJson: this.housingEvents.getHousingJsonForSave(
+          normalizePlayerUsername(player.username)
+        ),
       });
       console.log(
         `💾 player_profile guardado: ${player.username} @ (${player.position.x.toFixed(2)}, ${player.position.y.toFixed(2)}, ${player.position.z.toFixed(2)}) map=${player.mapId}`

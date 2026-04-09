@@ -95,8 +95,10 @@ export const GAME_KEYBINDINGS: GameKeybinding[] = [
     id: "interact_pickup",
     key: "e",
     label: "E",
-    descriptionEs: "Recoger objeto cercano",
-    descriptionEn: "Pick up nearby item",
+    descriptionEs:
+      "Recoger objeto cercano; con vista construcción activa: coloca la pieza",
+    descriptionEn:
+      "Pick up nearby item; with build preview on: place the piece",
     category: "ui",
   },
   {

@@ -37,8 +37,17 @@ export const RPG_INITIAL_UNSPENT_POINTS = 10;
 /** ES: EXP fija por golpe de tala exitoso. EN: XP per successful tree chop hit. */
 export const RPG_XP_CHOP_HIT = 12;
 
+/** ES: EXP por golpe de mina exitoso (piedra). EN: XP per successful rock mine hit. */
+export const RPG_XP_MINE_HIT = 12;
+
 /** ES: EXP base al recoger un ítem del mundo. EN: Base XP for world item pickup. */
 export const RPG_XP_ITEM_PICKUP = 18;
+
+/** ES: EXP por recolección en nodo de mapa (cantera, restos…). EN: XP per world resource node harvest. */
+export const RPG_XP_RESOURCE_NODE_HARVEST = 14;
+
+/** ES: EXP al cosechar en huerto de parcela. EN: XP on plot farm harvest. */
+export const RPG_XP_FARM_HARVEST = 12;
 
 /** ES: Tope por stat (puntos invertidos). EN: Cap per stat (allocated points). */
 export const RPG_MAX_POINTS_PER_STAT = 80;

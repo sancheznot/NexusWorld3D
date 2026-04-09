@@ -1,6 +1,12 @@
 import { InventoryItem } from '@/types/inventory.types';
 
-export type ShopId = 'general_store' | 'blacksmith' | 'hospital' | 'vip_market' | 'supermarket_store';
+export type ShopId =
+  | 'general_store'
+  | 'blacksmith'
+  | 'hospital'
+  | 'vip_market'
+  | 'supermarket_store'
+  | 'builders_yard';
 
 export interface ShopItem {
   itemId: string; // reference to ITEMS_CATALOG
@@ -29,6 +35,21 @@ export const SHOPS: Record<ShopId, ShopConfig> = {
       { itemId: 'coin_gold', price: 50, stock: 100 },
       { itemId: 'potion_health', price: 30, stock: 20 },
       { itemId: 'tool_axe', price: 35, stock: 15 },
+      { itemId: 'tool_pickaxe', price: 38, stock: 15 },
+      { itemId: 'material_wood_plank', price: 8, stock: 99 },
+      { itemId: 'material_stone_raw', price: 12, stock: 99 },
+      { itemId: 'seed_lettuce', price: 4, stock: 80 },
+    ],
+  },
+  builders_yard: {
+    id: 'builders_yard',
+    name: 'Corralón / Builders',
+    mapId: 'exterior',
+    items: [
+      { itemId: 'placeable_cabin_kit', price: 480, stock: 5 },
+      { itemId: 'material_wood_log', price: 15, stock: 150 },
+      { itemId: 'material_wood_plank', price: 6, stock: 200 },
+      { itemId: 'material_stone_raw', price: 10, stock: 200 },
     ],
   },
   blacksmith: {

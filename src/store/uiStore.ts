@@ -18,6 +18,11 @@ interface UIState {
   hotbarSelectedSlot: number;
   /** ES: Panel de crafting (C). EN: Crafting panel. */
   isCraftingOpen: boolean;
+  /** ES: Modal compra/ver lote in-world (Fase 4). EN: In-world plot purchase modal. */
+  housingPlotModalOpen: boolean;
+  housingPlotModalPlotId: string | null;
+  /** ES: Modal puesto de productos (Fase 8). EN: Produce stall modal. */
+  produceStallModalOpen: boolean;
   showCharacterCreator: boolean;
   
   // HUD visibility
@@ -74,6 +79,10 @@ interface UIState {
   clearChat: () => void;
   closeAllModals: () => void;
   setSelectedJobId: (jobId: ExtendedJobId | null) => void;
+  openHousingPlotModal: (plotId: string) => void;
+  closeHousingPlotModal: () => void;
+  openProduceStallModal: () => void;
+  closeProduceStallModal: () => void;
 }
 
 interface Notification {
@@ -124,6 +133,9 @@ export const useUIStore = create<UIState>()(
       isPauseMenuOpen: false,
       hotbarSelectedSlot: 0,
       isCraftingOpen: false,
+      housingPlotModalOpen: false,
+      housingPlotModalPlotId: null,
+      produceStallModalOpen: false,
       showCharacterCreator: false,
       isHUDVisible: true,
       isMinimapVisible: true,
@@ -146,6 +158,9 @@ export const useUIStore = create<UIState>()(
             isSettingsOpen: state.isInventoryOpen ? state.isSettingsOpen : false,
             isPauseMenuOpen: state.isInventoryOpen ? state.isPauseMenuOpen : false,
             isCraftingOpen: next ? false : state.isCraftingOpen,
+            housingPlotModalOpen: next ? false : state.housingPlotModalOpen,
+            housingPlotModalPlotId: next ? null : state.housingPlotModalPlotId,
+            produceStallModalOpen: next ? false : state.produceStallModalOpen,
           };
         });
       },
@@ -155,6 +170,9 @@ export const useUIStore = create<UIState>()(
           const next = !state.isCraftingOpen;
           return {
             isCraftingOpen: next,
+            housingPlotModalOpen: next ? false : state.housingPlotModalOpen,
+            housingPlotModalPlotId: next ? null : state.housingPlotModalPlotId,
+            produceStallModalOpen: next ? false : state.produceStallModalOpen,
             ...(next
               ? {
                   isInventoryOpen: false,
@@ -169,8 +187,11 @@ export const useUIStore = create<UIState>()(
       },
 
       setCraftingOpen: (isOpen) => {
-        set(() => ({
+        set((state) => ({
           isCraftingOpen: isOpen,
+          housingPlotModalOpen: isOpen ? false : state.housingPlotModalOpen,
+          housingPlotModalPlotId: isOpen ? null : state.housingPlotModalPlotId,
+          produceStallModalOpen: isOpen ? false : state.produceStallModalOpen,
           ...(isOpen
             ? {
                 isInventoryOpen: false,
@@ -184,13 +205,19 @@ export const useUIStore = create<UIState>()(
       },
 
       toggleMap: () => {
-        set((state) => ({
-          isMapOpen: !state.isMapOpen,
-          isInventoryOpen: state.isMapOpen ? state.isInventoryOpen : false,
-          isShopOpen: state.isMapOpen ? state.isShopOpen : false,
-          isSettingsOpen: state.isMapOpen ? state.isSettingsOpen : false,
-          isPauseMenuOpen: state.isMapOpen ? state.isPauseMenuOpen : false,
-        }));
+        set((state) => {
+          const next = !state.isMapOpen;
+          return {
+            isMapOpen: next,
+            isInventoryOpen: state.isMapOpen ? state.isInventoryOpen : false,
+            isShopOpen: state.isMapOpen ? state.isShopOpen : false,
+            isSettingsOpen: state.isMapOpen ? state.isSettingsOpen : false,
+            isPauseMenuOpen: state.isMapOpen ? state.isPauseMenuOpen : false,
+            housingPlotModalOpen: next ? false : state.housingPlotModalOpen,
+            housingPlotModalPlotId: next ? null : state.housingPlotModalPlotId,
+            produceStallModalOpen: next ? false : state.produceStallModalOpen,
+          };
+        });
       },
 
       toggleChat: () => {
@@ -200,13 +227,19 @@ export const useUIStore = create<UIState>()(
       },
 
       toggleShop: () => {
-        set((state) => ({
-          isShopOpen: !state.isShopOpen,
-          isInventoryOpen: state.isShopOpen ? state.isInventoryOpen : false,
-          isMapOpen: state.isShopOpen ? state.isMapOpen : false,
-          isSettingsOpen: state.isShopOpen ? state.isSettingsOpen : false,
-          isPauseMenuOpen: state.isShopOpen ? state.isPauseMenuOpen : false,
-        }));
+        set((state) => {
+          const next = !state.isShopOpen;
+          return {
+            isShopOpen: next,
+            isInventoryOpen: state.isShopOpen ? state.isInventoryOpen : false,
+            isMapOpen: state.isShopOpen ? state.isMapOpen : false,
+            isSettingsOpen: state.isShopOpen ? state.isSettingsOpen : false,
+            isPauseMenuOpen: state.isShopOpen ? state.isPauseMenuOpen : false,
+            housingPlotModalOpen: next ? false : state.housingPlotModalOpen,
+            housingPlotModalPlotId: next ? null : state.housingPlotModalPlotId,
+            produceStallModalOpen: next ? false : state.produceStallModalOpen,
+          };
+        });
       },
 
       toggleJobs: () => {
@@ -220,6 +253,9 @@ export const useUIStore = create<UIState>()(
             isSettingsOpen: willOpen ? false : state.isSettingsOpen,
             isShopOpen: willOpen ? false : state.isShopOpen,
             isPauseMenuOpen: willOpen ? false : state.isPauseMenuOpen,
+            housingPlotModalOpen: willOpen ? false : state.housingPlotModalOpen,
+            housingPlotModalPlotId: willOpen ? null : state.housingPlotModalPlotId,
+            produceStallModalOpen: willOpen ? false : state.produceStallModalOpen,
           };
         });
       },
@@ -233,6 +269,9 @@ export const useUIStore = create<UIState>()(
           isSettingsOpen: false,
           isShopOpen: false,
           isPauseMenuOpen: false,
+          housingPlotModalOpen: false,
+          housingPlotModalPlotId: null,
+          produceStallModalOpen: false,
         }));
       },
 
@@ -244,24 +283,36 @@ export const useUIStore = create<UIState>()(
       },
 
       toggleBank: () => {
-        set((state) => ({
-          isBankOpen: !state.isBankOpen,
-          isInventoryOpen: state.isBankOpen ? state.isInventoryOpen : false,
-          isMapOpen: state.isBankOpen ? state.isMapOpen : false,
-          isShopOpen: state.isBankOpen ? state.isShopOpen : false,
-          isSettingsOpen: state.isBankOpen ? state.isSettingsOpen : false,
-          isPauseMenuOpen: state.isBankOpen ? state.isPauseMenuOpen : false,
-        }));
+        set((state) => {
+          const next = !state.isBankOpen;
+          return {
+            isBankOpen: next,
+            isInventoryOpen: state.isBankOpen ? state.isInventoryOpen : false,
+            isMapOpen: state.isBankOpen ? state.isMapOpen : false,
+            isShopOpen: state.isBankOpen ? state.isShopOpen : false,
+            isSettingsOpen: state.isBankOpen ? state.isSettingsOpen : false,
+            isPauseMenuOpen: state.isBankOpen ? state.isPauseMenuOpen : false,
+            housingPlotModalOpen: next ? false : state.housingPlotModalOpen,
+            housingPlotModalPlotId: next ? null : state.housingPlotModalPlotId,
+            produceStallModalOpen: next ? false : state.produceStallModalOpen,
+          };
+        });
       },
 
       toggleSettings: () => {
-        set((state) => ({
-          isSettingsOpen: !state.isSettingsOpen,
-          isInventoryOpen: state.isSettingsOpen ? state.isInventoryOpen : false,
-          isMapOpen: state.isSettingsOpen ? state.isMapOpen : false,
-          isShopOpen: state.isSettingsOpen ? state.isShopOpen : false,
-          isPauseMenuOpen: state.isSettingsOpen ? state.isPauseMenuOpen : false,
-        }));
+        set((state) => {
+          const next = !state.isSettingsOpen;
+          return {
+            isSettingsOpen: next,
+            isInventoryOpen: state.isSettingsOpen ? state.isInventoryOpen : false,
+            isMapOpen: state.isSettingsOpen ? state.isMapOpen : false,
+            isShopOpen: state.isSettingsOpen ? state.isShopOpen : false,
+            isPauseMenuOpen: state.isSettingsOpen ? state.isPauseMenuOpen : false,
+            housingPlotModalOpen: next ? false : state.housingPlotModalOpen,
+            housingPlotModalPlotId: next ? null : state.housingPlotModalPlotId,
+            produceStallModalOpen: next ? false : state.produceStallModalOpen,
+          };
+        });
       },
 
       togglePauseMenu: () => {
@@ -269,6 +320,9 @@ export const useUIStore = create<UIState>()(
           const next = !state.isPauseMenuOpen;
           return {
             isPauseMenuOpen: next,
+            housingPlotModalOpen: next ? false : state.housingPlotModalOpen,
+            housingPlotModalPlotId: next ? null : state.housingPlotModalPlotId,
+            produceStallModalOpen: next ? false : state.produceStallModalOpen,
             ...(next
               ? {
                   isInventoryOpen: false,
@@ -289,6 +343,9 @@ export const useUIStore = create<UIState>()(
       setPauseMenuOpen: (open) => {
         set((state) => ({
           isPauseMenuOpen: open,
+          housingPlotModalOpen: open ? false : state.housingPlotModalOpen,
+          housingPlotModalPlotId: open ? null : state.housingPlotModalPlotId,
+          produceStallModalOpen: open ? false : state.produceStallModalOpen,
           ...(open
             ? {
                 isInventoryOpen: false,
@@ -425,6 +482,48 @@ export const useUIStore = create<UIState>()(
         set({ chatMessages: [] });
       },
 
+      openHousingPlotModal: (plotId) => {
+        set(() => ({
+          housingPlotModalOpen: true,
+          housingPlotModalPlotId: plotId,
+          produceStallModalOpen: false,
+          isInventoryOpen: false,
+          isMapOpen: false,
+          isShopOpen: false,
+          isJobsOpen: false,
+          selectedJobId: null,
+          isBankOpen: false,
+          isPauseMenuOpen: false,
+          isCraftingOpen: false,
+          isSettingsOpen: false,
+        }));
+      },
+
+      closeHousingPlotModal: () => {
+        set({ housingPlotModalOpen: false, housingPlotModalPlotId: null });
+      },
+
+      openProduceStallModal: () => {
+        set(() => ({
+          produceStallModalOpen: true,
+          housingPlotModalOpen: false,
+          housingPlotModalPlotId: null,
+          isInventoryOpen: false,
+          isMapOpen: false,
+          isShopOpen: false,
+          isJobsOpen: false,
+          selectedJobId: null,
+          isBankOpen: false,
+          isPauseMenuOpen: false,
+          isCraftingOpen: false,
+          isSettingsOpen: false,
+        }));
+      },
+
+      closeProduceStallModal: () => {
+        set({ produceStallModalOpen: false });
+      },
+
       closeAllModals: () => {
         set({
           isInventoryOpen: false,
@@ -438,6 +537,9 @@ export const useUIStore = create<UIState>()(
           isPauseMenuOpen: false,
           isCraftingOpen: false,
           showCharacterCreator: false,
+          housingPlotModalOpen: false,
+          housingPlotModalPlotId: null,
+          produceStallModalOpen: false,
         });
       },
     }),

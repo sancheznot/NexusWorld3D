@@ -15,6 +15,10 @@ interface TriggerZoneProps {
   onExit?: (ev: TriggerEvent) => void;
   onInteract?: (ev: TriggerEvent) => void;
   debug?: boolean;
+  /** ES: Captura tecla antes que otros listeners (p. ej. E vs construcción). EN: Capture key before other listeners. */
+  interactKeyCapture?: boolean;
+  /** ES: Evita que otros handlers reciban la tecla tras interactuar. EN: Stop other handlers after interact. */
+  interactStopPropagation?: boolean;
 }
 
 export default function TriggerZone({ 
@@ -23,6 +27,8 @@ export default function TriggerZone({
   onExit, 
   onInteract, 
   debug = false,
+  interactKeyCapture = false,
+  interactStopPropagation = false,
   visibleRadius = 15, // Default visibility radius
   children 
 }: TriggerZoneProps & { visibleRadius?: number; children?: React.ReactNode }) {
@@ -62,11 +68,24 @@ export default function TriggerZone({
         if (now - lastInteract < GAME_CONFIG.triggers.cooldownMs) return;
         setLastInteract(now);
         onInteract?.({ triggerId: data.id, kind: data.kind });
+        if (interactStopPropagation) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+        }
       }
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [isNear, lastInteract, onInteract, data.id, data.kind]);
+    window.addEventListener('keydown', handleKey, interactKeyCapture);
+    return () =>
+      window.removeEventListener('keydown', handleKey, interactKeyCapture);
+  }, [
+    isNear,
+    lastInteract,
+    onInteract,
+    data.id,
+    data.kind,
+    interactKeyCapture,
+    interactStopPropagation,
+  ]);
 
   return (
     <group position={[data.position.x, data.position.y, data.position.z]}>

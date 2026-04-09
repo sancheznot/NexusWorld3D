@@ -1,4 +1,12 @@
-export type TriggerKind = 'portal' | 'bank' | 'job' | 'shop' | 'custom';
+export type TriggerKind =
+  | 'portal'
+  | 'bank'
+  | 'job'
+  | 'shop'
+  | 'housing_plot'
+  | 'resource_node'
+  | 'farm_slot'
+  | 'custom';
 
 export interface TriggerZoneData {
   id: string;

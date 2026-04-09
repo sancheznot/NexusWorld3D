@@ -18,9 +18,10 @@ import { useUIStore } from '@/store/uiStore';
 import { inventoryService } from '@/lib/services/inventory';
 import {
   getHotbarRow,
-  isToolAxeActiveForWorldActions,
+  getWorldGatherMode,
 } from '@/lib/gameplay/inventoryHotbar';
 import { isChopAxeItemId } from '@/constants/choppableTrees';
+import { isMinePickaxeItemId } from '@/constants/mineableRocks';
 
 interface PlayerProps {
   position?: [number, number, number];
@@ -120,23 +121,39 @@ export default function PlayerV2({
     const syncHeld = () => {
       const inv = inventoryService.getInventory();
       const eq = inventoryService.getEquipment();
-      const show = isToolAxeActiveForWorldActions(inv, eq, hotbarSlot);
-      if (!show) {
+      const mode = getWorldGatherMode(inv, eq, hotbarSlot);
+      if (!mode) {
         setHeldToolItemId(null);
         return;
       }
       const row = getHotbarRow(inv);
       const slotItem = row[hotbarSlot];
-      let id: string | null = null;
-      if (slotItem && isChopAxeItemId(slotItem.itemId)) id = slotItem.itemId;
-      else if (eq.weapon && isChopAxeItemId(eq.weapon.itemId)) id = eq.weapon.itemId;
+      if (mode === 'tree') {
+        let id: string | null = null;
+        if (slotItem && isChopAxeItemId(slotItem.itemId)) id = slotItem.itemId;
+        else if (eq.weapon && isChopAxeItemId(eq.weapon.itemId))
+          id = eq.weapon.itemId;
+        else {
+          const equipped = inv.items.find(
+            (i) => i.isEquipped && isChopAxeItemId(i.itemId)
+          );
+          id = equipped?.itemId ?? null;
+        }
+        setHeldToolItemId(id ?? 'tool_axe');
+        return;
+      }
+      let pickId: string | null = null;
+      if (slotItem && isMinePickaxeItemId(slotItem.itemId))
+        pickId = slotItem.itemId;
+      else if (eq.weapon && isMinePickaxeItemId(eq.weapon.itemId))
+        pickId = eq.weapon.itemId;
       else {
         const equipped = inv.items.find(
-          (i) => i.isEquipped && isChopAxeItemId(i.itemId)
+          (i) => i.isEquipped && isMinePickaxeItemId(i.itemId)
         );
-        id = equipped?.itemId ?? null;
+        pickId = equipped?.itemId ?? null;
       }
-      setHeldToolItemId(id ?? "tool_axe");
+      setHeldToolItemId(pickId ?? 'tool_pickaxe');
     };
     syncHeld();
     return inventoryService.subscribe(syncHeld);

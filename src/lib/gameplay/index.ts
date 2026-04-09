@@ -1,6 +1,7 @@
 /** ES: Acciones de gameplay reutilizables (hotkeys, otros componentes). EN: Shared gameplay actions. */
 export {
   getHotbarRow,
+  getWorldGatherMode,
   HOTBAR_SLOT_COUNT,
   isToolAxeActiveForWorldActions,
 } from "@/lib/gameplay/inventoryHotbar";
@@ -23,3 +24,7 @@ export {
   sendTreeChopAttempt,
   type TreeSyncPayload,
 } from "@/lib/gameplay/treeChopActions";
+export {
+  sendRockMineAttempt,
+  type RockSyncPayload,
+} from "@/lib/gameplay/rockMineActions";

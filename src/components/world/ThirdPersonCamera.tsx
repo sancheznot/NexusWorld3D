@@ -86,6 +86,9 @@ export default function ThirdPersonCamera({ }: ThirdPersonCameraProps) {
     // Colisiones de cámara: solo si está habilitado en config
     if (GAME_CONFIG.camera.enableCollision) {
       const ray = new THREE.Raycaster();
+      // Line2 / LineSegments2 (p. ej. <Line> de drei) exigen cámara en el raycaster.
+      // Line2 / LineSegments2 (e.g. drei <Line>) require raycaster.camera for hits.
+      ray.camera = camera;
       const dir = target.clone().sub(p).normalize();
       const maxDist = target.distanceTo(p); // limitar el rayo al destino previsto
       ray.set(p, dir);
@@ -97,6 +100,11 @@ export default function ThirdPersonCamera({ }: ThirdPersonCameraProps) {
       scene.traverse((obj) => {
         const mesh = obj as THREE.Mesh;
         if (mesh.isMesh && obj.visible) {
+          let a: THREE.Object3D | null = obj;
+          while (a) {
+            if (a.name === 'housing-plot-bounds') return;
+            a = a.parent;
+          }
           // Filtrar por userData también
           const isPlayer = obj.userData?.isPlayer || obj.userData?.isRemotePlayer;
           const isPlayerMesh = obj.name.includes('player-mesh') || obj.name.includes('remotePlayer-mesh');
