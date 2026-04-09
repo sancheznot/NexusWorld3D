@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react';
 import shopClient from '@/lib/colyseus/ShopClient';
 import { useUIStore } from '@/store/uiStore';
 import { economy } from '@/lib/services/economy';
+import { ITEMS_CATALOG } from '@/constants/items';
 
 type ShopSummary = { shops: { id: string; name: string }[] };
 type ShopData = { id: string; name: string; items: { itemId: string; name: string; price: number; stock: number; thumb?: string; icon?: string }[] };
 
 export default function ShopUI() {
-  const { isShopOpen, toggleShop } = useUIStore();
+  const { isShopOpen, toggleShop, pushItemGainToast } = useUIStore();
   const [list, setList] = useState<ShopSummary | null>(null);
   const [shop, setShop] = useState<ShopData | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -18,7 +19,17 @@ export default function ShopUI() {
     const onList = (data: unknown) => setList(data as ShopSummary);
     const onData = (data: unknown) => setShop(data as ShopData);
     const onError = (data: unknown) => setMessage((data as { message: string }).message);
-    const onSuccess = (data: unknown) => setMessage(`Compra exitosa`);
+    const onSuccess = (data: unknown) => {
+      const d = data as { itemId: string; quantity: number; total: number };
+      setMessage(`Compra exitosa`);
+      const cat = ITEMS_CATALOG[d.itemId as keyof typeof ITEMS_CATALOG];
+      pushItemGainToast({
+        itemId: d.itemId,
+        name: cat?.name ?? d.itemId,
+        icon: cat?.icon ?? '🛒',
+        quantity: Math.max(1, d.quantity ?? 1),
+      });
+    };
     shopClient.on('shop:list', onList);
     shopClient.on('shop:data', onData);
     shopClient.on('shop:error', onError);
@@ -30,7 +41,7 @@ export default function ShopUI() {
       shopClient.off('shop:error', onError);
       shopClient.off('shop:success', onSuccess);
     };
-  }, []);
+  }, [pushItemGainToast]);
 
   if (!isShopOpen) return null;
 

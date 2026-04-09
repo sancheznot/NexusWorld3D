@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { Player, Vector3, PlayerStats, PlayerMovement, PlayerAnimation } from '@/types/player.types';
 import { GAME_CONFIG } from '@/constants/game';
+import type { RpgSyncPayload } from '@/constants/rpgProgression';
 
 interface PlayerState {
   // Player data
@@ -25,6 +26,8 @@ interface PlayerState {
   maxHunger: number;
   level: number;
   experience: number;
+  /** ES: Progresión RPG (servidor). EN: Server RPG progression snapshot. */
+  rpgSync: RpgSyncPayload | null;
   stats: PlayerStats;
   
   // Animation
@@ -46,6 +49,8 @@ interface PlayerState {
   updateHunger: (hunger: number) => void;
   updateLevel: (level: number) => void;
   updateExperience: (experience: number) => void;
+  setRpgSync: (payload: RpgSyncPayload) => void;
+  clearRpgSync: () => void;
   updateStats: (stats: Partial<PlayerStats>) => void;
   setAnimation: (animation: string, speed?: number) => void;
   setOnline: (isOnline: boolean) => void;
@@ -80,6 +85,7 @@ export const usePlayerStore = create<PlayerState>()(
       maxHunger: 100,
       level: 1,
       experience: 0,
+      rpgSync: null,
       stats: initialStats,
       currentAnimation: 'idle',
       isAnimationPlaying: false,
@@ -207,6 +213,35 @@ export const usePlayerStore = create<PlayerState>()(
         }
       },
 
+      setRpgSync: (payload) => {
+        set({
+          rpgSync: payload,
+          level: payload.level,
+          experience: payload.experience,
+        });
+        const { player } = get();
+        const baseMax = 100 + payload.maxHealthBonus;
+        set({
+          maxHealth: baseMax,
+        });
+        set((s) => ({
+          health: Math.min(s.health, baseMax),
+        }));
+        if (player) {
+          set({
+            player: {
+              ...player,
+              level: payload.level,
+              experience: payload.experience,
+              maxHealth: baseMax,
+              health: Math.min(player.health, baseMax),
+            },
+          });
+        }
+      },
+
+      clearRpgSync: () => set({ rpgSync: null }),
+
       updateStats: (newStats) => {
         set((state) => ({
           stats: { ...state.stats, ...newStats }
@@ -247,6 +282,7 @@ export const usePlayerStore = create<PlayerState>()(
           maxHunger: 100,
           level: 1,
           experience: 0,
+          rpgSync: null,
           stats: initialStats,
           currentAnimation: 'idle',
           isAnimationPlaying: false,

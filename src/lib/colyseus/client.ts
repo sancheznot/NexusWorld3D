@@ -172,6 +172,30 @@ class ColyseusClient {
       );
       // Por ahora usamos eventos manuales en lugar de la sincronización automática
     });
+
+    this.room.onMessage("world:tree-chop-result", (data: unknown) => {
+      this.emit("world:tree-chop-result", data);
+    });
+
+    this.room.onMessage("rpg:sync", (data: unknown) => {
+      this.emit("rpg:sync", data);
+    });
+
+    this.room.onMessage("rpg:error", (data: unknown) => {
+      this.emit("rpg:error", data);
+    });
+
+    // ES: El servidor manda `rpg:sync` en onJoin antes de que exista este handler (carrera).
+    // EN: Server may send rpg:sync during onJoin before this handler is registered — re-request.
+    queueMicrotask(() => {
+      try {
+        if (this.room?.connection.isOpen) {
+          this.room.send("rpg:request-sync", {});
+        }
+      } catch {
+        /* ignore */
+      }
+    });
   }
 
   // Player events - manteniendo la misma interfaz que SocketClient
@@ -379,8 +403,14 @@ class ColyseusClient {
 
   // Remove event listeners
   public off(event: string, callback?: (...args: any[]) => void): void {
-    // Colyseus no tiene un método off directo, pero podemos ignorar esto por ahora
-    console.log(`🔧 Removiendo listener para ${event}`);
+    if (!callback) {
+      this.eventListeners.delete(event);
+      return;
+    }
+    const list = this.eventListeners.get(event);
+    if (!list) return;
+    const i = list.indexOf(callback as (data: unknown) => void);
+    if (i !== -1) list.splice(i, 1);
   }
 
   // Remove all event listeners

@@ -8,9 +8,11 @@ import { ItemsStateResponse, ItemsUpdateResponse } from '@/types/items-sync.type
 import { InventoryItem, ItemType, ItemRarity } from '@/types/inventory.types';
 import { modelLoader } from '@/lib/three/modelLoader';
 import { usePlayerStore } from '@/store/playerStore';
-
-// Evitar colecciones duplicadas por re-montajes (por spawnId)
-const collectingSpawnIds = new Set<string>();
+import {
+  worldPickupRegister,
+  worldPickupUnregister,
+  worldPickupUpdatePosition,
+} from '@/lib/world/worldPickupRegistry';
 
 type ItemVisual = {
   path: string;
@@ -29,49 +31,43 @@ interface ItemCollectorProps {
   collectRadius?: number;
 }
 
-export default function ItemCollector({ 
+export default function ItemCollector({
   spawnId,
   mapId,
-  position, 
+  position,
   item,
   collectRadius = 1.2,
 }: ItemCollectorProps) {
-  const [hasRequested, setHasRequested] = useState(false);
   const [isNearby, setIsNearby] = useState(false);
 
+  useEffect(() => {
+    worldPickupRegister({
+      spawnId,
+      mapId,
+      x: position[0],
+      y: position[1],
+      z: position[2],
+      radius: collectRadius,
+    });
+    return () => worldPickupUnregister(spawnId);
+  }, [spawnId, mapId, position[0], position[1], position[2], collectRadius]);
+
   useFrame(() => {
-    if (hasRequested) return;
-    
+    worldPickupUpdatePosition(spawnId, position[0], position[1], position[2]);
+
     const playerPos = usePlayerStore.getState().position;
     if (!playerPos) return;
 
     const dx = position[0] - playerPos.x;
     const dy = position[1] - playerPos.y;
     const dz = position[2] - playerPos.z;
-    const distSq = dx*dx + dy*dy + dz*dz;
-    
+    const distSq = dx * dx + dy * dy + dz * dz;
+
     const nearby = distSq <= collectRadius * collectRadius;
     if (nearby !== isNearby) {
       setIsNearby(nearby);
     }
   });
-
-  // Resetear la solicitud cuando el jugador salga del radio
-  useEffect(() => {
-    if (!isNearby) {
-      setHasRequested(false);
-    }
-  }, [isNearby]);
-
-  // Recolectar item cuando esté cerca (100% servidor)
-  useEffect(() => {
-    if (isNearby && !hasRequested && !collectingSpawnIds.has(spawnId)) {
-      collectingSpawnIds.add(spawnId);
-      itemsClient.collectItem({ mapId, spawnId });
-      setHasRequested(true); // evitar spam mientras está cerca
-      // El inventario y visibilidad se actualizarán por eventos del servidor
-    }
-  }, [isNearby, hasRequested, mapId, spawnId]);
 
   const getRarityColor = (rarity: ItemRarity) => {
     const colors = {
@@ -80,7 +76,7 @@ export default function ItemCollector({
       rare: '#3B82F6',
       epic: '#8B5CF6',
       legendary: '#F59E0B',
-      mythic: '#EC4899'
+      mythic: '#EC4899',
     };
     return colors[rarity];
   };
@@ -102,10 +98,14 @@ export default function ItemCollector({
         if (!cancelled) {
           loadedRef.current = obj;
         }
-      } catch {}
+      } catch {
+        /* ignore */
+      }
     }
     load();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [item.visual, item.itemId]);
 
   return (
@@ -115,22 +115,29 @@ export default function ItemCollector({
       ) : (
         <mesh>
           <boxGeometry args={[0.5, 0.5, 0.5]} />
-          <meshBasicMaterial color={getRarityColor(item.rarity)} transparent opacity={isNearby ? 1 : 0.7} />
+          <meshBasicMaterial
+            color={getRarityColor(item.rarity)}
+            transparent
+            opacity={isNearby ? 1 : 0.7}
+          />
         </mesh>
       )}
 
       {isNearby && (
         <mesh position={[0, 0.5, 0]}>
           <sphereGeometry args={[0.3, 8, 8]} />
-          <meshBasicMaterial color={getRarityColor(item.rarity)} transparent opacity={0.3} />
+          <meshBasicMaterial
+            color={getRarityColor(item.rarity)}
+            transparent
+            opacity={0.3}
+          />
         </mesh>
       )}
     </group>
   );
 }
 
-// Componente para spawnear items en el mundo
-export function ItemSpawner({ mapId }: { mapId: string; }) {
+export function ItemSpawner({ mapId }: { mapId: string }) {
   const [spawns, setSpawns] = useState<ItemsStateResponse | null>(null);
 
   useEffect(() => {
@@ -139,46 +146,71 @@ export function ItemSpawner({ mapId }: { mapId: string; }) {
     }) as unknown as (d: unknown) => void;
 
     const updateCb = ((data: ItemsUpdateResponse) => {
-      if (!spawns || data.mapId !== mapId) return;
-      setSpawns({
-        mapId,
-        items: spawns.items.map(i => i.id === data.spawnId ? { ...i, isCollected: data.isCollected, position: data.position ?? i.position } : i)
+      setSpawns((prev) => {
+        if (!prev || data.mapId !== mapId) return prev;
+        return {
+          mapId,
+          items: prev.items.map((i) =>
+            i.id === data.spawnId
+              ? {
+                  ...i,
+                  isCollected: data.isCollected,
+                  position: data.position ?? i.position,
+                }
+              : i
+          ),
+        };
+      });
+    }) as unknown as (d: unknown) => void;
+
+    const spawnCb = ((data: { mapId: string; spawn: ItemsStateResponse['items'][0] }) => {
+      if (data.mapId !== mapId) return;
+      setSpawns((prev) => {
+        if (!prev) return { mapId, items: [data.spawn] };
+        if (prev.items.some((i) => i.id === data.spawn.id)) return prev;
+        return { ...prev, items: [...prev.items, data.spawn] };
       });
     }) as unknown as (d: unknown) => void;
 
     const collectedCb = ((data: { mapId: string; spawnId: string }) => {
       if (data.mapId !== mapId) return;
-      // Confirmación del servidor; el items:update ya oculta el spawn
     }) as unknown as (d: unknown) => void;
 
     itemsClient.on('items:state', stateCb);
     itemsClient.on('items:update', updateCb);
+    itemsClient.on('items:spawn', spawnCb);
     itemsClient.on('items:collected', collectedCb);
     itemsClient.requestItems({ mapId });
     return () => {
       itemsClient.off('items:state', stateCb);
       itemsClient.off('items:update', updateCb);
+      itemsClient.off('items:spawn', spawnCb);
       itemsClient.off('items:collected', collectedCb);
     };
-  }, [mapId, spawns]);
+  }, [mapId]);
 
   if (!spawns) return null;
   return (
     <>
-      {spawns.items.filter(i => !i.isCollected).map((spawn) => (
-        <ItemCollector
-          key={spawn.id}
-          spawnId={spawn.id}
-          mapId={mapId}
-          position={(spawn.position ? [spawn.position.x, spawn.position.y, spawn.position.z] : [0, 0, 0]) as [number, number, number]}
-          item={spawn.item}
-        />
-      ))}
+      {spawns.items
+        .filter((i) => !i.isCollected)
+        .map((spawn) => (
+          <ItemCollector
+            key={spawn.id}
+            spawnId={spawn.id}
+            mapId={mapId}
+            position={
+              (spawn.position
+                ? [spawn.position.x, spawn.position.y, spawn.position.z]
+                : [0, 0, 0]) as [number, number, number]
+            }
+            item={spawn.item}
+          />
+        ))}
     </>
   );
 }
 
-// Items predefinidos para spawnear
 export const SPAWN_ITEMS = [
   {
     position: [5, 1, 5] as [number, number, number],
@@ -190,10 +222,10 @@ export const SPAWN_ITEMS = [
       rarity: 'common' as ItemRarity,
       quantity: 1,
       maxStack: 999,
-      weight: 0.01, // Peso de la moneda
+      weight: 0.01,
       level: 1,
-      icon: '🪙'
-    }
+      icon: '🪙',
+    },
   },
   {
     position: [10, 1, 10] as [number, number, number],
@@ -205,11 +237,11 @@ export const SPAWN_ITEMS = [
       rarity: 'common' as ItemRarity,
       quantity: 1,
       maxStack: 10,
-      weight: 0.5, // Peso de la poción
+      weight: 0.5,
       stats: { health: 50 },
       level: 1,
-      icon: '🧪'
-    }
+      icon: '🧪',
+    },
   },
   {
     position: [15, 1, 15] as [number, number, number],
@@ -221,10 +253,10 @@ export const SPAWN_ITEMS = [
       rarity: 'uncommon' as ItemRarity,
       quantity: 1,
       maxStack: 1,
-      weight: 4.0, // Peso de la espada
+      weight: 4.0,
       stats: { damage: 15, strength: 3 },
       level: 2,
-      icon: '⚔️'
-    }
-  }
+      icon: '⚔️',
+    },
+  },
 ];

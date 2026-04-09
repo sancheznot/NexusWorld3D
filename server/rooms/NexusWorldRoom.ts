@@ -6,6 +6,9 @@ import type { EconomyEvents } from "@resources/economy/server/EconomyEvents";
 import type { InventoryEvents } from "@resources/inventory/server/InventoryEvents";
 import { ItemEvents } from "@server/modules/ItemEvents";
 import { ShopEvents } from "@server/modules/ShopEvents";
+import { TreeChopEvents } from "@server/modules/TreeChopEvents";
+import { RpgProgression } from "@server/modules/RpgProgression";
+import { RPG_XP_ITEM_PICKUP } from "@/constants/rpgProgression";
 import {
   attachCoreFrameworkResources,
   attachLateFrameworkResources,
@@ -16,6 +19,7 @@ import {
   fetchPlayerProfileByNorm,
   normalizePlayerUsername,
   upsertPlayerProfile,
+  type PlayerProfileRow,
 } from "@/lib/db/playerProfile";
 
 interface PlayerData {
@@ -56,12 +60,15 @@ export class NexusWorldRoom extends Room {
   private players = new Map<string, PlayerData>();
   private chatMessages: ChatMessage[] = [];
   private redis = gameRedis;
+  /** ES: Throttle guardado MariaDB/Redis en movimiento. EN: Throttle DB save on move. */
+  private lastMoveProfileSaveAt = new Map<string, number>();
 
   /** ES: Rellenado por recursos core (economía, inventario). EN: Filled by core resources. */
   frameworkServices: FrameworkServices = {};
 
   private _itemEvents!: ItemEvents;
   private _shopEvents!: ShopEvents;
+  private rpgProgression!: RpgProgression;
 
   /** ES: Limpieza registrada por resources/ (registerDisposable). EN: Cleanup from resources/. */
   private resourceDisposables: Array<() => void> = [];
@@ -117,12 +124,56 @@ export class NexusWorldRoom extends Room {
     // EN: Core resources (economy → inventory) before items/shop.
     attachCoreFrameworkResources(this);
 
+    this.rpgProgression = new RpgProgression({
+      room: this,
+      getPlayer: (id) => this.players.get(id),
+      getClient: (id) => this.clients.find((c) => c.sessionId === id),
+      inventory: this.inventoryEvents,
+      requestPersist: (id) => {
+        const p = this.players.get(id);
+        if (p) void this.savePlayerToRedis(p);
+      },
+      syncStatePlayer: (sessionId, patch) => {
+        const sp = this.state.players.get(sessionId);
+        if (!sp) return;
+        if (patch.level !== undefined) sp.level = patch.level;
+        if (patch.experience !== undefined) sp.experience = patch.experience;
+        if (patch.maxHealth !== undefined) sp.maxHealth = patch.maxHealth;
+        if (patch.health !== undefined) sp.health = patch.health;
+      },
+    });
+
     this._itemEvents = new ItemEvents(
       this,
       (clientId: string) => this.getPlayerMapId(clientId),
       (playerId: string, baseItem) =>
-        this.inventoryEvents.addItemFromWorld(playerId, baseItem)
+        this.inventoryEvents.addItemFromWorld(playerId, baseItem),
+      {
+        getPlayerPosition: (id: string) => {
+          const p = this.players.get(id);
+          return p ? { ...p.position } : null;
+        },
+        removeItemStackForWorldDrop: (playerId, instanceId, qty) =>
+          this.inventoryEvents.removeItemStackReturningBase(
+            playerId,
+            instanceId,
+            qty
+          ),
+        onItemGranted: (playerId) => {
+          this.rpgProgression.addXp(playerId, RPG_XP_ITEM_PICKUP);
+        },
+      }
     );
+
+    new TreeChopEvents(this, {
+      getPlayerMapId: (clientId: string) => this.getPlayerMapId(clientId),
+      getPlayerPosition: (id: string) => {
+        const p = this.players.get(id);
+        return p ? { ...p.position } : null;
+      },
+      inventory: this.inventoryEvents,
+      awardExperience: (pid, amount) => this.rpgProgression.addXp(pid, amount),
+    });
 
     this._shopEvents = new ShopEvents(this, {
       grantItemToPlayer: (playerId, baseItem) =>
@@ -133,6 +184,8 @@ export class NexusWorldRoom extends Room {
       economy: {
         chargeWalletMajor: (userId: string, amount: number, reason?: string) =>
           this.economyEvents.chargeWalletMajor(userId, amount, reason),
+        creditWalletMajor: (userId: string, amount: number, reason?: string) =>
+          this.economyEvents.creditWalletMajor(userId, amount, reason),
       },
     });
 
@@ -179,8 +232,9 @@ export class NexusWorldRoom extends Room {
     const defaultMapId = "exterior";
     const defaultWorldId =
       options?.worldId || nexusWorld3DConfig.worlds.default;
-    const fallbackUsername =
-      options?.username || `Jugador_${client.id.substring(0, 6)}`;
+    const sessionFallback = `Jugador_${client.id.substring(0, 6)}`;
+    /** ES: Nombre de cuenta en joinOptions gana a Redis para que MariaDB coincida en la 1ª conexión. EN: Join options username wins over Redis for DB profile key. */
+    const fallbackUsername = options?.username || sessionFallback;
 
     const parseVector = (
       value: unknown,
@@ -261,7 +315,10 @@ export class NexusWorldRoom extends Room {
     const isMoving = parseBoolean(storedData?.isMoving, false);
     const isRunning = parseBoolean(storedData?.isRunning, false);
     const roleId = parseRole(storedData?.roleId);
-    const username = parseString(storedData?.username, fallbackUsername);
+    const username = parseString(
+      options?.username,
+      parseString(storedData?.username, fallbackUsername)
+    );
     const lastUpdate = parseNumber(storedData?.lastUpdate, now);
 
     const player: PlayerData = {
@@ -290,26 +347,35 @@ export class NexusWorldRoom extends Room {
 
     // ES: Perfil persistente MariaDB (fuente de verdad entre sesiones).
     // EN: MariaDB profile (source of truth across sessions).
+    let profileRow: PlayerProfileRow | null = null;
     try {
-      const row = await fetchPlayerProfileByNorm(
+      profileRow = await fetchPlayerProfileByNorm(
         normalizePlayerUsername(player.username)
       );
-      if (row) {
-        player.username = row.username || player.username;
-        player.worldId = row.world_id || player.worldId;
-        player.health = row.health;
-        player.maxHealth = row.max_health;
-        player.stamina = row.stamina;
-        player.maxStamina = row.max_stamina;
-        player.hunger = row.hunger;
-        player.maxHunger = row.max_hunger;
-        player.level = row.level;
-        player.experience = row.experience;
-        player.position = { x: row.pos_x, y: row.pos_y, z: row.pos_z };
-        player.rotation = { x: row.rot_x, y: row.rot_y, z: row.rot_z };
-        player.mapId = row.map_id || player.mapId;
-        player.roleId = row.role_id
-          ? (row.role_id as ExtendedJobId)
+      if (profileRow) {
+        player.username = profileRow.username || player.username;
+        player.worldId = profileRow.world_id || player.worldId;
+        player.health = profileRow.health;
+        player.maxHealth = profileRow.max_health;
+        player.stamina = profileRow.stamina;
+        player.maxStamina = profileRow.max_stamina;
+        player.hunger = profileRow.hunger;
+        player.maxHunger = profileRow.max_hunger;
+        player.level = profileRow.level;
+        player.experience = profileRow.experience;
+        player.position = {
+          x: profileRow.pos_x,
+          y: profileRow.pos_y,
+          z: profileRow.pos_z,
+        };
+        player.rotation = {
+          x: profileRow.rot_x,
+          y: profileRow.rot_y,
+          z: profileRow.rot_z,
+        };
+        player.mapId = profileRow.map_id || player.mapId;
+        player.roleId = profileRow.role_id
+          ? (profileRow.role_id as ExtendedJobId)
           : null;
       }
     } catch (e) {
@@ -353,9 +419,6 @@ export class NexusWorldRoom extends Room {
       Array.from(this.state.players.keys())
     );
 
-    // Guardar en Redis (reutilizando tu lógica)
-    void this.savePlayerToRedis(player);
-
     // Enviar estado actual a todos los jugadores
     this.broadcast("player:joined", {
       player: player,
@@ -372,8 +435,56 @@ export class NexusWorldRoom extends Room {
       players: Array.from(this.players.values()),
     });
 
-    // Crear inventario inicial para el jugador
+    // Crear inventario inicial para el jugador (después del perfil MariaDB / Redis en memoria)
     this.inventoryEvents.createPlayerInventory(client.sessionId);
+    const invFromDb = profileRow?.inventory_json;
+    if (invFromDb != null && invFromDb !== "") {
+      let raw: unknown = invFromDb;
+      if (typeof invFromDb === "string") {
+        try {
+          raw = JSON.parse(invFromDb as string);
+        } catch {
+          console.warn(`⚠️ inventory_json no es JSON válido para ${username}`);
+          raw = null;
+        }
+      }
+      if (raw != null) {
+        const loaded = this.inventoryEvents.loadPersistedInventory(
+          client.sessionId,
+          raw
+        );
+        if (!loaded) {
+          console.warn(
+            `⚠️ inventory_json inválido para ${username}; usando inventario inicial hasta próximo guardado.`
+          );
+        }
+      }
+    } else {
+      const invSnap = gameRedis.getPlayerInventorySnapshot(
+        normalizePlayerUsername(player.username)
+      );
+      if (invSnap) {
+        this.inventoryEvents.loadPersistedInventory(client.sessionId, invSnap);
+      }
+    }
+
+    this.rpgProgression.hydrate(
+      client.sessionId,
+      profileRow?.stats_json ?? null,
+      player
+    );
+    const spSync = this.state.players.get(client.sessionId);
+    if (spSync) {
+      spSync.level = player.level;
+      spSync.experience = player.experience;
+      spSync.maxHealth = player.maxHealth;
+      spSync.health = player.health;
+    }
+    this.broadcast("players:updated", {
+      players: Array.from(this.players.values()),
+    });
+
+    void this.savePlayerToRedis(player);
 
     // Enviar mensaje de bienvenida solo al jugador que se conectó
     this.sendSystemMessageToClient(
@@ -391,11 +502,12 @@ export class NexusWorldRoom extends Room {
     });
   }
 
-  onLeave(client: Client, consented: boolean) {
+  async onLeave(client: Client, consented: boolean) {
     console.log(`👋 Cliente ${client.sessionId} salió de la sala`);
 
     const player = this.players.get(client.sessionId);
     if (player) {
+      this.lastMoveProfileSaveAt.delete(client.sessionId);
       pushGameMonitorLog("info", "player", `Player leaving: ${player.username}`, {
         sessionId: client.sessionId,
         consented,
@@ -404,8 +516,21 @@ export class NexusWorldRoom extends Room {
       player.isOnline = false;
       player.lastSeen = new Date();
 
-      // Guardar estado final en Redis
-      this.savePlayerToRedis(player);
+      try {
+        await this.savePlayerToRedis(player);
+      } catch (e) {
+        console.warn("⚠️ Error guardando perfil al salir:", e);
+      }
+
+      const inv = this.inventoryEvents.getPlayerInventory(client.sessionId);
+      if (inv) {
+        gameRedis.savePlayerInventorySnapshot(
+          normalizePlayerUsername(player.username),
+          inv
+        );
+      }
+
+      this.rpgProgression.clearSession(client.sessionId);
 
       // Limpiar inventario del jugador
       this.inventoryEvents.cleanupPlayerInventory(client.sessionId);
@@ -539,11 +664,12 @@ export class NexusWorldRoom extends Room {
             }
           });
 
-          // Actualizar en Redis (menos frecuente para optimizar)
-          // Guardar de forma ocasional
-          // if (Date.now() - (player.lastUpdate || 0) > 1000) {
-          //   this.savePlayerToRedis(player);
-          // }
+          const t = Date.now();
+          const last = this.lastMoveProfileSaveAt.get(client.sessionId) ?? 0;
+          if (t - last >= 5000) {
+            this.lastMoveProfileSaveAt.set(client.sessionId, t);
+            void this.savePlayerToRedis(player);
+          }
         }
       }
     );
@@ -670,6 +796,7 @@ export class NexusWorldRoom extends Room {
         const player = this.players.get(client.id);
         if (player) {
           console.log(`⚔️ ${player.username} atacó a ${data.targetId}`);
+          this.inventoryEvents.applyEquippedMeleeWeaponWear(client.sessionId);
           this.broadcast(
             "player:attacked",
             {
@@ -754,6 +881,8 @@ export class NexusWorldRoom extends Room {
     }
 
     try {
+      const invSnapshot = this.inventoryEvents.getPlayerInventory(player.id);
+      const statsPayload = this.rpgProgression.buildStatsJsonForSave(player.id);
       await upsertPlayerProfile({
         username: player.username,
         worldId: player.worldId,
@@ -769,7 +898,16 @@ export class NexusWorldRoom extends Room {
         maxHunger: player.maxHunger,
         level: player.level,
         experience: player.experience,
+        statsJson:
+          statsPayload !== null && Object.keys(statsPayload).length > 0
+            ? statsPayload
+            : undefined,
+        inventoryJson:
+          invSnapshot !== undefined ? invSnapshot : undefined,
       });
+      console.log(
+        `💾 player_profile guardado: ${player.username} @ (${player.position.x.toFixed(2)}, ${player.position.y.toFixed(2)}, ${player.position.z.toFixed(2)}) map=${player.mapId}`
+      );
     } catch (e) {
       console.warn("⚠️ MariaDB player_profile (save):", e);
     }

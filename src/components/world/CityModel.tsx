@@ -7,8 +7,6 @@ import { useCannonPhysics } from '@/hooks/useCannonPhysics';
 import { generateSceneLights } from '@/lib/three/sceneLights';
 import { useTimeStore } from '@/store/timeStore';
 import { scanVehicleSpawns, resolveSpawnSlot } from '@/lib/game/vehicleSpawns';
-
-
 interface CityModelProps {
   modelPath: string;
   name?: string;
@@ -32,6 +30,8 @@ export default function CityModel({
   useEffect(() => {
     if (!scene || !physicsRef.current) return;
 
+    // ES: No etiquetar árboles del GLB como talables (ct_*) — rompía WebGL y el inventario al
+    // raycastear geometría incrustada. Solo props con `choppableProp` + ChoppableTreesLayer.
     physicsRef.current.removeBodiesByPrefix('hotel-interior');
 
     const boxes = physicsRef.current.createUCXBoxCollidersFromScene(

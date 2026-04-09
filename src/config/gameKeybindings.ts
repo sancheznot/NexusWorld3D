@@ -20,6 +20,10 @@ export type GameActionId =
   | "chat"
   | "pause"
   | "interact_vehicle"
+  | "interact_pickup"
+  | "drop_world"
+  | "use_hotbar"
+  | "crafting"
   | "hotbar1"
   | "hotbar2"
   | "hotbar3"
@@ -85,6 +89,38 @@ export const GAME_KEYBINDINGS: GameKeybinding[] = [
     label: "F",
     descriptionEs: "Interactuar / vehículo",
     descriptionEn: "Interact / vehicle",
+    category: "ui",
+  },
+  {
+    id: "interact_pickup",
+    key: "e",
+    label: "E",
+    descriptionEs: "Recoger objeto cercano",
+    descriptionEn: "Pick up nearby item",
+    category: "ui",
+  },
+  {
+    id: "drop_world",
+    key: "g",
+    label: "G",
+    descriptionEs: "Soltar ítem (ranura rápida)",
+    descriptionEn: "Drop item (quick slot)",
+    category: "ui",
+  },
+  {
+    id: "use_hotbar",
+    key: "q",
+    label: "Q",
+    descriptionEs: "Usar consumible (ranura seleccionada)",
+    descriptionEn: "Use consumable (selected slot)",
+    category: "hotbar",
+  },
+  {
+    id: "crafting",
+    key: "c",
+    label: "C",
+    descriptionEs: "Fabricar / crafting",
+    descriptionEn: "Crafting",
     category: "ui",
   },
   {

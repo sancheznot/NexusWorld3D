@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Combine,
   Gamepad2,
   LogOut,
   Map,
@@ -37,6 +38,7 @@ export default function PauseMenu({
     toggleInventory,
     toggleMap,
     toggleChat,
+    toggleCrafting,
     setPauseMenuOpen,
   } = useUIStore();
 
@@ -130,6 +132,19 @@ export default function PauseMenu({
           >
             <MessageSquare size={18} />
             Chat ({GAME_KEYBINDINGS.find((b) => b.id === "chat")?.label})
+          </GameButton>
+          <GameButton
+            type="button"
+            variant="classic"
+            className="!justify-start !gap-3 !py-3"
+            onClick={() => {
+              setPauseMenuOpen(false);
+              toggleCrafting();
+            }}
+          >
+            <Combine size={18} />
+            Crafting (
+            {GAME_KEYBINDINGS.find((b) => b.id === "crafting")?.label ?? "C"})
           </GameButton>
           <GameButton
             type="button"

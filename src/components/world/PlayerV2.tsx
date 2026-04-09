@@ -14,6 +14,13 @@ import * as THREE from 'three';
 import { PlayerCustomization } from '@/types/player.types';
 import { CharacterStateMachine } from '@/lib/character/CharacterStateMachine';
 import { CharacterStateContext } from '@/lib/character/CharacterState';
+import { useUIStore } from '@/store/uiStore';
+import { inventoryService } from '@/lib/services/inventory';
+import {
+  getHotbarRow,
+  isToolAxeActiveForWorldActions,
+} from '@/lib/gameplay/inventoryHotbar';
+import { isChopAxeItemId } from '@/constants/choppableTrees';
 
 interface PlayerProps {
   position?: [number, number, number];
@@ -36,6 +43,8 @@ export default function PlayerV2({
 }: PlayerProps) {
   const lastPositionRef = useRef(new THREE.Vector3(...position));
   const { scene } = useThree();
+  const hotbarSlot = useUIStore((s) => s.hotbarSelectedSlot);
+  const [heldToolItemId, setHeldToolItemId] = useState<string | null>(null);
   
   const { 
     position: playerPosition, 
@@ -45,6 +54,7 @@ export default function PlayerV2({
     setMoving,
     setRunning
   } = usePlayerStore();
+  const rpgSync = usePlayerStore((s) => s.rpgSync);
   
   // Ref para detectar cambios de teleportación
   const lastStorePositionRef = useRef(new THREE.Vector3(playerPosition.x, playerPosition.y, playerPosition.z));
@@ -104,6 +114,33 @@ export default function PlayerV2({
   };
 
   const custom = customization || defaultCustomization;
+
+  useEffect(() => {
+    if (!isCurrentPlayer) return;
+    const syncHeld = () => {
+      const inv = inventoryService.getInventory();
+      const eq = inventoryService.getEquipment();
+      const show = isToolAxeActiveForWorldActions(inv, eq, hotbarSlot);
+      if (!show) {
+        setHeldToolItemId(null);
+        return;
+      }
+      const row = getHotbarRow(inv);
+      const slotItem = row[hotbarSlot];
+      let id: string | null = null;
+      if (slotItem && isChopAxeItemId(slotItem.itemId)) id = slotItem.itemId;
+      else if (eq.weapon && isChopAxeItemId(eq.weapon.itemId)) id = eq.weapon.itemId;
+      else {
+        const equipped = inv.items.find(
+          (i) => i.isEquipped && isChopAxeItemId(i.itemId)
+        );
+        id = equipped?.itemId ?? null;
+      }
+      setHeldToolItemId(id ?? "tool_axe");
+    };
+    syncHeld();
+    return inventoryService.subscribe(syncHeld);
+  }, [isCurrentPlayer, hotbarSlot]);
 
   useEffect(() => {
     if (isCurrentPlayer) {
@@ -219,7 +256,8 @@ export default function PlayerV2({
         x: currentInput.x,
         z: currentInput.z,
         isRunning: sprintActiveRef.current,
-        stamina: store.stamina
+        stamina: store.stamina,
+        moveSpeedMul: rpgSync?.moveSpeedMul ?? 1,
       }, clampedDelta);
     }
     
@@ -353,8 +391,10 @@ export default function PlayerV2({
       // no corremos: limpiar drenaje
       staminaDrainAccRef.current = 0;
     }
-    // Hambre
-    const hungerTickEvery = 60 / GAME_CONFIG.gameplay.hunger.drainPerMinute; // seconds per point
+    // Hambre (resistencia alarga el intervalo entre puntos de hambre)
+    const hungerDrainMul = Math.max(1, rpgSync?.hungerDrainMul ?? 1);
+    const hungerTickEvery =
+      (60 / GAME_CONFIG.gameplay.hunger.drainPerMinute) * hungerDrainMul; // seconds per point
     if (performance.now() - lastHungerTickRef.current > hungerTickEvery * 1000) {
       lastHungerTickRef.current = performance.now();
       store.updateHunger(Math.max(0, store.hunger - 1));
@@ -533,6 +573,7 @@ export default function PlayerV2({
       isCurrentPlayer={isCurrentPlayer}
       username={username || ''}
       animation={isCurrentPlayer ? desiredAnim : (remoteAnimation || 'idle')}
+      heldToolItemId={isCurrentPlayer ? heldToolItemId : null}
     />
   );
 }

@@ -7,6 +7,10 @@ import {
   normalizeKeyboardKey,
   isMovementKey,
 } from '@/config/gameKeybindings';
+import { tryPickupNearestWorldItem } from '@/lib/gameplay/pickupActions';
+import { tryDropSelectedHotbarItem } from '@/lib/gameplay/dropActions';
+import { tryUseSelectedHotbarConsumable } from '@/lib/gameplay/hotbarUseActions';
+import { triggerMeleeClick } from '@/lib/gameplay/meleeActionBridge';
 
 interface KeyboardState {
   keys: Set<string>;
@@ -48,10 +52,12 @@ export const useKeyboard = (enabled: boolean = true) => {
     isJobsOpen,
     isPauseMenuOpen,
     isMinimapVisible,
+    isCraftingOpen,
     toggleInventory,
     toggleMap,
     toggleChat,
     togglePauseMenu,
+    toggleCrafting,
     setPauseMenuOpen,
     setHotbarSelectedSlot,
     setMinimapVisible,
@@ -106,6 +112,15 @@ export const useKeyboard = (enabled: boolean = true) => {
 
     // Handle special keys (solo si el chat NO está abierto)
     if (!isChatOpen) {
+      const uiBlocksWorldActions =
+        isInventoryOpen ||
+        isMapOpen ||
+        isCraftingOpen ||
+        isShopOpen ||
+        isSettingsOpen ||
+        isBankOpen ||
+        isJobsOpen;
+
       switch (key) {
         case "i":
           toggleInventory();
@@ -126,7 +141,8 @@ export const useKeyboard = (enabled: boolean = true) => {
             isShopOpen ||
             isSettingsOpen ||
             isBankOpen ||
-            isJobsOpen
+            isJobsOpen ||
+            isCraftingOpen
           ) {
             closeAllModals();
           } else {
@@ -142,6 +158,34 @@ export const useKeyboard = (enabled: boolean = true) => {
         case "4":
         case "5":
           setHotbarSelectedSlot(Number(key) - 1);
+          event.preventDefault();
+          break;
+        case "e":
+          if (
+            !uiBlocksWorldActions &&
+            tryPickupNearestWorldItem()
+          ) {
+            event.preventDefault();
+          }
+          break;
+        case "g":
+          if (
+            !uiBlocksWorldActions &&
+            tryDropSelectedHotbarItem(1)
+          ) {
+            event.preventDefault();
+          }
+          break;
+        case "q":
+          if (
+            !uiBlocksWorldActions &&
+            tryUseSelectedHotbarConsumable()
+          ) {
+            event.preventDefault();
+          }
+          break;
+        case "c":
+          toggleCrafting();
           event.preventDefault();
           break;
       }
@@ -167,10 +211,12 @@ export const useKeyboard = (enabled: boolean = true) => {
     isJobsOpen,
     isPauseMenuOpen,
     isMinimapVisible,
+    isCraftingOpen,
     toggleInventory,
     toggleMap,
     toggleChat,
     togglePauseMenu,
+    toggleCrafting,
     setPauseMenuOpen,
     setHotbarSelectedSlot,
     setMinimapVisible,
@@ -197,13 +243,35 @@ export const useKeyboard = (enabled: boolean = true) => {
   // Handle mouse click
   const handleMouseClick = useCallback((event: MouseEvent) => {
     if (!enabled) return;
-    
-    // Left click for attack
-    if (event.button === 0) {
-      // TODO: Implement attack logic
-      // console.log('⚔️ Ataque con click izquierdo');
+    if (isPauseMenuOpen || isChatOpen) return;
+
+    const uiBlocksWorldActions =
+      isInventoryOpen ||
+      isMapOpen ||
+      isCraftingOpen ||
+      isShopOpen ||
+      isSettingsOpen ||
+      isBankOpen ||
+      isJobsOpen;
+
+    // Left click: melee / talar (raycast en ChopRaycastBridge)
+    if (event.button === 0 && !uiBlocksWorldActions) {
+      if (triggerMeleeClick(event)) {
+        event.preventDefault();
+      }
     }
-  }, [enabled]);
+  }, [
+    enabled,
+    isPauseMenuOpen,
+    isChatOpen,
+    isInventoryOpen,
+    isMapOpen,
+    isCraftingOpen,
+    isShopOpen,
+    isSettingsOpen,
+    isBankOpen,
+    isJobsOpen,
+  ]);
 
   // Calculate movement
   const calculateMovement = useCallback(() => {

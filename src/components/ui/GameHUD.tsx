@@ -10,9 +10,11 @@ import economyClient from "@/lib/colyseus/EconomyClient";
 import { GAME_CONFIG } from "@/constants/game";
 import { colyseusClient } from "@/lib/colyseus/client";
 import { inventoryService } from "@/lib/services/inventory";
+import { parseEconomyWalletAmount } from "@/lib/economy/parseWalletPayload";
 import type { InventoryItem } from "@/types/inventory.types";
 import ServerClock from "@/components/ui/ServerClock";
 import { frameworkDefaultWorldDisplayName } from "@/lib/frameworkBranding";
+import { getHotbarRow } from "@/lib/gameplay/inventoryHotbar";
 
 const MAP_LOCATIONS: Record<string, string> = {
   exterior: "Sector urbano",
@@ -84,20 +86,20 @@ function StatusBar({
 
 function HudQuickSlots() {
   const hotbarSelectedSlot = useUIStore((s) => s.hotbarSelectedSlot);
-  const [slice, setSlice] = useState<InventoryItem[]>(() =>
-    inventoryService.getInventory().items.slice(0, 5)
+  const [row, setRow] = useState<(InventoryItem | undefined)[]>(() =>
+    getHotbarRow(inventoryService.getInventory())
   );
 
   useEffect(() => {
     return inventoryService.subscribe(() => {
-      setSlice(inventoryService.getInventory().items.slice(0, 5));
+      setRow(getHotbarRow(inventoryService.getInventory()));
     });
   }, []);
 
   return (
     <div className="pointer-events-auto flex items-end gap-2 sm:gap-3">
       {[0, 1, 2, 3, 4].map((i) => {
-        const item = slice[i];
+        const item = row[i];
         const active = hotbarSelectedSlot === i;
         return (
           <div
@@ -161,7 +163,9 @@ export default function GameHUD({
     player,
   } = usePlayerStore();
 
-  const [balance, setBalance] = useState(0);
+  const [balance, setBalance] = useState(() =>
+    inventoryService.getInventory().gold
+  );
   const [netOk, setNetOk] = useState(false);
   const [equippedWeapon, setEquippedWeapon] = useState<
     InventoryItem | undefined
@@ -177,12 +181,19 @@ export default function GameHUD({
 
   useEffect(() => {
     const onWallet = (data: unknown) => {
-      const v = (data as number) ?? 0;
-      setBalance(v >= 10000 ? v / 100 : v);
+      setBalance(parseEconomyWalletAmount(data));
     };
     economyClient.on("economy:wallet", onWallet);
     economyClient.requestState();
     return () => economyClient.off("economy:wallet", onWallet);
+  }, []);
+
+  useEffect(() => {
+    const syncFromInventory = () => {
+      setBalance(inventoryService.getInventory().gold);
+    };
+    syncFromInventory();
+    return inventoryService.subscribe(syncFromInventory);
   }, []);
 
   useEffect(() => {
@@ -281,6 +292,14 @@ export default function GameHUD({
           </p>
         </div>
         <HudQuickSlots />
+        <p className="max-w-xs text-[9px] leading-snug text-slate-400">
+          <span className="text-slate-300">1–5</span> ranuras ·{" "}
+          <span className="text-slate-300">Q</span> usar ·{" "}
+          <span className="text-slate-300">G</span> soltar ·{" "}
+          <span className="text-slate-300">E</span> recoger ·{" "}
+          <span className="text-slate-300">C</span> craft ·{" "}
+          <span className="text-slate-300">click en el árbol</span> (hacha equipada)
+        </p>
       </div>
 
       {/* Bottom-right: credits + weapon strip (placeholder ammo) */}

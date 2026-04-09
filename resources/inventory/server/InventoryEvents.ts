@@ -1,7 +1,17 @@
 import { Room, Client } from 'colyseus';
 import { InventoryItem, Inventory } from '@/types/inventory.types';
 import { ITEMS_CATALOG } from '@/constants/items';
+import { isChopAxeItemId } from '@/constants/choppableTrees';
+import {
+  applyCatalogStackCapsToItems,
+  canMergeIntoStack,
+  catalogMaxDurability,
+  catalogMaxStack,
+  coalesceInventoryStacks,
+  splitOversizedStacks,
+} from '@/lib/inventory/itemStacking';
 import { GAME_CONFIG } from '@/constants/game';
+import { CRAFTING_RECIPES, type CraftRecipe } from '@/constants/crafting';
 
 /**
  * Eventos de Inventario para Colyseus
@@ -83,57 +93,461 @@ export class InventoryEvents {
     this.room.onMessage('inventory:request', (client: Client) => {
       this.handleInventoryRequest(client);
     });
+
+    this.room.onMessage(
+      'crafting:execute',
+      (client: Client, data: { recipeId: string }) => {
+        const res = this.tryCraftRecipe(client.sessionId, data.recipeId);
+        if (!res.ok) {
+          client.send('inventory:error', {
+            message: res.message || 'Craft fallido',
+          });
+        }
+      }
+    );
+
+    this.room.onMessage(
+      'inventory:swap-slots',
+      (client: Client, data: { fromSlot: number; toSlot: number }) => {
+        this.handleSwapSlots(client, data);
+      }
+    );
   }
 
-  // API pública para otros módulos del servidor
-  public addItemFromWorld(playerId: string, baseItem: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) {
+  /**
+   * ES: Quitar del inventario del jugador y devolver plantilla para spawn en el mundo.
+   */
+  public removeItemStackReturningBase(
+    playerId: string,
+    itemInstanceId: string,
+    quantity: number
+  ): {
+    ok: boolean;
+    base?: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>;
+    message?: string;
+  } {
+    const inv = this.playerInventories.get(playerId);
+    if (!inv) return { ok: false, message: 'Sin inventario' };
+    const idx = inv.items.findIndex((i) => i.id === itemInstanceId);
+    if (idx === -1) return { ok: false, message: 'Ítem no encontrado' };
+    const item = inv.items[idx]!;
+    if (item.isEquipped) return { ok: false, message: 'Desequipa antes de soltar' };
+    const qty = Math.min(Math.max(1, quantity), item.quantity);
+
+    const base: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'> = {
+      itemId: item.itemId,
+      name: item.name,
+      description: item.description,
+      type: item.type,
+      rarity: item.rarity,
+      quantity: qty,
+      maxStack: item.maxStack,
+      weight: item.weight,
+      stats: item.stats,
+      durability: item.durability,
+      maxDurability: item.maxDurability,
+      level: item.level,
+      icon: item.icon,
+      thumb: item.thumb,
+      model: item.model,
+    };
+
+    if (item.quantity <= qty) {
+      inv.items.splice(idx, 1);
+    } else {
+      item.quantity -= qty;
+    }
+    inv.currentWeight = this.calculateTotalWeight(inv);
+    const normalized = this.ensureSlots(inv);
+    this.playerInventories.set(playerId, normalized);
+    this.room.broadcast('inventory:updated', {
+      playerId,
+      inventory: normalized,
+      timestamp: Date.now(),
+    } as InventoryEventData);
+    return { ok: true, base };
+  }
+
+  private canAffordRecipe(inv: Inventory, recipe: CraftRecipe): boolean {
+    for (const ing of recipe.ingredients) {
+      let need = ing.quantity;
+      for (const it of inv.items) {
+        if (it.isEquipped || it.itemId !== ing.itemId) continue;
+        need -= it.quantity;
+        if (need <= 0) break;
+      }
+      if (need > 0) return false;
+    }
+    return true;
+  }
+
+  private consumeRecipeIngredients(
+    playerId: string,
+    recipe: CraftRecipe
+  ): boolean {
+    const inv = this.playerInventories.get(playerId);
+    if (!inv || !this.canAffordRecipe(inv, recipe)) return false;
+
+    for (const ing of recipe.ingredients) {
+      let need = ing.quantity;
+      for (let i = inv.items.length - 1; i >= 0 && need > 0; i--) {
+        const it = inv.items[i]!;
+        if (it.isEquipped || it.itemId !== ing.itemId) continue;
+        const take = Math.min(need, it.quantity);
+        need -= take;
+        it.quantity -= take;
+        if (it.quantity <= 0) {
+          inv.items.splice(i, 1);
+        }
+      }
+      if (need > 0) return false;
+    }
+    inv.usedSlots = inv.items.length;
+    inv.currentWeight = this.calculateTotalWeight(inv);
+    this.playerInventories.set(playerId, this.ensureSlots(inv));
+    return true;
+  }
+
+  public tryCraftRecipe(
+    playerId: string,
+    recipeId: string
+  ): { ok: boolean; message?: string } {
+    const recipe = CRAFTING_RECIPES.find((r) => r.id === recipeId);
+    if (!recipe) return { ok: false, message: 'Receta desconocida' };
+    if (!this.consumeRecipeIngredients(playerId, recipe)) {
+      return { ok: false, message: 'Materiales insuficientes' };
+    }
+    void this.addItemFromWorld(playerId, {
+      itemId: recipe.output.itemId,
+      quantity: recipe.output.quantity,
+    } as Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>);
+    const inv = this.playerInventories.get(playerId);
+    if (inv) {
+      this.room.broadcast('inventory:updated', {
+        playerId,
+        inventory: inv,
+        timestamp: Date.now(),
+      } as InventoryEventData);
+    }
+    return { ok: true };
+  }
+
+  /**
+   * ES: Añade ítem desde mundo/craft/tienda. Devuelve unidades realmente añadidas (0 si falló peso/ranuras).
+   * EN: Add item from world/craft/shop; returns units actually added (0 if weight/slots block).
+   */
+  public addItemFromWorld(
+    playerId: string,
+    baseItem: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>
+  ): number {
     let inventory = this.playerInventories.get(playerId);
     if (!inventory) {
       inventory = this.createInitialInventory();
       this.playerInventories.set(playerId, inventory);
     }
 
-    // Enriquecer con catálogo maestro
+    // ES: Antes del merge: alinear maxStack con catálogo (p. ej. troncos 117 con maxStack 30 guardado).
+    // EN: Before merge: catalog maxStack so stacks like 117 vs stale maxStack 30 can accept more.
+    applyCatalogStackCapsToItems(inventory.items);
+    coalesceInventoryStacks(inventory);
+    splitOversizedStacks(inventory);
+
     const cat = ITEMS_CATALOG[baseItem.itemId];
-    const merged: InventoryItem = {
-      id: `${baseItem.itemId}_${Date.now()}`,
-      itemId: baseItem.itemId,
-      name: (baseItem as any).name || cat?.name || baseItem.itemId,
-      description: (baseItem as any).description || '',
-      type: (baseItem as any).type || cat?.type || 'misc',
-      rarity: (baseItem as any).rarity || cat?.rarity || 'common',
-      quantity: (baseItem as any).quantity || 1,
-      maxStack: (baseItem as any).maxStack || 1,
-      weight: (baseItem as any).weight ?? cat?.weight ?? 0.1,
-      stats: (baseItem as any).stats,
-      durability: (baseItem as any).durability,
-      maxDurability: (baseItem as any).maxDurability,
-      level: (baseItem as any).level || 1,
-      icon: (baseItem as any).icon || cat?.icon || '📦',
-      thumb: (baseItem as any).thumb || cat?.thumb,
-      model: cat?.visual?.path,
-      isEquipped: false,
-      slot: -1,
-    } as InventoryItem;
+    const itemId = baseItem.itemId;
+    const fromPayload =
+      typeof (baseItem as any).maxStack === 'number' && (baseItem as any).maxStack > 0
+        ? Math.floor((baseItem as any).maxStack)
+        : 0;
+    const maxStack = Math.max(catalogMaxStack(itemId), fromPayload);
+    const unitW = (baseItem as any).weight ?? cat?.weight ?? 0.1;
+    const qtyRequested = Math.max(1, Math.floor((baseItem as any).quantity ?? 1));
+    let remaining = qtyRequested;
 
-    // Stack si mismo itemId y maxStack > 1
-    const existing = inventory.items.find(i => i.itemId === merged.itemId && !i.isEquipped && i.quantity < i.maxStack);
-    if (existing) {
-      existing.quantity += merged.quantity || 1;
-    } else {
-      inventory.items.push(merged);
-      inventory.usedSlots += 1;
+    const roomW = inventory.maxWeight - this.calculateTotalWeight(inventory);
+    if (roomW < unitW) {
+      this.sendInventoryError(
+        playerId,
+        'No tienes capacidad de peso para recoger esto. Deja ítems o sube resistencia/nivel.'
+      );
+      return 0;
     }
-    inventory.currentWeight = this.calculateTotalWeight(inventory);
-    this.playerInventories.set(playerId, inventory);
+    remaining = Math.min(remaining, Math.floor(roomW / unitW));
+    if (remaining <= 0) {
+      this.sendInventoryError(
+        playerId,
+        'Inventario demasiado pesado: no cabe ni una unidad más.'
+      );
+      return 0;
+    }
+    const remainingAfterWeightCap = remaining;
 
-    // Notificar
-    this.room.broadcast('inventory:item-added', {
+    let maxDurability = (baseItem as any).maxDurability as number | undefined;
+    let durability = (baseItem as any).durability as number | undefined;
+    const catMd = catalogMaxDurability(itemId);
+    if (isChopAxeItemId(itemId)) {
+      maxDurability = maxDurability ?? 80;
+      durability = typeof durability === 'number' ? durability : maxDurability;
+    } else if (catMd) {
+      maxDurability = maxDurability ?? catMd;
+      durability = typeof durability === 'number' ? durability : maxDurability;
+    }
+
+    const incomingMeta: Pick<InventoryItem, 'itemId' | 'maxDurability' | 'durability'> = {
+      itemId,
+      maxDurability,
+      durability,
+    };
+
+    let placedAny = false;
+    while (remaining > 0) {
+      const existing = inventory.items.find(
+        (i) =>
+          !i.isEquipped &&
+          i.quantity < i.maxStack &&
+          canMergeIntoStack(i, incomingMeta)
+      );
+
+      if (existing) {
+        const space = existing.maxStack - existing.quantity;
+        const add = Math.min(space, remaining);
+        existing.quantity += add;
+        remaining -= add;
+        placedAny = true;
+        continue;
+      }
+
+      if (inventory.items.length >= inventory.maxSlots) {
+        break;
+      }
+
+      const chunk = Math.min(remaining, maxStack);
+      const merged: InventoryItem = {
+        id: `${itemId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        itemId,
+        name: (baseItem as any).name || cat?.name || itemId,
+        description: (baseItem as any).description || '',
+        type: (baseItem as any).type || cat?.type || 'misc',
+        rarity: (baseItem as any).rarity || cat?.rarity || 'common',
+        quantity: chunk,
+        maxStack,
+        weight: unitW,
+        stats: (baseItem as any).stats,
+        durability,
+        maxDurability,
+        level: (baseItem as any).level || 1,
+        icon: (baseItem as any).icon || cat?.icon || '📦',
+        thumb: (baseItem as any).thumb || cat?.thumb,
+        model: (baseItem as any).model || cat?.visual?.path,
+        isEquipped: false,
+        slot: -1,
+      };
+
+      inventory.items.push(merged);
+      inventory.usedSlots = inventory.items.length;
+      remaining -= chunk;
+      placedAny = true;
+    }
+
+    if (remaining > 0) {
+      if (!placedAny && inventory.items.length >= inventory.maxSlots) {
+        this.sendInventoryError(
+          playerId,
+          'No hay ranuras libres en el inventario.'
+        );
+      } else if (!placedAny) {
+        this.sendInventoryError(
+          playerId,
+          'No se pudo guardar el ítem (inventario lleno).'
+        );
+      } else {
+        this.sendInventoryError(
+          playerId,
+          `Solo cabía parte del botín (${remaining} un. no entraron).`
+        );
+      }
+    }
+
+    const unitsAdded = remainingAfterWeightCap - remaining;
+
+    inventory.currentWeight = this.calculateTotalWeight(inventory);
+    applyCatalogStackCapsToItems(inventory.items);
+    coalesceInventoryStacks(inventory);
+    const normalized = this.ensureSlots(inventory);
+    this.playerInventories.set(playerId, normalized);
+
+    this.room.broadcast('inventory:updated', {
       playerId,
-      item: merged,
-      action: 'add',
-      timestamp: Date.now()
-    } as ItemUpdateData);
+      inventory: normalized,
+      timestamp: Date.now(),
+    } as InventoryEventData);
+
+    return unitsAdded;
+  }
+
+  /**
+   * ES: Desgaste del hacha por golpe de tala; si llega a 0 se elimina el ítem.
+   * EN: Axe durability per chop swing; removes item at 0.
+   */
+  public applyAxeSwingWear(playerId: string): void {
+    const inv = this.playerInventories.get(playerId);
+    if (!inv) return;
+    const axe = inv.items.find(
+      (i) => isChopAxeItemId(i.itemId) && (i.quantity ?? 1) > 0
+    );
+    if (!axe || (axe.quantity ?? 0) <= 0) return;
+
+    const maxD = axe.maxDurability ?? 80;
+    const cur =
+      typeof axe.durability === 'number' ? axe.durability : maxD;
+    const next = cur - 1;
+
+    if (next <= 0) {
+      const idx = inv.items.indexOf(axe);
+      if (idx !== -1) {
+        inv.items.splice(idx, 1);
+        inv.usedSlots = Math.max(0, (inv.usedSlots || 1) - 1);
+      }
+    } else {
+      axe.durability = next;
+    }
+
+    inv.currentWeight = this.calculateTotalWeight(inv);
+    const normalized = this.ensureSlots(inv);
+    this.playerInventories.set(playerId, normalized);
+    this.room.broadcast('inventory:updated', {
+      playerId,
+      inventory: normalized,
+      timestamp: Date.now(),
+    } as InventoryEventData);
+  }
+
+  /**
+   * ES: Desgaste del arma equipada al atacar (el hacha se desgasta al talar, no aquí).
+   * EN: Equipped weapon wear on attack (axes wear on chop, not here).
+   */
+  public applyEquippedMeleeWeaponWear(playerId: string, loss: number = 1): void {
+    const inv = this.playerInventories.get(playerId);
+    if (!inv) return;
+    const weapon = inv.items.find((i) => i.isEquipped && i.type === 'weapon');
+    if (!weapon) return;
+    if (isChopAxeItemId(weapon.itemId)) return;
+
+    const maxD =
+      typeof weapon.maxDurability === 'number' && weapon.maxDurability > 0
+        ? weapon.maxDurability
+        : catalogMaxDurability(weapon.itemId);
+    if (typeof maxD !== 'number' || maxD <= 0) return;
+
+    weapon.maxDurability = weapon.maxDurability ?? maxD;
+    const cur =
+      typeof weapon.durability === 'number' ? weapon.durability : weapon.maxDurability;
+    const next = cur - loss;
+
+    if (next <= 0) {
+      const idx = inv.items.indexOf(weapon);
+      if (idx !== -1) {
+        inv.items.splice(idx, 1);
+        inv.usedSlots = Math.max(0, inv.items.length);
+      }
+    } else {
+      weapon.durability = next;
+    }
+
+    inv.currentWeight = this.calculateTotalWeight(inv);
+    const normalized = this.ensureSlots(inv);
+    this.playerInventories.set(playerId, normalized);
+    this.room.broadcast('inventory:updated', {
+      playerId,
+      inventory: normalized,
+      timestamp: Date.now(),
+    } as InventoryEventData);
+  }
+
+  private handleSwapSlots(client: Client, data: { fromSlot: number; toSlot: number }) {
+    const fromSlot = Math.floor(data.fromSlot);
+    const toSlot = Math.floor(data.toSlot);
+    if (
+      !Number.isFinite(fromSlot) ||
+      !Number.isFinite(toSlot) ||
+      fromSlot === toSlot
+    ) {
+      return;
+    }
+    const playerId = client.sessionId;
+    const inventory = this.playerInventories.get(playerId);
+    if (!inventory) {
+      client.send('inventory:error', { message: 'Sin inventario' });
+      return;
+    }
+    if (
+      fromSlot < 0 ||
+      toSlot < 0 ||
+      fromSlot >= inventory.maxSlots ||
+      toSlot >= inventory.maxSlots
+    ) {
+      client.send('inventory:error', { message: 'Slot inválido' });
+      return;
+    }
+    const a = inventory.items.find((i) => i.slot === fromSlot);
+    const b = inventory.items.find((i) => i.slot === toSlot);
+    if (!a && !b) return;
+    if (a) a.slot = toSlot;
+    if (b) b.slot = fromSlot;
+    const normalized = this.ensureSlots(inventory);
+    this.playerInventories.set(playerId, normalized);
+    this.room.broadcast('inventory:updated', {
+      playerId,
+      inventory: normalized,
+      timestamp: Date.now(),
+    } as InventoryEventData);
+  }
+
+  /**
+   * ES: Restaurar inventario persistido (p. ej. Redis) al reconectar.
+   * EN: Hydrate inventory from persisted snapshot.
+   */
+  public loadPersistedInventory(playerId: string, raw: unknown): boolean {
+    if (!raw || typeof raw !== 'object') return false;
+    const src = raw as Inventory;
+    const copy: Inventory = {
+      items: Array.isArray(src.items)
+        ? src.items.map((i) => ({
+            ...i,
+            isEquipped: !!i.isEquipped,
+            quantity: typeof i.quantity === 'number' ? i.quantity : 1,
+          }))
+        : [],
+      maxSlots: typeof src.maxSlots === 'number' ? src.maxSlots : 20,
+      usedSlots: 0,
+      gold:
+        typeof src.gold === 'number'
+          ? src.gold
+          : GAME_CONFIG.currency.startingBalance,
+      maxWeight: typeof src.maxWeight === 'number' ? src.maxWeight : 100,
+      currentWeight: 0,
+    };
+    for (const it of copy.items) {
+      if (isChopAxeItemId(it.itemId)) {
+        it.maxDurability = it.maxDurability ?? 80;
+        it.durability =
+          typeof it.durability === 'number' ? it.durability : it.maxDurability;
+      } else {
+        const md = catalogMaxDurability(it.itemId);
+        if (md) {
+          it.maxDurability = it.maxDurability ?? md;
+          it.durability =
+            typeof it.durability === 'number' ? it.durability : it.maxDurability;
+        }
+      }
+    }
+    applyCatalogStackCapsToItems(copy.items);
+    coalesceInventoryStacks(copy);
+    copy.usedSlots = copy.items.length;
+    copy.currentWeight = this.calculateTotalWeight(copy);
+    if (!this.validateInventory(copy)) return false;
+    const normalized = this.ensureSlots(copy);
+    this.playerInventories.set(playerId, normalized);
+    return true;
   }
 
   /**
@@ -190,16 +604,14 @@ export class InventoryEvents {
     inventory.usedSlots++;
     inventory.currentWeight = this.calculateTotalWeight(inventory);
 
-    // Actualizar inventario
-    this.playerInventories.set(playerId, inventory);
+    const normalized = this.ensureSlots(inventory);
+    this.playerInventories.set(playerId, normalized);
 
-    // Notificar a todos los jugadores
-    this.room.broadcast('inventory:item-added', {
+    this.room.broadcast('inventory:updated', {
       playerId,
-      item: data.item,
-      action: 'add',
-      timestamp: Date.now()
-    } as ItemUpdateData);
+      inventory: normalized,
+      timestamp: Date.now(),
+    } as InventoryEventData);
 
     console.log(`➕ Item agregado: ${data.item.name} para jugador ${playerId}`);
   }
@@ -532,6 +944,11 @@ export class InventoryEvents {
     }, 0);
   }
 
+  private sendInventoryError(playerId: string, message: string): void {
+    const c = this.room.clients.find((cl) => cl.sessionId === playerId);
+    c?.send('inventory:error', { message });
+  }
+
   /**
    * Asegura que todos los items tienen un slot único en rango [0, maxSlots)
    * Mantiene slots existentes; asigna slots libres a los -1/undefined conservando orden
@@ -556,6 +973,60 @@ export class InventoryEvents {
     }
     inv.usedSlots = inv.items.length;
     return inv;
+  }
+
+  /** ES: Al menos una unidad del ítem de catálogo (p. ej. tool_axe). EN: At least one catalog item. */
+  public playerHasCatalogItem(playerId: string, catalogItemId: string): boolean {
+    const inventory = this.playerInventories.get(playerId);
+    if (!inventory) return false;
+    return inventory.items.some(
+      (i) => i.itemId === catalogItemId && (i.quantity ?? 1) > 0
+    );
+  }
+
+  /** ES: Cualquier hacha de tala en inventario. EN: Any chop axe in inventory. */
+  public playerHasAnyChopAxe(playerId: string): boolean {
+    const inventory = this.playerInventories.get(playerId);
+    if (!inventory) return false;
+    return inventory.items.some(
+      (i) => isChopAxeItemId(i.itemId) && (i.quantity ?? 1) > 0
+    );
+  }
+
+  /**
+   * ES: `itemId` del hacha usado para recompensa por golpe (equipada primero).
+   * EN: Axe catalog id for per-hit rewards (equipped preferred).
+   */
+  public getChopToolCatalogId(playerId: string): string | null {
+    const inventory = this.playerInventories.get(playerId);
+    if (!inventory) return null;
+    const usable = (i: InventoryItem) =>
+      isChopAxeItemId(i.itemId) && (i.quantity ?? 1) > 0;
+    const equipped = inventory.items.find((i) => i.isEquipped && usable(i));
+    if (equipped) return equipped.itemId;
+    const any = inventory.items.find(usable);
+    return any?.itemId ?? null;
+  }
+
+  /**
+   * ES: Peso/slots máx. (RPG nivel + stats). EN: Max weight/slots from RPG.
+   */
+  public applyCarryingCaps(
+    playerId: string,
+    maxWeight: number,
+    maxSlots: number
+  ): void {
+    const inv = this.playerInventories.get(playerId);
+    if (!inv) return;
+    inv.maxWeight = maxWeight;
+    inv.maxSlots = maxSlots;
+    const normalized = this.ensureSlots(inv);
+    this.playerInventories.set(playerId, normalized);
+    this.room.broadcast("inventory:updated", {
+      playerId,
+      inventory: normalized,
+      timestamp: Date.now(),
+    } as InventoryEventData);
   }
 
   /**

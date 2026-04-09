@@ -5,18 +5,30 @@ import { InventoryItem } from '@/types/inventory.types';
 
 export class ShopEvents {
   private room: Room;
-  private grantItemToPlayer: (playerId: string, item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) => void;
+  private grantItemToPlayer: (
+    playerId: string,
+    item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>
+  ) => number;
   private getPlayerRole: (playerId: string) => string | undefined;
   private getPlayerMapId: (playerId: string) => string | null;
-  private economy: { chargeWalletMajor: (userId: string, amount: number, reason?: string) => boolean };
+  private economy: {
+    chargeWalletMajor: (userId: string, amount: number, reason?: string) => boolean;
+    creditWalletMajor: (userId: string, amount: number, reason?: string) => void;
+  };
 
   constructor(
     room: Room,
     opts: {
-      grantItemToPlayer: (playerId: string, item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) => void;
+      grantItemToPlayer: (
+        playerId: string,
+        item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>
+      ) => number;
       getPlayerRole: (playerId: string) => string | undefined;
       getPlayerMapId: (playerId: string) => string | null;
-      economy: { chargeWalletMajor: (userId: string, amount: number, reason?: string) => boolean };
+      economy: {
+        chargeWalletMajor: (userId: string, amount: number, reason?: string) => boolean;
+        creditWalletMajor: (userId: string, amount: number, reason?: string) => void;
+      };
     }
   ) {
     this.room = room;
@@ -58,7 +70,7 @@ export class ShopEvents {
       if (!ok) { client.send('shop:error', { message: 'Fondos insuficientes' }); return; }
       // grant items
       const cat = ITEMS_CATALOG[entry.itemId];
-      this.grantItemToPlayer(client.sessionId, {
+      const added = this.grantItemToPlayer(client.sessionId, {
         itemId: entry.itemId,
         name: cat?.name ?? entry.itemId,
         description: cat?.name ?? entry.itemId,
@@ -71,8 +83,28 @@ export class ShopEvents {
         icon: cat?.icon ?? '📦',
         thumb: cat?.thumb,
       });
-      if (typeof entry.stock === 'number') entry.stock -= qty;
-      client.send('shop:success', { itemId: entry.itemId, quantity: qty, total });
+      if (added < qty) {
+        const refund = entry.price * (qty - added);
+        if (refund > 0) {
+          this.economy.creditWalletMajor(
+            client.sessionId,
+            refund,
+            `shop:refund:${cfg.id}:${entry.itemId}`
+          );
+        }
+      }
+      if (added <= 0) {
+        client.send('shop:error', {
+          message: 'No cabe en el inventario (peso o ranuras). Se reembolsó el pago.',
+        });
+        return;
+      }
+      if (typeof entry.stock === 'number') entry.stock -= added;
+      client.send('shop:success', {
+        itemId: entry.itemId,
+        quantity: added,
+        total: entry.price * added,
+      });
     });
   }
 

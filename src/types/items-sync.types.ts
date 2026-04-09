@@ -31,6 +31,17 @@ export interface ItemCollectRequest {
   spawnId: string;
 }
 
+export interface ItemDropRequest {
+  mapId: string;
+  itemInstanceId: string;
+  quantity?: number;
+}
+
+export interface ItemsSpawnMessage {
+  mapId: string;
+  spawn: WorldItemState;
+}
+
 export type ItemsEventCallback<T> = (data: T) => void;
 export type ItemsStateCallback = ItemsEventCallback<ItemsStateResponse>;
 export type ItemsUpdateCallback = ItemsEventCallback<ItemsUpdateResponse>;

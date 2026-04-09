@@ -27,6 +27,8 @@
 // Mock implementation for "dumb" mode
 export class GameRedis {
   private players = new Map<string, any>();
+  /** ES: Inventario por usuario normalizado (reconexión ≠ mismo sessionId Colyseus). */
+  private inventoryByNormUsername = new Map<string, unknown>();
   private onlinePlayers = new Set<string>();
   private chatMessages: any[] = [];
   private worldStates = new Map<string, any>();
@@ -157,8 +159,26 @@ export class GameRedis {
     console.log("🧹 Mock Redis cleanup (noop)");
   }
 
+  savePlayerInventorySnapshot(normUsername: string, inventory: unknown) {
+    const key = normUsername.trim().toLowerCase();
+    if (!key) return;
+    try {
+      this.inventoryByNormUsername.set(key, JSON.parse(JSON.stringify(inventory)));
+    } catch {
+      this.inventoryByNormUsername.set(key, inventory);
+    }
+  }
+
+  getPlayerInventorySnapshot(normUsername: string): unknown | null {
+    const key = normUsername.trim().toLowerCase();
+    if (!key) return null;
+    const v = this.inventoryByNormUsername.get(key);
+    return v ?? null;
+  }
+
   async cleanupAllData() {
     this.players.clear();
+    this.inventoryByNormUsername.clear();
     this.onlinePlayers.clear();
     this.chatMessages = [];
     this.worldStates.clear();
@@ -210,4 +230,8 @@ export const gameRedis = {
   getServerStats: () => getGameRedis().getServerStats(),
   cleanupExpiredData: () => getGameRedis().cleanupExpiredData(),
   cleanupAllData: () => getGameRedis().cleanupAllData(),
+  savePlayerInventorySnapshot: (u: string, inv: unknown) =>
+    getGameRedis().savePlayerInventorySnapshot(u, inv),
+  getPlayerInventorySnapshot: (u: string) =>
+    getGameRedis().getPlayerInventorySnapshot(u),
 };

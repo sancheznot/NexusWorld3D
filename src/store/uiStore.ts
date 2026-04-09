@@ -16,6 +16,8 @@ interface UIState {
   isPauseMenuOpen: boolean;
   /** ES: Ranura rápida seleccionada 0–4. EN: Selected quick slot 0–4. */
   hotbarSelectedSlot: number;
+  /** ES: Panel de crafting (C). EN: Crafting panel. */
+  isCraftingOpen: boolean;
   showCharacterCreator: boolean;
   
   // HUD visibility
@@ -28,6 +30,7 @@ interface UIState {
   
   // Notifications
   notifications: Notification[];
+  itemGainToasts: ItemGainToast[];
   
   // Chat
   chatMessages: ChatMessage[];
@@ -47,6 +50,8 @@ interface UIState {
   togglePauseMenu: () => void;
   setPauseMenuOpen: (open: boolean) => void;
   setHotbarSelectedSlot: (slot: number) => void;
+  toggleCrafting: () => void;
+  setCraftingOpen: (isOpen: boolean) => void;
   setInventoryOpen: (isOpen: boolean) => void;
   setShowCharacterCreator: (show: boolean) => void;
   setMapOpen: (isOpen: boolean) => void;
@@ -61,6 +66,8 @@ interface UIState {
   addNotification: (notification: Notification) => void;
   removeNotification: (id: string) => void;
   clearNotifications: () => void;
+  pushItemGainToast: (t: Omit<ItemGainToast, 'id' | 'timestamp'> & { id?: string }) => void;
+  removeItemGainToast: (id: string) => void;
   addChatMessage: (message: ChatMessage) => void;
   setChatInput: (input: string) => void;
   setChatChannel: (channel: string) => void;
@@ -76,6 +83,20 @@ interface Notification {
   message: string;
   duration?: number;
   timestamp: Date;
+}
+
+/** ES: Toast derecho (+cantidad / ítem). EN: Right-side item gain toast. */
+export interface ItemGainToast {
+  id: string;
+  itemId: string;
+  name: string;
+  icon: string;
+  quantity: number;
+  timestamp: number;
+  /** ES: Línea secundaria (p. ej. vida del árbol). EN: Secondary line (e.g. tree HP). */
+  subtitle?: string;
+  /** ES: Estilo visual (golpe de tala, etc.). EN: Visual variant. */
+  variant?: 'default' | 'chop';
 }
 
 interface ChatMessage {
@@ -102,24 +123,63 @@ export const useUIStore = create<UIState>()(
       isSettingsOpen: false,
       isPauseMenuOpen: false,
       hotbarSelectedSlot: 0,
+      isCraftingOpen: false,
       showCharacterCreator: false,
       isHUDVisible: true,
       isMinimapVisible: true,
       isLoading: false,
       loadingMessage: '',
       notifications: [],
+      itemGainToasts: [],
       chatMessages: [],
       chatInput: '',
       chatChannel: 'global',
 
       // Actions
       toggleInventory: () => {
-        set((state) => ({
-          isInventoryOpen: !state.isInventoryOpen,
-          isMapOpen: state.isInventoryOpen ? state.isMapOpen : false,
-          isShopOpen: state.isInventoryOpen ? state.isShopOpen : false,
-          isSettingsOpen: state.isInventoryOpen ? state.isSettingsOpen : false,
-          isPauseMenuOpen: state.isInventoryOpen ? state.isPauseMenuOpen : false,
+        set((state) => {
+          const next = !state.isInventoryOpen;
+          return {
+            isInventoryOpen: next,
+            isMapOpen: state.isInventoryOpen ? state.isMapOpen : false,
+            isShopOpen: state.isInventoryOpen ? state.isShopOpen : false,
+            isSettingsOpen: state.isInventoryOpen ? state.isSettingsOpen : false,
+            isPauseMenuOpen: state.isInventoryOpen ? state.isPauseMenuOpen : false,
+            isCraftingOpen: next ? false : state.isCraftingOpen,
+          };
+        });
+      },
+
+      toggleCrafting: () => {
+        set((state) => {
+          const next = !state.isCraftingOpen;
+          return {
+            isCraftingOpen: next,
+            ...(next
+              ? {
+                  isInventoryOpen: false,
+                  isMapOpen: false,
+                  isShopOpen: false,
+                  isSettingsOpen: false,
+                  isPauseMenuOpen: false,
+                }
+              : {}),
+          };
+        });
+      },
+
+      setCraftingOpen: (isOpen) => {
+        set(() => ({
+          isCraftingOpen: isOpen,
+          ...(isOpen
+            ? {
+                isInventoryOpen: false,
+                isMapOpen: false,
+                isShopOpen: false,
+                isSettingsOpen: false,
+                isPauseMenuOpen: false,
+              }
+            : {}),
         }));
       },
 
@@ -219,6 +279,7 @@ export const useUIStore = create<UIState>()(
                   isBankOpen: false,
                   isChatOpen: false,
                   isSettingsOpen: false,
+                  isCraftingOpen: false,
                 }
               : {}),
           };
@@ -238,6 +299,7 @@ export const useUIStore = create<UIState>()(
                 isBankOpen: false,
                 isChatOpen: false,
                 isSettingsOpen: false,
+                isCraftingOpen: false,
               }
             : {}),
         }));
@@ -318,6 +380,29 @@ export const useUIStore = create<UIState>()(
         set({ notifications: [] });
       },
 
+      pushItemGainToast: (t) => {
+        const id = t.id ?? `gain-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const entry: ItemGainToast = {
+          ...t,
+          id,
+          timestamp: Date.now(),
+          variant: t.variant ?? 'default',
+        };
+        set((state) => ({
+          itemGainToasts: [...state.itemGainToasts.slice(-7), entry],
+        }));
+        const ms = 3200;
+        window.setTimeout(() => {
+          get().removeItemGainToast(id);
+        }, ms);
+      },
+
+      removeItemGainToast: (id) => {
+        set((state) => ({
+          itemGainToasts: state.itemGainToasts.filter((x) => x.id !== id),
+        }));
+      },
+
       addChatMessage: (message) => {
         set((state) => ({
           chatMessages: [...state.chatMessages, message].slice(-100) // Keep last 100 messages
@@ -351,6 +436,7 @@ export const useUIStore = create<UIState>()(
           isBankOpen: false,
           isSettingsOpen: false,
           isPauseMenuOpen: false,
+          isCraftingOpen: false,
           showCharacterCreator: false,
         });
       },

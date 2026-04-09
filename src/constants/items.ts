@@ -34,6 +34,10 @@ export const ITEMS_CATALOG: Record<
     weight: number;
     icon: string;
     thumb?: string; // ruta a PNG pre-generado para UI
+    /** ES: Tope de apilado por slot. EN: Max count per stack. */
+    maxStack?: number;
+    /** ES: Durabilidad máx. (armas/herramientas). EN: Max durability for gear. */
+    maxDurability?: number;
     visual?: {
       path: string;
       type: "glb" | "gltf" | "fbx" | "obj";
@@ -48,6 +52,7 @@ export const ITEMS_CATALOG: Record<
     type: "consumable",
     rarity: "common",
     weight: 0.01,
+    maxStack: 999,
     icon: "🪙",
     visual: {
       path: "/models/items/consumable/money/moneyBag_withMoney.glb",
@@ -63,6 +68,7 @@ export const ITEMS_CATALOG: Record<
     type: "consumable",
     rarity: "common",
     weight: 0.5,
+    maxStack: 30,
     icon: "🧪",
     visual: {
       path: "/models/terrain/environment/Flower_01.glb",
@@ -76,6 +82,7 @@ export const ITEMS_CATALOG: Record<
     type: 'consumable',
     rarity: 'common',
     weight: 0.2,
+    maxStack: 99,
     icon: '🍎',
     visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.6 },
     effects: { health: 5 }
@@ -85,6 +92,7 @@ export const ITEMS_CATALOG: Record<
     type: 'consumable',
     rarity: 'common',
     weight: 0.3,
+    maxStack: 99,
     icon: '🍞',
     visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.5 },
     effects: { health: 10 }
@@ -94,6 +102,7 @@ export const ITEMS_CATALOG: Record<
     type: 'consumable',
     rarity: 'common',
     weight: 0.5,
+    maxStack: 99,
     icon: '💧',
     visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.4 },
     effects: { health: 5 }
@@ -103,6 +112,7 @@ export const ITEMS_CATALOG: Record<
     type: 'consumable',
     rarity: 'uncommon',
     weight: 0.8,
+    maxStack: 50,
     icon: '🍖',
     visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.6 },
     effects: { health: 25 }
@@ -112,6 +122,7 @@ export const ITEMS_CATALOG: Record<
     type: 'consumable',
     rarity: 'common',
     weight: 0.4,
+    maxStack: 99,
     icon: '🧀',
     visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.5 },
     effects: { health: 15 }
@@ -121,9 +132,65 @@ export const ITEMS_CATALOG: Record<
     type: 'consumable',
     rarity: 'uncommon',
     weight: 0.6,
+    maxStack: 50,
     icon: '🐟',
     visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.5 },
     effects: { health: 20 }
+  },
+  material_cloth: {
+    name: 'Trapo',
+    type: 'misc',
+    rarity: 'common',
+    weight: 0.08,
+    maxStack: 99,
+    icon: '🧵',
+    visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.35 },
+  },
+  consumable_bandage: {
+    name: 'Vendaje',
+    type: 'consumable',
+    rarity: 'common',
+    weight: 0.05,
+    maxStack: 30,
+    icon: '🩹',
+    effects: { health: 20 },
+  },
+  sword_iron: {
+    name: 'Espada de Hierro',
+    type: 'weapon',
+    rarity: 'uncommon',
+    weight: 4,
+    maxStack: 1,
+    maxDurability: 150,
+    icon: '⚔️',
+    visual: { path: '/models/terrain/environment/Plant_02.glb', type: 'gltf', scale: 0.7 },
+  },
+  tool_axe: {
+    name: 'Hacha',
+    type: 'weapon',
+    rarity: 'common',
+    weight: 2.2,
+    maxStack: 1,
+    icon: '🪓',
+    visual: {
+      path: '/models/tools/farm/axe_1.glb',
+      type: 'glb',
+      scale: 0.45,
+      rotation: [0, Math.PI * 0.15, 0],
+    },
+  },
+  material_wood_log: {
+    name: 'Tronco',
+    type: 'misc',
+    rarity: 'common',
+    weight: 1.2,
+    maxStack: 999,
+    icon: '🪵',
+    visual: {
+      path: '/models/terrain/environment/Plant_02.glb',
+      type: 'gltf',
+      scale: 0.55,
+    },
   },
 };
 
@@ -164,6 +231,42 @@ export const ITEM_SPAWNS: Record<string, ItemSpawnConfig[]> = {
         type: "consumable" as ItemType,
         rarity: "common" as ItemRarity,
         icon: "🧪",
+      },
+    },
+    {
+      id: "spawn_tool_axe",
+      mapId: "exterior",
+      position: { x: -12.6, y: 1.0, z: 24.8 },
+      respawnSec: 120,
+      item: {
+        itemId: "tool_axe",
+        quantity: 1,
+        maxStack: 1,
+        level: 1,
+        weight: 2.2,
+        name: "Hacha",
+        description: "Para talar árboles (click con el ítem en la hotbar)",
+        type: "weapon" as ItemType,
+        rarity: "common" as ItemRarity,
+        icon: "🪓",
+      },
+    },
+    {
+      id: "spawn_cloth_scraps",
+      mapId: "exterior",
+      position: { x: -11.2, y: 1.0, z: 26.4 },
+      respawnSec: 45,
+      item: {
+        itemId: "material_cloth",
+        quantity: 1,
+        maxStack: 20,
+        level: 1,
+        weight: 0.08,
+        name: "Trapo",
+        description: "Sirve para fabricar vendajes",
+        type: "misc" as ItemType,
+        rarity: "common" as ItemRarity,
+        icon: "🧵",
       },
     },
   ],

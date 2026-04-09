@@ -28,6 +28,7 @@ export const SHOPS: Record<ShopId, ShopConfig> = {
     items: [
       { itemId: 'coin_gold', price: 50, stock: 100 },
       { itemId: 'potion_health', price: 30, stock: 20 },
+      { itemId: 'tool_axe', price: 35, stock: 15 },
     ],
   },
   blacksmith: {

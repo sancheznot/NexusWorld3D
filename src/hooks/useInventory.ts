@@ -3,7 +3,10 @@ import economyClient from '@/lib/colyseus/EconomyClient';
 import { colyseusClient } from '@/lib/colyseus/client';
 import { inventoryService, DEFAULT_ITEMS } from '@/lib/services/inventory';
 import inventoryClient from '@/lib/colyseus/InventoryClient';
-import { InventoryItem, Inventory, Equipment, ItemType, ItemRarity } from '@/types/inventory.types';
+import { parseEconomyWalletAmount } from '@/lib/economy/parseWalletPayload';
+import { usePlayerStore } from '@/store/playerStore';
+import { useUIStore } from '@/store/uiStore';
+import { InventoryItem, Inventory, Equipment, ItemType, ItemRarity, ItemStats } from '@/types/inventory.types';
 
 /**
  * Hook para gestionar el inventario del jugador
@@ -13,6 +16,8 @@ export function useInventory() {
   const [inventory, setInventory] = useState<Inventory>(() => inventoryService.getInventory());
   const [equipment, setEquipment] = useState<Equipment>(() => inventoryService.getEquipment());
   const [isLoading, setIsLoading] = useState(false);
+  const rpgDamageBonus = usePlayerStore((s) => s.rpgSync?.damageBonus ?? 0);
+  const addNotification = useUIStore((s) => s.addNotification);
 
   // Suscribirse a cambios del servicio y del servidor (Colyseus)
   useEffect(() => {
@@ -21,15 +26,9 @@ export function useInventory() {
       setEquipment(inventoryService.getEquipment());
     });
     const onWallet = (data: unknown) => {
-      // data puede venir como número o como { amount }
-      const payload = data as { amount?: number } | number | undefined;
-      let amount = 0;
-      if (typeof payload === 'number') amount = payload;
-      else if (payload && typeof (payload as { amount?: number }).amount === 'number') amount = (payload as { amount?: number }).amount as number;
-      // Fallback: si llega en minor units por error, normalizar
-      if (amount >= 10000) amount = amount / 100;
+      const amount = parseEconomyWalletAmount(data);
       const inv = inventoryService.getInventory();
-      inv.gold = Math.round(amount);
+      inv.gold = amount;
       inventoryService.setInventorySnapshot(inv);
       setInventory(inventoryService.getInventory());
       console.log(`💰 Wallet sincronizado: ${amount} -> inventario: ${inv.gold}`);
@@ -38,6 +37,8 @@ export function useInventory() {
 
     // Suscripción a eventos del servidor de inventario
     const onInvUpdated = (data: { playerId: string; inventory: Inventory }) => {
+      const me = colyseusClient.getSessionId();
+      if (me && data.playerId !== me) return;
       if (data?.inventory) {
         console.log(`📦 Inventario actualizado desde servidor:`, data.inventory);
         inventoryService.setInventorySnapshot(data.inventory);
@@ -53,8 +54,23 @@ export function useInventory() {
         setEquipment(inventoryService.getEquipment());
       }
     };
+    const onInvError = (data: { message?: string }) => {
+      const message =
+        typeof data?.message === 'string' && data.message.length > 0
+          ? data.message
+          : 'Acción de inventario rechazada';
+      addNotification({
+        id: `inv-err-${Date.now()}`,
+        type: 'warning',
+        title: 'Inventario',
+        message,
+        timestamp: new Date(),
+        duration: 5000,
+      });
+    };
     inventoryClient.onInventoryUpdated(onInvUpdated);
     inventoryClient.onInventoryData(onInvData);
+    inventoryClient.onInventoryError(onInvError);
     
     // Esperar a que la conexión esté lista antes de solicitar inventario
     const requestInventory = () => {
@@ -64,9 +80,9 @@ export function useInventory() {
       }
       const room = inventoryClient.getRoom?.();
       if (room && room.connection.isOpen) {
-        const currentInventory = inventoryService.getInventory();
-        room.send('inventory:update', { inventory: currentInventory });
-        console.log('📦 Enviando inventario actual al servidor:', currentInventory);
+        // ES: Nunca enviar `inventory:update` desde el cliente al conectar — el servidor es la fuente de verdad
+        // y un snapshot local vacío o viejo sobrescribía el inventario (pérdida de hacha / troncos).
+        // EN: Never push client inventory on connect; server is authoritative.
         room.send('inventory:request');
         console.log('📦 Solicitando inventario del servidor');
       } else {
@@ -82,8 +98,9 @@ export function useInventory() {
       economyClient.off('economy:wallet', onWallet);
       inventoryClient.off('inventory:updated', onInvUpdated as unknown as (d: unknown) => void);
       inventoryClient.off('inventory:data', onInvData as unknown as (d: unknown) => void);
+      inventoryClient.off('inventory:error', onInvError as unknown as (d: unknown) => void);
     };
-  }, []);
+  }, [addNotification]);
 
   /**
    * Agregar item al inventario
@@ -228,9 +245,14 @@ export function useInventory() {
   /**
    * Obtener estadísticas totales
    */
-  const getTotalStats = useCallback(() => {
-    return inventoryService.getTotalStats();
-  }, []);
+  const getTotalStats = useCallback((): ItemStats => {
+    const base = inventoryService.getTotalStats();
+    if (rpgDamageBonus <= 0) return base;
+    return {
+      ...base,
+      damage: (base.damage ?? 0) + rpgDamageBonus,
+    };
+  }, [rpgDamageBonus]);
 
   /**
    * Agregar items de prueba

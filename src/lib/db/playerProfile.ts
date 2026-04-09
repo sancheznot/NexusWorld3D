@@ -36,6 +36,8 @@ export interface PlayerProfileRow {
   map_id: string;
   role_id: string | null;
   stats_json: unknown;
+  /** ES: Snapshot de inventario (JSON). EN: Inventory snapshot (tras migración 003). */
+  inventory_json?: unknown | null;
 }
 
 export interface PlayerProfileUpsertInput {
@@ -54,6 +56,8 @@ export interface PlayerProfileUpsertInput {
   level: number;
   experience: number;
   statsJson?: unknown;
+  /** ES: Inventario completo para persistencia. EN: Full inventory JSON. */
+  inventoryJson?: unknown;
 }
 
 function rowToProfile(r: RowDataPacket): PlayerProfileRow {
@@ -78,6 +82,7 @@ function rowToProfile(r: RowDataPacket): PlayerProfileRow {
     map_id: String(r.map_id),
     role_id: r.role_id == null || r.role_id === "" ? null : String(r.role_id),
     stats_json: r.stats_json,
+    inventory_json: r.inventory_json ?? null,
   };
 }
 
@@ -93,7 +98,7 @@ export async function fetchPlayerProfileByNorm(
     const result = await pool.query<RowDataPacket[]>(
       `SELECT username, username_norm, world_id, health, max_health, stamina, max_stamina,
             hunger, max_hunger, level, experience,
-            pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, map_id, role_id, stats_json
+            pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, map_id, role_id, stats_json, inventory_json
      FROM player_profile WHERE username_norm = ? LIMIT 1`,
       [usernameNorm]
     );
@@ -121,14 +126,20 @@ export async function upsertPlayerProfile(
   const statsJson =
     input.statsJson === undefined ? null : JSON.stringify(input.statsJson);
   const roleId = input.roleId ?? null;
+  const inventoryJson =
+    input.inventoryJson === undefined
+      ? null
+      : typeof input.inventoryJson === "string"
+        ? input.inventoryJson
+        : JSON.stringify(input.inventoryJson);
 
   try {
     await pool.query(
       `INSERT INTO player_profile (
       username, username_norm, world_id, health, max_health, stamina, max_stamina,
       hunger, max_hunger, level, experience,
-      pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, map_id, role_id, stats_json
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, map_id, role_id, stats_json, inventory_json
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON DUPLICATE KEY UPDATE
       username = VALUES(username),
       world_id = VALUES(world_id),
@@ -148,7 +159,8 @@ export async function upsertPlayerProfile(
       rot_z = VALUES(rot_z),
       map_id = VALUES(map_id),
       role_id = VALUES(role_id),
-      stats_json = VALUES(stats_json)`,
+      stats_json = COALESCE(VALUES(stats_json), stats_json),
+      inventory_json = COALESCE(VALUES(inventory_json), inventory_json)`,
     [
       input.username,
       norm,
@@ -170,6 +182,7 @@ export async function upsertPlayerProfile(
       input.mapId,
       roleId,
       statsJson,
+      inventoryJson,
     ]
     );
   } catch (e) {

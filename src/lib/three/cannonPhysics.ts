@@ -537,7 +537,14 @@ export class CannonPhysics {
   private lastDebugTime = 0;
 
   updateMovement(
-    input: { x: number; z: number; isRunning: boolean; stamina: number },
+    input: {
+      x: number;
+      z: number;
+      isRunning: boolean;
+      stamina: number;
+      /** ES: Multiplicador de velocidad (stats agilidad). EN: Move speed multiplier. */
+      moveSpeedMul?: number;
+    },
     deltaTime: number
   ) {
     if (!this.playerBody) {
@@ -552,7 +559,8 @@ export class CannonPhysics {
     const canRun = input.isRunning && input.stamina > 10;
 
     // Calcular velocidad objetivo (ajustada para 60 FPS)
-    const maxSpeed = canRun ? 12 : 7; // Solo correr si hay stamina
+    const spdMul = Math.max(0.65, Math.min(1.45, input.moveSpeedMul ?? 1));
+    const maxSpeed = (canRun ? 12 : 7) * spdMul; // Solo correr si hay stamina
 
     if (isGrounded) {
       // --- FÍSICA DE SUELO (Snappy) ---

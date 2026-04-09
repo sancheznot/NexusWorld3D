@@ -1,4 +1,11 @@
-import { InventoryItem, Inventory, ItemType, ItemRarity, ItemStats, Equipment } from '@/types/inventory.types';
+import {
+  InventoryItem,
+  Inventory,
+  ItemType,
+  ItemRarity,
+  ItemStats,
+  Equipment,
+} from '@/types/inventory.types';
 import { 
   INVENTORY_SLOTS, 
   INVENTORY_WEIGHT, 
@@ -6,6 +13,15 @@ import {
   INVENTORY_DEBUG 
 } from '@/constants';
 import { ITEMS_CATALOG } from '@/constants/items';
+import { isChopAxeItemId } from '@/constants/choppableTrees';
+import {
+  applyCatalogStackCapsToItems,
+  canMergeIntoStack,
+  catalogMaxDurability,
+  catalogMaxStack,
+  coalesceInventoryStacks,
+  splitOversizedStacks,
+} from '@/lib/inventory/itemStacking';
 
 /**
  * Servicio de Inventario - Gestión de items del jugador
@@ -66,6 +82,16 @@ export class InventoryService {
   }
 
   /**
+   * ES: Caps desde servidor (RPG nivel + stats). EN: Authoritative caps from RPG sync.
+   */
+  applyAuthoritativeCarryCaps(level: number, maxWeight: number, maxSlots: number): void {
+    this.playerLevel = level;
+    this.inventory.maxWeight = maxWeight;
+    this.inventory.maxSlots = maxSlots;
+    this.emitChange();
+  }
+
+  /**
    * Actualizar nivel del jugador
    */
   updatePlayerLevel(newLevel: number): void {
@@ -89,26 +115,31 @@ export class InventoryService {
   }
 
   /**
-   * Verificar si hay espacio en slots
-   */
-  private hasSlotSpace(): boolean {
-    return this.inventory.usedSlots < this.inventory.maxSlots;
-  }
-
-  /**
-   * Verificar si hay espacio en peso
-   */
-  private hasWeightSpace(itemWeight: number, quantity: number): boolean {
-    const totalWeight = this.calculateTotalWeight() + (itemWeight * quantity);
-    return totalWeight <= this.inventory.maxWeight;
-  }
-
-  /**
    * Agregar item al inventario
    */
   addItem(item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>): boolean {
-    // Enriquecer con catálogo (icon, weight, thumb, visual->model) si falta data
+    applyCatalogStackCapsToItems(this.inventory.items);
+    coalesceInventoryStacks(this.inventory);
+    splitOversizedStacks(this.inventory);
+
     const catalog = ITEMS_CATALOG[item.itemId];
+    const fromPayload =
+      typeof item.maxStack === 'number' && item.maxStack > 0
+        ? Math.floor(item.maxStack)
+        : 0;
+    const maxStack = Math.max(catalogMaxStack(item.itemId), fromPayload);
+
+    let maxDurability = item.maxDurability;
+    let durability = item.durability;
+    const catMd = catalogMaxDurability(item.itemId);
+    if (isChopAxeItemId(item.itemId)) {
+      maxDurability = maxDurability ?? 80;
+      durability = typeof durability === 'number' ? durability : maxDurability;
+    } else if (catMd) {
+      maxDurability = maxDurability ?? catMd;
+      durability = typeof durability === 'number' ? durability : maxDurability;
+    }
+
     const merged: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'> = {
       ...item,
       name: item.name ?? catalog?.name ?? item.itemId,
@@ -120,60 +151,87 @@ export class InventoryService {
       model: item.model ?? catalog?.visual?.path,
       level: item.level ?? 1,
       quantity: item.quantity ?? 1,
-      maxStack: item.maxStack ?? 1,
+      maxStack,
       description: item.description ?? (catalog?.name ?? item.itemId),
+      maxDurability,
+      durability,
     };
 
-    // Verificar si hay espacio en slots
-    if (!this.hasSlotSpace()) {
-      if (INVENTORY_DEBUG.ENABLE_LOGS) {
-        console.warn('⚠️ Inventario lleno (slots)');
-      }
-      return false;
-    }
+    const incomingMeta: Pick<InventoryItem, 'itemId' | 'maxDurability' | 'durability'> = {
+      itemId: item.itemId,
+      maxDurability,
+      durability,
+    };
 
-    // Verificar si hay espacio en peso
-    if (!this.hasWeightSpace(merged.weight, merged.quantity)) {
+    let remaining = Math.max(1, Math.floor(merged.quantity));
+    const unitW = merged.weight;
+
+    const roomW = this.inventory.maxWeight - this.calculateTotalWeight();
+    if (roomW < unitW) {
       if (INVENTORY_DEBUG.ENABLE_LOGS) {
         console.warn('⚠️ Inventario lleno (peso)');
       }
       return false;
     }
+    remaining = Math.min(remaining, Math.floor(roomW / unitW));
+    if (remaining <= 0) return false;
 
-    // Buscar si el item ya existe (para stacking)
-    const existingItem = this.inventory.items.find(
-      invItem => invItem.itemId === merged.itemId && invItem.quantity < invItem.maxStack
-    );
+    let placedAny = false;
+    while (remaining > 0) {
+      const existingItem = this.inventory.items.find(
+        (invItem) =>
+          !invItem.isEquipped &&
+          invItem.quantity < invItem.maxStack &&
+          canMergeIntoStack(invItem, incomingMeta)
+      );
 
-    if (existingItem) {
-      // Stack con item existente
-      const canStack = existingItem.quantity + merged.quantity <= existingItem.maxStack;
-      if (canStack) {
-        existingItem.quantity += merged.quantity;
-        this.inventory.currentWeight = this.calculateTotalWeight();
-        if (INVENTORY_DEBUG.ENABLE_LOGS) {
-          console.log(`✅ Item agregado al stack: ${merged.name} (${merged.quantity})`);
-        }
-        this.emitChange();
-        return true;
+      if (existingItem) {
+        const space = existingItem.maxStack - existingItem.quantity;
+        const add = Math.min(space, remaining);
+        existingItem.quantity += add;
+        remaining -= add;
+        placedAny = true;
+        continue;
       }
+
+      if (this.inventory.items.length >= this.inventory.maxSlots) {
+        break;
+      }
+
+      const chunk = Math.min(remaining, maxStack);
+      const slot = this.findEmptySlot();
+      if (slot < 0) break;
+
+      const newItem: InventoryItem = {
+        ...merged,
+        quantity: chunk,
+        id: this.generateItemId(),
+        isEquipped: false,
+        slot,
+        durability,
+        maxDurability,
+      };
+
+      this.inventory.items.push(newItem);
+      remaining -= chunk;
+      placedAny = true;
     }
 
-    // Crear nuevo item
-    const newItem: InventoryItem = {
-      ...merged,
-      id: this.generateItemId(),
-      isEquipped: false,
-      slot: this.findEmptySlot()
-    };
+    if (!placedAny) {
+      if (INVENTORY_DEBUG.ENABLE_LOGS) {
+        console.warn('⚠️ Inventario lleno (slots) o sin espacio');
+      }
+      return false;
+    }
 
-    this.inventory.items.push(newItem);
-    this.inventory.usedSlots++;
+    applyCatalogStackCapsToItems(this.inventory.items);
+    coalesceInventoryStacks(this.inventory);
+    this.inventory.usedSlots = this.inventory.items.length;
     this.inventory.currentWeight = this.calculateTotalWeight();
     this.emitChange();
-    
+
     if (INVENTORY_DEBUG.ENABLE_LOGS) {
-      console.log(`✅ Item agregado: ${newItem.name} (${newItem.quantity})`);
+      console.log(`✅ Item(s) agregado(s): ${merged.name}`);
     }
     return true;
   }
@@ -229,14 +287,11 @@ export class InventoryService {
       return false;
     }
 
-    // Desequipar item actual si existe
     this.unequipItem(item.type);
-
-    // Equipar nuevo item
-    this.equipment[this.getEquipmentSlot(item.type)] = item;
     item.isEquipped = true;
+    this.syncEquipmentFromInventoryItems();
     this.emitChange();
-    
+
     console.log(`✅ Item equipado: ${item.name}`);
     return true;
   }
@@ -245,17 +300,17 @@ export class InventoryService {
    * Desequipar item
    */
   unequipItem(itemType: ItemType): boolean {
-    const slot = this.getEquipmentSlot(itemType);
-    const equippedItem = this.equipment[slot];
-    
+    const equippedItem = this.inventory.items.find(
+      (i) => i.type === itemType && i.isEquipped
+    );
     if (!equippedItem) {
       return false;
     }
 
     equippedItem.isEquipped = false;
-    delete this.equipment[slot];
+    this.syncEquipmentFromInventoryItems();
     this.emitChange();
-    
+
     console.log(`✅ Item desequipado: ${equippedItem.name}`);
     return true;
   }
@@ -296,11 +351,39 @@ export class InventoryService {
    * Reemplazar inventario completo desde snapshot del servidor
    */
   setInventorySnapshot(inventory: Inventory): void {
-    this.inventory = { ...inventory };
-    // recalcular por seguridad
+    this.inventory = {
+      ...inventory,
+      items: inventory.items.map((i) => ({ ...i })),
+    };
     this.inventory.usedSlots = this.inventory.items.length;
     this.inventory.currentWeight = this.calculateTotalWeight();
+    this.syncEquipmentFromInventoryItems();
     this.emitChange();
+  }
+
+  /**
+   * ES: Aplica un ítem devuelto por Colyseus (`inventory:item-equipped` / `unequipped`) sin snapshot completo.
+   * EN: Merge single item from server equip broadcasts.
+   */
+  applyInventoryItemPatch(item: InventoryItem): void {
+    const idx = this.inventory.items.findIndex((i) => i.id === item.id);
+    if (idx === -1) return;
+    this.inventory.items[idx] = { ...this.inventory.items[idx], ...item };
+    this.inventory.currentWeight = this.calculateTotalWeight();
+    this.syncEquipmentFromInventoryItems();
+    this.emitChange();
+  }
+
+  /** ES: `equipment.*` coherente con `items[].isEquipped` (evita refs huérfanas tras `inventory:updated`). */
+  private syncEquipmentFromInventoryItems(): void {
+    const next: Equipment = {};
+    for (const item of this.inventory.items) {
+      if (!item.isEquipped) continue;
+      if (!this.isEquipable(item.type)) continue;
+      const key = this.getEquipmentSlot(item.type);
+      next[key] = item;
+    }
+    this.equipment = next;
   }
 
   /**

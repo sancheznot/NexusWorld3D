@@ -21,7 +21,7 @@ export class JobsEvents {
   private grantItemToPlayer: (
     playerId: string,
     item: Omit<InventoryItem, "id" | "isEquipped" | "slot">
-  ) => void;
+  ) => number;
   private getPlayerMapId: (playerId: string) => string | null;
   private getPlayerRole: (playerId: string) => ExtendedJobId | null;
   private setPlayerRole: (
@@ -42,7 +42,7 @@ export class JobsEvents {
       grantItemToPlayer: (
         playerId: string,
         item: Omit<InventoryItem, "id" | "isEquipped" | "slot">
-      ) => void;
+      ) => number;
       getPlayerMapId: (playerId: string) => string | null;
       getPlayerRole: (playerId: string) => ExtendedJobId | null;
       setPlayerRole: (playerId: string, roleId: ExtendedJobId | null) => void;
@@ -336,7 +336,7 @@ export class JobsEvents {
       this.economy.creditWalletMajor(client.sessionId, payout, `job:${cfg.id}`);
       // Optional item reward
       if (cfg.rewardItem) {
-        this.grantItemToPlayer(client.sessionId, {
+        void this.grantItemToPlayer(client.sessionId, {
           itemId: cfg.rewardItem.itemId,
           name: cfg.rewardItem.itemId,
           description: cfg.name,

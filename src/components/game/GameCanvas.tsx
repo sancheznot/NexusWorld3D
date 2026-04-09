@@ -19,6 +19,7 @@ import SideScrollCamera from '@/components/world/SideScrollCamera';
 import TestingCamera from '@/components/world/TestingCamera';
 import { useTestingCamera } from '@/hooks/useTestingCamera';
 import { useKeyboard } from '@/hooks/useKeyboard';
+import { useServerMovementSync } from '@/hooks/useServerMovementSync';
 import { getPhysicsInstance } from '@/hooks/useCannonPhysics';
 import LoginModal from '@/components/game/LoginModal';
 import GameLobby, {
@@ -35,7 +36,12 @@ import VehicleHUD from '@/components/ui/VehicleHUD';
 import AdminTeleportUI from '@/components/ui/AdminTeleportUI';
 import ChatWindow from '@/components/chat/ChatWindow';
 import InventoryUI from '@/components/inventory/InventoryUI';
+import CraftingUI from '@/components/inventory/CraftingUI';
+import { useGameWorldStore } from '@/store/gameWorldStore';
 import { ItemSpawner } from '@/components/world/ItemCollector';
+import ChoppableTreesLayer from '@/components/world/ChoppableTreesLayer';
+import ChopRaycastBridge from '@/components/world/ChopRaycastBridge';
+import ChopCityTreeSync from '@/components/world/ChopCityTreeSync';
 import { THREE_CONFIG } from '@/config/three.config';
 import createWebGPUGameRenderer from '@/lib/three/createWebGPUGameRenderer';
 import { Vector3 } from 'three';
@@ -57,6 +63,9 @@ import { NPCS } from '@/constants/npcs';
 import CannonCar from '@/components/vehicles/CannonCar';
 import CannonStepper from '@/components/physics/CannonStepper';
 import Minimap from '@/components/ui/Minimap';
+import TreeChopFeedback from '@/components/game/TreeChopFeedback';
+import ItemGainHud from '@/components/game/ItemGainHud';
+import WebGlContextRecovery from '@/components/game/WebGlContextRecovery';
 import LiveCameraCapture from '@/components/cameras/LiveCameraCapture';
 import DebugInfo from '@/components/ui/DebugInfo';
 import TruckSpawner from '@/components/game/TruckSpawner';
@@ -75,6 +84,7 @@ export default function GameCanvas() {
     isMapOpen,
     isChatOpen,
     isPauseMenuOpen,
+    isCraftingOpen,
     toggleInventory,
     toggleMap,
     toggleChat,
@@ -95,6 +105,11 @@ export default function GameCanvas() {
   const [contrast, setContrast] = useState(100);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentMap, setCurrentMap] = useState('exterior');
+  const setActiveMapId = useGameWorldStore((s) => s.setActiveMapId);
+
+  useEffect(() => {
+    setActiveMapId(currentMap);
+  }, [currentMap, setActiveMapId]);
   const [isDriving, setIsDriving] = useState(false);
   const [hidePlayerWhileDriving, setHidePlayerWhileDriving] = useState(false);
   const [canEnterVehicle, setCanEnterVehicle] = useState(false);
@@ -102,6 +117,7 @@ export default function GameCanvas() {
   const [vehicleModel, setVehicleModel] = useState('/models/vehicles/cars/City_Car_07.glb');
   const [showModelInfo, setShowModelInfo] = useState(false);
   const [meProfile, setMeProfile] = useState<GameLobbyMeProfile>(null);
+  const [webglRemountKey, setWebglRemountKey] = useState(0);
 
   const refreshMeProfile = useCallback(() => {
     if (status !== 'authenticated') return;
@@ -197,6 +213,10 @@ export default function GameCanvas() {
   
   // Deshabilitar controles del jugador cuando está conduciendo
   useKeyboard(isGameStarted && !showSettings && !isDriving);
+  /** ES: Física → store → Colyseus (persistencia de posición). EN: Physics pose → server. */
+  useServerMovementSync(
+    isGameStarted && !showSettings && !isDriving && isConnected
+  );
   
   // Toggle entrar/salir del vehículo (F)
   useEffect(() => {
@@ -515,8 +535,13 @@ export default function GameCanvas() {
     setIsGameStarted(true);
     const roomName =
       pendingRoom?.colyseusRoomName ?? frameworkColyseusRoomName;
+    const pBefore = usePlayerStore.getState().player;
+    const joinOpts =
+      pBefore?.username && pBefore.username.trim().length > 0
+        ? { username: pBefore.username.trim().slice(0, 64) }
+        : {};
     try {
-      await connect(roomName);
+      await connect(roomName, joinOpts);
     } catch {
       /* connectionError en useSocket */
     }
@@ -546,6 +571,7 @@ export default function GameCanvas() {
       {/* 3D Game Canvas - Only show when game is started */}
       {isGameStarted && (
         <Canvas
+          key={webglRemountKey}
           {...(THREE_CONFIG.rendering.preferWebGPU
             ? { gl: createWebGPUGameRenderer }
             : {})}
@@ -563,6 +589,11 @@ export default function GameCanvas() {
           className={`w-full h-full cursor-crosshair ${showSettings || isPauseMenuOpen ? 'pointer-events-none' : 'pointer-events-auto'}`}
         >
         <Suspense fallback={null}>
+            <WebGlContextRecovery
+              onRequestRemount={() =>
+                setWebglRemountKey((k) => k + 1)
+              }
+            />
             {/* Physics stepper for Cannon.js */}
             <CannonStepper />
             {/* Lighting */}
@@ -643,6 +674,13 @@ export default function GameCanvas() {
             <ItemSpawner 
               mapId={currentMap}
             />
+
+            {currentMap === 'exterior' && (
+              <ChoppableTreesLayer mapId={currentMap} />
+            )}
+
+            <ChopRaycastBridge />
+            <ChopCityTreeSync />
 
             {/* Capa de Waypoints de trabajos activos */}
             <JobWaypointsLayer currentMap={currentMap} playerRoleId={player?.roleId ?? null} isDriving={isDriving} />
@@ -775,7 +813,11 @@ export default function GameCanvas() {
       />
 
       {isGameStarted && (
-        <GameHUD isDriving={isDriving} currentMapId={currentMap} />
+        <>
+          <TreeChopFeedback />
+          <ItemGainHud />
+          <GameHUD isDriving={isDriving} currentMapId={currentMap} />
+        </>
       )}
       
       {/* Vehicle HUD - Mostrar solo cuando está conduciendo */}
@@ -884,6 +926,7 @@ export default function GameCanvas() {
       {/* UI Modals */}
       {/* Inventory UI */}
       <InventoryUI />
+      {isCraftingOpen && <CraftingUI />}
       {currentMap === 'bank' && <BankUI />}
       <ShopUI />
       <JobProgressUI />

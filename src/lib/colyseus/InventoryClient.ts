@@ -86,6 +86,19 @@ export class InventoryClient {
     room?.send('inventory:use-item', { id, itemId, slot });
   }
 
+  public executeCraft(recipeId: string): void {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('crafting:execute', { recipeId });
+  }
+
+  /** ES: Intercambiar / mover ítems entre ranuras. EN: Swap or move items between slots. */
+  public swapInventorySlots(fromSlot: number, toSlot: number): void {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient
+      .getSocket()
+      ?.send('inventory:swap-slots', { fromSlot, toSlot });
+  }
+
   /**
    * Dropear item
    */

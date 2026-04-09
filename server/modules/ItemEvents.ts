@@ -13,20 +13,81 @@ export interface WorldItemState {
   respawnSec?: number;
 }
 
+export type ItemEventsDropDeps = {
+  getPlayerPosition: (clientId: string) => { x: number; y: number; z: number } | null;
+  removeItemStackForWorldDrop: (
+    playerId: string,
+    itemInstanceId: string,
+    quantity: number
+  ) => {
+    ok: boolean;
+    base?: Omit<InventoryItem, "id" | "isEquipped" | "slot">;
+    message?: string;
+  };
+  /** ES: Tras recoger ítem del mundo (EXP RPG). EN: After world pickup (RPG XP). */
+  onItemGranted?: (playerId: string, itemId: string) => void;
+};
+
 export class ItemEvents {
   private room: Room;
   // MapaId -> items en el suelo
   private worldItems = new Map<string, Map<string, WorldItemState>>();
   private getPlayerMapId: (clientId: string) => string | null;
-  private grantItemToPlayer: (playerId: string, item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) => void;
+  private grantItemToPlayer: (
+    playerId: string,
+    item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>
+  ) => number;
+  private getPlayerPosition: (clientId: string) => { x: number; y: number; z: number } | null;
+  private removeItemStackForWorldDrop: ItemEventsDropDeps["removeItemStackForWorldDrop"];
+  private onItemGranted?: ItemEventsDropDeps["onItemGranted"];
   private static readonly MIN_SPAWN_DISTANCE = 1.2; // metros (permite spawns cercanos pero no superpuestos)
 
-  constructor(room: Room, getPlayerMapId: (clientId: string) => string | null, grantItemToPlayer: (playerId: string, item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>) => void) {
+  constructor(
+    room: Room,
+    getPlayerMapId: (clientId: string) => string | null,
+    grantItemToPlayer: (
+      playerId: string,
+      item: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>
+    ) => number,
+    dropDeps?: ItemEventsDropDeps
+  ) {
     this.room = room;
     this.getPlayerMapId = getPlayerMapId;
     this.grantItemToPlayer = grantItemToPlayer;
+    this.getPlayerPosition = dropDeps?.getPlayerPosition ?? (() => null);
+    this.removeItemStackForWorldDrop =
+      dropDeps?.removeItemStackForWorldDrop ??
+      (() => ({ ok: false, message: "drop no configurado" }));
+    this.onItemGranted = dropDeps?.onItemGranted;
     this.bootstrapSpawns();
     this.setupHandlers();
+  }
+
+  private mergeItemWithCatalog(
+    base: Omit<InventoryItem, "id" | "isEquipped" | "slot">
+  ): Omit<InventoryItem, "id" | "isEquipped" | "slot"> & {
+    visual?: {
+      path: string;
+      type: "glb" | "gltf" | "fbx" | "obj";
+      scale?: number;
+      rotation?: [number, number, number];
+    };
+  } {
+    const cat = ITEMS_CATALOG[base.itemId];
+    return {
+      ...base,
+      name: base.name || cat?.name || base.itemId,
+      icon: (base as { icon?: string }).icon || cat?.icon || "📦",
+      thumb: (base as { thumb?: string }).thumb || cat?.thumb,
+      visual: (base as { visual?: unknown }).visual || cat?.visual,
+    } as Omit<InventoryItem, "id" | "isEquipped" | "slot"> & {
+      visual?: {
+        path: string;
+        type: "glb" | "gltf" | "fbx" | "obj";
+        scale?: number;
+        rotation?: [number, number, number];
+      };
+    };
   }
 
   private bootstrapSpawns() {
@@ -69,10 +130,19 @@ export class ItemEvents {
         client.send('inventory:error', { message: 'Item no disponible' });
         return;
       }
-      // Autoridad: otorgar el ítem al inventario del jugador
-      if (result.item) {
-        this.grantItemToPlayer(client.sessionId, result.item);
+      const added =
+        result.item != null
+          ? this.grantItemToPlayer(client.sessionId, result.item)
+          : 0;
+      if (added <= 0) {
+        this.rollbackWorldCollect(data.mapId, data.spawnId);
+        client.send("inventory:error", {
+          message:
+            "No cabe en el inventario (peso o ranuras). Suelta algo; el límite lo marca el servidor.",
+        });
+        return;
       }
+      this.onItemGranted?.(client.sessionId, result.item!.itemId);
       // Programar respawn si aplica
       const state = this.worldItems.get(data.mapId)?.get(data.spawnId);
       if (state && state.respawnSec && state.respawnSec > 0) {
@@ -101,11 +171,66 @@ export class ItemEvents {
           this.broadcastToMap(data.mapId, 'items:update', { mapId: data.mapId, spawnId: data.spawnId, isCollected: false, position: current.position });
         }, state.respawnSec * 1000);
       }
-      // Confirmación al colector con datos del item
-      client.send('items:collected', { mapId: data.mapId, spawnId: data.spawnId, item: result.item });
+      // Confirmación al colector (cantidad realmente añadida)
+      client.send("items:collected", {
+        mapId: data.mapId,
+        spawnId: data.spawnId,
+        item: { ...result.item!, quantity: added },
+      });
       // Broadcast nuevo estado del ítem a jugadores en el mismo mapa
       this.broadcastToMap(data.mapId, 'items:update', { mapId: data.mapId, spawnId: data.spawnId, isCollected: true });
     });
+
+    this.room.onMessage(
+      "items:drop",
+      (
+        client: Client,
+        data: { mapId: string; itemInstanceId: string; quantity?: number }
+      ) => {
+        const playerMap = this.getPlayerMapId(client.sessionId);
+        if (!playerMap || playerMap !== data.mapId) {
+          client.send("inventory:error", { message: "Mapa inválido" });
+          return;
+        }
+        const qty = Math.max(1, Math.min(999, data.quantity ?? 1));
+        const removed = this.removeItemStackForWorldDrop(
+          client.sessionId,
+          data.itemInstanceId,
+          qty
+        );
+        if (!removed.ok || !removed.base) {
+          client.send("inventory:error", {
+            message: removed.message || "No se puede soltar",
+          });
+          return;
+        }
+        const pos3 = this.getPlayerPosition(client.sessionId);
+        if (!pos3) {
+          client.send("inventory:error", { message: "Posición desconocida" });
+          return;
+        }
+        const spawnId = `drop_${client.sessionId.slice(0, 6)}_${Date.now()}`;
+        const position = { x: pos3.x, y: pos3.y + 0.35, z: pos3.z };
+        const merged = this.mergeItemWithCatalog(removed.base);
+        let map = this.worldItems.get(data.mapId);
+        if (!map) {
+          map = new Map();
+          this.worldItems.set(data.mapId, map);
+        }
+        const spawn: WorldItemState = {
+          id: spawnId,
+          mapId: data.mapId,
+          position,
+          item: merged,
+          isCollected: false,
+        };
+        map.set(spawnId, spawn);
+        this.broadcastToMap(data.mapId, "items:spawn", {
+          mapId: data.mapId,
+          spawn,
+        });
+      }
+    );
   }
 
   private listItems(mapId: string) {
@@ -124,6 +249,21 @@ export class ItemEvents {
     // La entrega al inventario se realiza en el handler 'items:collect' usando this.grantItemToPlayer
     // devolvemos el item para que el caller lo otorgue de forma autoritativa.
     return { ok: true, item: item.item };
+  }
+
+  /** ES: Si no entró al inventario, el ítem vuelve al suelo. EN: Roll back world pickup flag. */
+  private rollbackWorldCollect(mapId: string, spawnId: string): void {
+    const map = this.worldItems.get(mapId);
+    const state = map?.get(spawnId);
+    if (!state || !map) return;
+    state.isCollected = false;
+    map.set(spawnId, state);
+    this.broadcastToMap(mapId, "items:update", {
+      mapId,
+      spawnId,
+      isCollected: false,
+      position: state.position,
+    });
   }
 
   private broadcastToMap(mapId: string, type: string, payload: any) {

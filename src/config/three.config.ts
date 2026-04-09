@@ -52,8 +52,14 @@ export const THREE_CONFIG = {
 
   // Rendering settings
   rendering: {
-    /** WebGPURenderer (Three r180); sin soporte WebGPU Three usa WebGL2 en el mismo renderer. */
-    preferWebGPU: true,
+    /**
+     * WebGPURenderer (Three r180) puede usar backend WebGL2; en escenas pesadas + muchos clicks
+     * algunos drivers pierden el contexto (pantalla azul). WebGLRenderer clásico suele ser más estable.
+     * Forzar WebGPU: `NEXT_PUBLIC_PREFER_WEBGPU=true` en `.env.local`.
+     */
+    preferWebGPU:
+      typeof process !== "undefined" &&
+      process.env.NEXT_PUBLIC_PREFER_WEBGPU === "true",
     antialias: true,
     shadowMap: {
       enabled: true,

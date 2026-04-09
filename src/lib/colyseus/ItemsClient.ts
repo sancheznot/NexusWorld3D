@@ -2,6 +2,8 @@ import { colyseusClient } from './client';
 import {
   ItemsRequest,
   ItemCollectRequest,
+  ItemDropRequest,
+  ItemsSpawnMessage,
   ItemsStateResponse,
   ItemsUpdateResponse,
   ItemsStateCallback,
@@ -38,6 +40,7 @@ export class ItemsClient {
     room.onMessage('items:state', (data: ItemsStateResponse) => this.emit('items:state', data));
     room.onMessage('items:update', (data: ItemsUpdateResponse) => this.emit('items:update', data));
     room.onMessage('items:collected', (data: ItemCollectedResponse) => this.emit('items:collected', data));
+    room.onMessage('items:spawn', (data: ItemsSpawnMessage) => this.emit('items:spawn', data));
   }
 
   // Send
@@ -50,23 +53,33 @@ export class ItemsClient {
     colyseusClient.getSocket()?.send('items:collect', data);
   }
 
+  public dropItemToWorld(data: ItemDropRequest): void {
+    if (!colyseusClient.isConnectedToWorldRoom()) return;
+    colyseusClient.getSocket()?.send('items:drop', data);
+  }
+
   // On
   public onItemsState(callback: ItemsStateCallback): void { this.on('items:state', callback); }
   public onItemsUpdate(callback: ItemsUpdateCallback): void { this.on('items:update', callback); }
   public onItemsCollected(callback: ItemCollectedCallback): void { this.on('items:collected', callback); }
+  public onItemsSpawn(callback: (data: ItemsSpawnMessage) => void): void {
+    this.on('items:spawn', callback as (data: unknown) => void);
+  }
 
   // Event system
   public on(event: 'items:state', callback: ItemsStateCallback): void;
   public on(event: 'items:update', callback: ItemsUpdateCallback): void;
   public on(event: 'items:collected', callback: ItemCollectedCallback): void;
-  public on(event: string, callback: ItemsStateCallback | ItemsUpdateCallback | ItemCollectedCallback): void {
+  public on(event: 'items:spawn', callback: (data: ItemsSpawnMessage) => void): void;
+  public on(event: string, callback: ItemsStateCallback | ItemsUpdateCallback | ItemCollectedCallback | ((data: ItemsSpawnMessage) => void)): void {
     if (!this.eventListeners.has(event)) this.eventListeners.set(event, []);
     this.eventListeners.get(event)!.push(callback as (data: unknown) => void);
   }
   public off(event: 'items:state', callback?: ItemsStateCallback): void;
   public off(event: 'items:update', callback?: ItemsUpdateCallback): void;
   public off(event: 'items:collected', callback?: ItemCollectedCallback): void;
-  public off(event: string, callback?: ItemsStateCallback | ItemsUpdateCallback | ItemCollectedCallback): void {
+  public off(event: 'items:spawn', callback?: (data: ItemsSpawnMessage) => void): void;
+  public off(event: string, callback?: ItemsStateCallback | ItemsUpdateCallback | ItemCollectedCallback | ((data: ItemsSpawnMessage) => void)): void {
     const listeners = this.eventListeners.get(event);
     if (!listeners) return;
     if (!callback) { this.eventListeners.delete(event); return; }

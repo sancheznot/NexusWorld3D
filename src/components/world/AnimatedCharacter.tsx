@@ -8,6 +8,8 @@ import * as THREE from 'three';
 import { AnimationAction } from 'three';
 import { GAME_CONFIG } from '@/constants/game';
 import { useAnimationDurations } from '@/hooks/useAnimationDurations';
+import HeldAxe from '@/components/world/HeldAxe';
+import { isChopAxeItemId } from '@/constants/choppableTrees';
 
   // Mapeo de animaciones - mapear estados a nombres reales de animaciones
   const getAnimationName = (animationState: string, actions: Record<string, AnimationAction | null>) => {
@@ -53,6 +55,8 @@ interface AnimatedCharacterProps {
   isCurrentPlayer: boolean;
   username?: string;
   animation: string;
+  /** ES: itemId de herramienta visible en mano (p. ej. tool_axe). EN: Held tool catalog id. */
+  heldToolItemId?: string | null;
 }
 
 export default function AnimatedCharacter({
@@ -63,6 +67,7 @@ export default function AnimatedCharacter({
   isCurrentPlayer,
   username,
   animation,
+  heldToolItemId = null,
 }: AnimatedCharacterProps) {
   const groupRef = useRef<THREE.Group>(null);
   const tiltContainerRef = useRef<THREE.Group>(null);
@@ -245,6 +250,12 @@ export default function AnimatedCharacter({
         {/* Offset Y para bajar el modelo y alinearlo con el cilindro de física */}
         <group position={[0, -1, 0]}>
           <primitive object={clonedScene} />
+          <HeldAxe
+            skinnedRoot={clonedScene}
+            visible={
+              heldToolItemId != null && isChopAxeItemId(heldToolItemId)
+            }
+          />
         </group>
       </group>
       {!isCurrentPlayer && username && (

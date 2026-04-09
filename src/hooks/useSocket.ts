@@ -5,10 +5,13 @@ import { usePlayerStore } from "@/store/playerStore";
 import { useWorldStore } from "@/store/worldStore";
 import { useUIStore } from "@/store/uiStore";
 import { inventoryService } from "@/lib/services/inventory";
+import type { InventoryItem } from "@/types/inventory.types";
 import {
   frameworkColyseusRoomName,
   frameworkDefaultWorldId,
 } from "@/lib/frameworkBranding";
+import type { RpgSyncPayload } from "@/constants/rpgProgression";
+import { getPhysicsInstance } from "@/hooks/useCannonPhysics";
 
 interface Player {
   id: string;
@@ -32,15 +35,19 @@ export const useSocket = () => {
   /** ES: Incrementa al unirse a una sala (re-registrar listeners al cambiar de room). EN: Bumps on room join. */
   const [roomEpoch, setRoomEpoch] = useState(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  /** ES: Una vez por sesión de sala: aplicar posición del servidor al store local. EN: Once per room session — apply server pose to local store. */
+  const hydratedServerPoseRef = useRef(false);
 
   const {
     setPlayer,
     updatePosition,
+    updateRotation,
     updateHealth,
     updateStamina,
     updateLevel,
     updateExperience,
     updatePlayer: updateLocalPlayer,
+    setRpgSync,
   } = usePlayerStore();
   const {
     addPlayer,
@@ -52,11 +59,12 @@ export const useSocket = () => {
   const { addChatMessage, addNotification } = useUIStore();
 
   const connect = async (
-    roomName: string = frameworkColyseusRoomName
+    roomName: string = frameworkColyseusRoomName,
+    joinOptions: Record<string, unknown> = {}
   ) => {
     try {
       setConnectionError(null);
-      await colyseusClient.connect(roomName);
+      await colyseusClient.connect(roomName, joinOptions);
       await new Promise((resolve) => setTimeout(resolve, 500));
       setIsConnected(true);
       setRoomEpoch((n) => n + 1);
@@ -107,6 +115,70 @@ export const useSocket = () => {
     });
     if (!isConnected || !colyseusClient.getSocket()) return;
 
+    hydratedServerPoseRef.current = false;
+
+    const snapPhysicsToServerPose = (
+      pos: { x: number; y: number; z: number },
+      rot?: { x: number; y: number; z: number }
+    ) => {
+      const phys = getPhysicsInstance();
+      if (!phys) return false;
+      try {
+        phys.teleportPlayer(pos, rot);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const tryHydrateLocalPoseFromServerList = (players: unknown) => {
+      if (hydratedServerPoseRef.current || !Array.isArray(players)) return;
+      const myId = colyseusClient.getSessionId();
+      if (!myId) return;
+      const self = players.find(
+        (p: { id?: string }) => p && p.id === myId
+      ) as
+        | {
+            position?: { x: number; y: number; z: number };
+            rotation?: { x: number; y: number; z: number };
+          }
+        | undefined;
+      if (!self?.position) return;
+      const { x, y, z } = self.position;
+      if (
+        typeof x !== "number" ||
+        typeof y !== "number" ||
+        typeof z !== "number"
+      ) {
+        return;
+      }
+      const pos = { x, y, z };
+      let rot: { x: number; y: number; z: number } | undefined;
+      const r = self.rotation;
+      if (
+        r &&
+        typeof r.x === "number" &&
+        typeof r.y === "number" &&
+        typeof r.z === "number"
+      ) {
+        rot = { x: r.x, y: r.y, z: r.z };
+        updateRotation(rot);
+      }
+      updatePosition(pos);
+      /**
+       * ES: Sin esto, el siguiente useFrame de PlayerV2 pone en el store la posición del
+       * cuerpo Cannon (spawn fijo) y borra la posición persistida en MariaDB.
+       * EN: Otherwise PlayerV2's useFrame overwrites store with Cannon body at fixed spawn.
+       */
+      if (!snapPhysicsToServerPose(pos, rot)) {
+        requestAnimationFrame(() => {
+          snapPhysicsToServerPose(pos, rot);
+        });
+      }
+      hydratedServerPoseRef.current = true;
+      console.log("📍 Pose local ← servidor:", self.position);
+    };
+
     // Player events
     colyseusClient.onPlayerJoined((data) => {
       console.log("🔥 EVENTO player:joined RECIBIDO EN COLYSEUS CLIENT:", data);
@@ -121,6 +193,7 @@ export const useSocket = () => {
           "jugadores:",
           data.players.map((p: any) => ({ id: p.id, username: p.username }))
         );
+        tryHydrateLocalPoseFromServerList(data.players);
         setPlayers(data.players);
       }
     });
@@ -198,6 +271,9 @@ export const useSocket = () => {
 
     colyseusClient.onPlayerLevelUp((data) => {
       console.log("📈 Level up:", data);
+      const me = colyseusClient.getSessionId();
+      if (data.playerId && me && data.playerId !== me) return;
+      if (typeof data.newLevel !== "number") return;
       updateLevel(data.newLevel);
       addNotification({
         id: `levelup-${Date.now()}`,
@@ -282,17 +358,9 @@ export const useSocket = () => {
     });
 
     // Inventory server-authoritative sync
-    colyseusClient
-      .getSocket()
-      ?.onMessage(
-        "inventory:item-added",
-        (data: { playerId: string; item: unknown }) => {
-          const myId = colyseusClient.getSessionId();
-          if (data.playerId && myId === data.playerId) {
-            inventoryService.addItem(data.item as any);
-          }
-        }
-      );
+    // ES: Ignorar `inventory:item-added` para mutar el inventario local — provoca duplicados y carreras
+    // con `inventory:updated`. La autoridad es siempre el snapshot completo del servidor.
+    // EN: Do not merge item-added locally; use full inventory:updated only.
     colyseusClient
       .getSocket()
       ?.onMessage(
@@ -304,6 +372,25 @@ export const useSocket = () => {
           }
         }
       );
+
+    colyseusClient.getSocket()?.onMessage(
+      "inventory:item-equipped",
+      (data: { playerId: string; item?: InventoryItem }) => {
+        const myId = colyseusClient.getSessionId();
+        if (data.playerId && myId === data.playerId && data.item) {
+          inventoryService.applyInventoryItemPatch(data.item);
+        }
+      }
+    );
+    colyseusClient.getSocket()?.onMessage(
+      "inventory:item-unequipped",
+      (data: { playerId: string; item?: InventoryItem }) => {
+        const myId = colyseusClient.getSessionId();
+        if (data.playerId && myId === data.playerId && data.item) {
+          inventoryService.applyInventoryItemPatch(data.item);
+        }
+      }
+    );
 
     // WorldClient events (map sync)
     const handleMapChanged = (data: any) => {
@@ -383,7 +470,51 @@ export const useSocket = () => {
           data.players.length,
           "jugadores"
         );
+        tryHydrateLocalPoseFromServerList(data.players);
         setPlayers(data.players);
+      }
+    });
+
+    const onRpgSync = (raw: unknown) => {
+      const p = raw as RpgSyncPayload;
+      if (!p || typeof p.level !== "number") return;
+      setRpgSync(p);
+      inventoryService.applyAuthoritativeCarryCaps(
+        p.level,
+        p.maxWeight,
+        p.maxSlots
+      );
+    };
+    const onRpgError = (raw: unknown) => {
+      const msg =
+        typeof raw === "object" &&
+        raw &&
+        "message" in raw &&
+        typeof (raw as { message: unknown }).message === "string"
+          ? (raw as { message: string }).message
+          : "Acción RPG no disponible";
+      addNotification({
+        id: `rpg-err-${Date.now()}`,
+        type: "warning",
+        title: "Progresión",
+        message: msg,
+        duration: 4000,
+        timestamp: new Date(),
+      });
+    };
+    colyseusClient.on("rpg:sync", onRpgSync);
+    colyseusClient.on("rpg:error", onRpgError);
+
+    // ES: `connect()` retrasa `setIsConnected` 500ms; antes no hay listeners y se pierde rpg:sync.
+    // EN: connect() delays isConnected — request RPG again once handlers are attached.
+    queueMicrotask(() => {
+      try {
+        const r = colyseusClient.getSocket();
+        if (r?.connection.isOpen) {
+          r.send("rpg:request-sync", {});
+        }
+      } catch {
+        /* ignore */
       }
     });
 
@@ -391,11 +522,21 @@ export const useSocket = () => {
 
     // Cleanup function
     return () => {
+      colyseusClient.off("rpg:sync", onRpgSync);
+      colyseusClient.off("rpg:error", onRpgError);
       colyseusClient.removeAllListeners();
       worldClient.off("map:changed", handleMapChanged);
       worldClient.off("map:update", handleMapUpdate);
     };
-  }, [isConnected, roomEpoch]);
+  }, [
+    isConnected,
+    roomEpoch,
+    updatePosition,
+    updateRotation,
+    setPlayers,
+    setRpgSync,
+    addNotification,
+  ]);
 
   // Cleanup on unmount
   useEffect(() => {
