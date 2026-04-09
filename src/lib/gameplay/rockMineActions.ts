@@ -1,3 +1,4 @@
+import { WorldMessages } from '@nexusworld3d/protocol';
 import { colyseusClient } from '@/lib/colyseus/client';
 
 export type RockSyncPayload = {
@@ -17,5 +18,5 @@ export function sendRockMineAttempt(
     clientPlayerPos?: { x: number; y: number; z: number };
   } = { rockId };
   if (clientPlayerPos) payload.clientPlayerPos = clientPlayerPos;
-  colyseusClient.getSocket()?.send('world:rock-mine', payload);
+  colyseusClient.getSocket()?.send(WorldMessages.RockMine, payload);
 }

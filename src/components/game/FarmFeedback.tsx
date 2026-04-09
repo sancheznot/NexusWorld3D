@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { FarmMessages } from "@nexusworld3d/protocol";
 import { colyseusClient } from "@/lib/colyseus/client";
 import { useUIStore } from "@/store/uiStore";
 
@@ -62,9 +63,9 @@ export default function FarmFeedback() {
       }
     };
 
-    colyseusClient.on("farm:result", onFarm);
+    colyseusClient.on(FarmMessages.Result, onFarm);
     return () => {
-      colyseusClient.off("farm:result", onFarm);
+      colyseusClient.off(FarmMessages.Result, onFarm);
     };
   }, [addNotification]);
 

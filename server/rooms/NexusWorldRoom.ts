@@ -1,4 +1,5 @@
 import { Room, Client } from "colyseus";
+import { ChatMessages, PlayerMessages } from "@nexusworld3d/protocol";
 import { nexusWorld3DConfig } from "@repo/nexusworld3d.config";
 import { gameRedis } from "@/lib/services/redis";
 import type { FrameworkServices } from "@resources/types";
@@ -8,7 +9,10 @@ import { ItemEvents } from "@server/modules/ItemEvents";
 import { ShopEvents } from "@server/modules/ShopEvents";
 import { TreeChopEvents } from "@server/modules/TreeChopEvents";
 import { RockMineEvents } from "@server/modules/RockMineEvents";
-import { WorldResourceNodeEvents } from "@server/modules/WorldResourceNodeEvents";
+import {
+  attachNexusRoomPlugins,
+  createWorldResourceNodesPlugin,
+} from "@server/room/nexusRoomPlugins";
 import { HousingEvents } from "@server/modules/HousingEvents";
 import { RpgProgression } from "@server/modules/RpgProgression";
 import { RPG_XP_ITEM_PICKUP } from "@/constants/rpgProgression";
@@ -189,16 +193,18 @@ export class NexusWorldRoom extends Room {
       awardExperience: (pid, amount) => this.rpgProgression.addXp(pid, amount),
     });
 
-    new WorldResourceNodeEvents(this, {
-      inventory: this.inventoryEvents,
-      getPlayerMapId: (clientId: string) => this.getPlayerMapId(clientId),
-      getPlayerPosition: (id: string) => {
-        const p = this.players.get(id);
-        return p ? { ...p.position } : null;
-      },
-      awardExperience: (pid, amount) =>
-        this.rpgProgression.addXp(pid, amount),
-    });
+    attachNexusRoomPlugins(this, [
+      createWorldResourceNodesPlugin({
+        inventory: this.inventoryEvents,
+        getPlayerMapId: (clientId: string) => this.getPlayerMapId(clientId),
+        getPlayerPosition: (id: string) => {
+          const p = this.players.get(id);
+          return p ? { ...p.position } : null;
+        },
+        awardExperience: (pid, amount) =>
+          this.rpgProgression.addXp(pid, amount),
+      }),
+    ]);
 
     this.housingEvents = new HousingEvents(this, {
       inventory: this.inventoryEvents,
@@ -459,7 +465,7 @@ export class NexusWorldRoom extends Room {
     );
 
     // Enviar estado actual a todos los jugadores
-    this.broadcast("player:joined", {
+    this.broadcast(PlayerMessages.Joined, {
       player: player,
       players: Array.from(this.players.values()),
     });
@@ -587,7 +593,7 @@ export class NexusWorldRoom extends Room {
         this.players.delete(client.sessionId);
         this.state.players.delete(client.sessionId);
 
-        this.broadcast("player:left", {
+        this.broadcast(PlayerMessages.Left, {
           playerId: client.sessionId,
           players: Array.from(this.players.values()),
         });
@@ -629,7 +635,7 @@ export class NexusWorldRoom extends Room {
   private setupMessageHandlers() {
     // Player join handler
     this.onMessage(
-      "player:join",
+      PlayerMessages.Join,
       (client: Client, data: { username?: string; worldId?: string }) => {
         console.log(`📥 Recibido player:join de ${client.id}:`, data);
         // Actualizar datos del jugador con la información enviada por el cliente
@@ -662,7 +668,7 @@ export class NexusWorldRoom extends Room {
 
     // Movimiento del jugador (reutilizando tu lógica)
     this.onMessage(
-      "player:move",
+      PlayerMessages.Move,
       (
         client: Client,
         data: {
@@ -703,7 +709,7 @@ export class NexusWorldRoom extends Room {
             if (c.sessionId === client.sessionId) return;
             const target = this.players.get(c.sessionId);
             if (target && target.mapId === player.mapId) {
-              c.send("player:moved", {
+              c.send(PlayerMessages.Moved, {
                 playerId: client.sessionId,
                 movement: data,
               });
@@ -787,7 +793,7 @@ export class NexusWorldRoom extends Room {
     });
 
     // Heartbeat del jugador para refrescar lastUpdate sin necesidad de movimiento
-    this.onMessage("player:heartbeat", (client: Client, _data?: unknown) => {
+    this.onMessage(PlayerMessages.Heartbeat, (client: Client, _data?: unknown) => {
       const player = this.players.get(client.sessionId);
       if (player) {
         player.lastUpdate = Date.now();
@@ -800,7 +806,7 @@ export class NexusWorldRoom extends Room {
 
     // Chat (reutilizando tu lógica)
     this.onMessage(
-      "chat:message",
+      ChatMessages.Message,
       (client: Client, data: { message: string; channel?: string }) => {
         const player = this.players.get(client.sessionId);
         if (player && data.message) {
@@ -828,7 +834,7 @@ export class NexusWorldRoom extends Room {
           this.saveChatMessageToRedis(chatMessage);
 
           // Broadcast a todos
-          this.broadcast("chat:message", chatMessage);
+          this.broadcast(ChatMessages.Message, chatMessage);
 
           console.log(`💬 ${player.username}: ${data.message}`);
         }
@@ -837,14 +843,14 @@ export class NexusWorldRoom extends Room {
 
     // Ataque (reutilizando tu lógica)
     this.onMessage(
-      "player:attack",
+      PlayerMessages.Attack,
       (client: Client, data: { targetId: string; damage: number }) => {
         const player = this.players.get(client.id);
         if (player) {
           console.log(`⚔️ ${player.username} atacó a ${data.targetId}`);
           this.inventoryEvents.applyEquippedMeleeWeaponWear(client.sessionId);
           this.broadcast(
-            "player:attacked",
+            PlayerMessages.Attacked,
             {
               attackerId: client.id,
               targetId: data.targetId,
@@ -858,7 +864,7 @@ export class NexusWorldRoom extends Room {
 
     // Interacción (reutilizando tu lógica)
     this.onMessage(
-      "player:interact",
+      PlayerMessages.Interact,
       (client: Client, data: { objectId: string }) => {
         const player = this.players.get(client.id);
         if (player) {
@@ -987,7 +993,7 @@ export class NexusWorldRoom extends Room {
       statePlayer.roleId = roleId;
     }
     void this.savePlayerToRedis(player);
-    this.broadcast("player:role", { playerId, roleId });
+    this.broadcast(PlayerMessages.Role, { playerId, roleId });
     this.broadcast("players:updated", {
       players: Array.from(this.players.values()),
     });
@@ -1037,7 +1043,7 @@ export class NexusWorldRoom extends Room {
       this.chatMessages = this.chatMessages.slice(-100);
     }
 
-    this.broadcast("chat:message", systemMessage);
+    this.broadcast(ChatMessages.Message, systemMessage);
   }
 
   private sendSystemMessageToClient(client: Client, message: string) {
@@ -1052,7 +1058,7 @@ export class NexusWorldRoom extends Room {
     };
 
     // Enviar solo al cliente específico
-    client.send("chat:message", systemMessage);
+    client.send(ChatMessages.Message, systemMessage);
   }
 
   private setupCleanup() {

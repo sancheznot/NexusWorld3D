@@ -1,3 +1,4 @@
+import { WorldMessages } from "@nexusworld3d/protocol";
 import { colyseusClient } from "@/lib/colyseus/client";
 
 export type TreeSyncPayload = {
@@ -26,5 +27,5 @@ export function sendTreeChopAttempt(
   } = { treeId };
   if (strike) payload.strike = strike;
   if (clientPlayerPos) payload.clientPlayerPos = clientPlayerPos;
-  colyseusClient.getSocket()?.send("world:tree-chop", payload);
+  colyseusClient.getSocket()?.send(WorldMessages.TreeChop, payload);
 }

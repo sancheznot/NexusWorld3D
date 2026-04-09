@@ -89,6 +89,12 @@ import TruckSpawner from '@/components/game/TruckSpawner';
 import { loadAllClientResources } from '@/lib/resources/loadClientResources';
 import { frameworkColyseusRoomName, frameworkDefaultWorldId } from '@/lib/frameworkBranding';
 import type { PublicPortalRoom } from '@/types/gamePortal.types';
+import FrameworkDemoGround from '@/components/world/FrameworkDemoGround';
+
+/** ES: `NEXT_PUBLIC_FRAMEWORK_DEMO=1` — exterior ligero sin ciudad ni capas de juego. EN: Lightweight exterior. */
+const FRAMEWORK_DEMO =
+  typeof process.env.NEXT_PUBLIC_FRAMEWORK_DEMO === 'string' &&
+  process.env.NEXT_PUBLIC_FRAMEWORK_DEMO === '1';
 
 export default function GameCanvas() {
   const { data: session, status } = useSession();
@@ -124,6 +130,7 @@ export default function GameCanvas() {
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentMap, setCurrentMap] = useState('exterior');
   const setActiveMapId = useGameWorldStore((s) => s.setActiveMapId);
+  const richExterior = currentMap === 'exterior' && !FRAMEWORK_DEMO;
 
   useEffect(() => {
     setActiveMapId(currentMap);
@@ -134,7 +141,7 @@ export default function GameCanvas() {
   }, [currentMap]);
 
   useEffect(() => {
-    if (!isGameStarted || currentMap !== 'exterior') return;
+    if (!isGameStarted || currentMap !== 'exterior' || FRAMEWORK_DEMO) return;
     const id = window.setTimeout(() => {
       if (colyseusClient.isConnectedToWorldRoom()) {
         requestHousingSync('exterior');
@@ -744,15 +751,18 @@ export default function GameCanvas() {
             
             {/* Renderizar modelo según el mapa actual */}
             
-            {currentMap === 'exterior' && (
-              <CityModel 
-                modelPath="/models/city.glb"
-                name="city"
-                position={[0, 0, 0]} 
-                scale={[1, 1, 1]} 
-                rotation={[0, 0, 0]} 
-              />
-            )}
+            {currentMap === 'exterior' &&
+              (FRAMEWORK_DEMO ? (
+                <FrameworkDemoGround />
+              ) : (
+                <CityModel
+                  modelPath="/models/city.glb"
+                  name="city"
+                  position={[0, 0, 0]}
+                  scale={[1, 1, 1]}
+                  rotation={[0, 0, 0]}
+                />
+              ))}
             
             {currentMap === 'hotel-interior' && (
               <HotelInterior {...hotelInteriorProps} />
@@ -763,7 +773,8 @@ export default function GameCanvas() {
             )}
 
             {/* Portales del mapa actual */}
-            {currentMapData?.portals.map((portal) => (
+            {!FRAMEWORK_DEMO &&
+              currentMapData?.portals.map((portal) => (
               <PortalTrigger
                 key={portal.id}
                 portal={portal}
@@ -773,43 +784,45 @@ export default function GameCanvas() {
             ))}
 
             {/* Items recolectables en el mundo (sincronizados) */}
-            <ItemSpawner 
-              mapId={currentMap}
-            />
+            {!FRAMEWORK_DEMO && (
+              <ItemSpawner mapId={currentMap} />
+            )}
 
-            {currentMap === 'exterior' && (
+            {richExterior && (
               <ChoppableTreesLayer mapId={currentMap} />
             )}
-            {currentMap === 'exterior' && (
+            {richExterior && (
               <MineableRocksLayer mapId={currentMap} />
             )}
-            {currentMap === 'exterior' && (
+            {richExterior && (
               <WorldResourceNodesLayer mapId={currentMap} />
             )}
-            {currentMap === 'exterior' && (
+            {richExterior && (
               <FarmPlotsLayer mapId={currentMap} />
             )}
-            {currentMap === 'exterior' && (
+            {richExterior && (
               <PlayerStallTriggerLayer mapId={currentMap} />
             )}
 
-            {currentMap === 'exterior' && <HousingLayer />}
-            {currentMap === 'exterior' && <BuildPiecesLayer />}
-            {currentMap === 'exterior' && <PlotDebrisLayer />}
-            {currentMap === 'exterior' && <BuildPreviewLayer />}
-            {currentMap === 'exterior' && (
+            {richExterior && <HousingLayer />}
+            {richExterior && <BuildPiecesLayer />}
+            {richExterior && <PlotDebrisLayer />}
+            {richExterior && <BuildPreviewLayer />}
+            {richExterior && (
               <HousingPlotTriggerLayer mapId={currentMap} />
             )}
-            {currentMap === 'exterior' && <HousingPlotBoundsLayer />}
+            {richExterior && <HousingPlotBoundsLayer />}
 
-            <ChopRaycastBridge />
-            <ChopCityTreeSync />
+            {!FRAMEWORK_DEMO && <ChopRaycastBridge />}
+            {richExterior && <ChopCityTreeSync />}
 
             {/* Capa de Waypoints de trabajos activos */}
-            <JobWaypointsLayer currentMap={currentMap} playerRoleId={player?.roleId ?? null} isDriving={isDriving} />
+            {!FRAMEWORK_DEMO && (
+              <JobWaypointsLayer currentMap={currentMap} playerRoleId={player?.roleId ?? null} isDriving={isDriving} />
+            )}
 
             {/* NPC Shops por mapa (del config) */}
-            {Object.values(NPCS).filter(n => n.mapId === currentMap && n.opensShopId).map(npc => (
+            {!FRAMEWORK_DEMO && Object.values(NPCS).filter(n => n.mapId === currentMap && n.opensShopId).map(npc => (
               <NPCShopTrigger
                 key={npc.id}
                 zone={{ id: npc.id, kind: 'shop', name: npc.name, position: npc.zone.position, radius: npc.zone.radius }}
@@ -818,7 +831,7 @@ export default function GameCanvas() {
             ))}
 
             {/* NPC Jobs por mapa (del config) */}
-            {Object.values(NPCS).filter(n => n.mapId === currentMap && n.jobId).map(npc => (
+            {!FRAMEWORK_DEMO && Object.values(NPCS).filter(n => n.mapId === currentMap && n.jobId).map(npc => (
               <NPCJobTrigger
                 key={`job_${npc.id}`}
                 zone={{ id: `job_${npc.id}`, kind: 'job', name: npc.name, position: npc.zone.position, radius: npc.zone.radius }}
@@ -891,18 +904,17 @@ export default function GameCanvas() {
         )}
 
         {/* Truck Spawner */}
-        <TruckSpawner 
-          position={[70, 1, 65]} 
-          onSpawn={() => {
-            setVehicleModel('/models/vehicles/cars/City_Car_07.glb'); // Using City Car as Truck for now
-            // Teleport vehicle to spawn point if needed, or just let it stay
-            // Ideally we respawn it at the parking spot
-            setVehSpawn({ x: 65, y: 2, z: 65, yaw: 0 });
-            // Also ensure we are not driving so we can enter it
-            setIsDriving(false);
-            setHidePlayerWhileDriving(false);
-          }} 
-        />
+        {!FRAMEWORK_DEMO && (
+          <TruckSpawner
+            position={[70, 1, 65]}
+            onSpawn={() => {
+              setVehicleModel('/models/vehicles/cars/City_Car_07.glb'); // Using City Car as Truck for now
+              setVehSpawn({ x: 65, y: 2, z: 65, yaw: 0 });
+              setIsDriving(false);
+              setHidePlayerWhileDriving(false);
+            }}
+          />
+        )}
 
         {/* DEBUG 3D: Pilar verde en el spawn del vehículo para verificar render */}
         {vehSpawn && (

@@ -12,6 +12,7 @@ import {
 } from "@/lib/frameworkBranding";
 import type { RpgSyncPayload } from "@/constants/rpgProgression";
 import { getPhysicsInstance } from "@/hooks/useCannonPhysics";
+import { InventoryMessages, RpgMessages } from "@nexusworld3d/protocol";
 
 interface Player {
   id: string;
@@ -364,7 +365,7 @@ export const useSocket = () => {
     colyseusClient
       .getSocket()
       ?.onMessage(
-        "inventory:updated",
+        InventoryMessages.Updated,
         (data: { playerId: string; inventory: unknown }) => {
           const myId = colyseusClient.getSessionId();
           if (data.playerId && myId === data.playerId && data.inventory) {
@@ -374,7 +375,7 @@ export const useSocket = () => {
       );
 
     colyseusClient.getSocket()?.onMessage(
-      "inventory:item-equipped",
+      InventoryMessages.ItemEquipped,
       (data: { playerId: string; item?: InventoryItem }) => {
         const myId = colyseusClient.getSessionId();
         if (data.playerId && myId === data.playerId && data.item) {
@@ -383,7 +384,7 @@ export const useSocket = () => {
       }
     );
     colyseusClient.getSocket()?.onMessage(
-      "inventory:item-unequipped",
+      InventoryMessages.ItemUnequipped,
       (data: { playerId: string; item?: InventoryItem }) => {
         const myId = colyseusClient.getSessionId();
         if (data.playerId && myId === data.playerId && data.item) {
@@ -502,8 +503,8 @@ export const useSocket = () => {
         timestamp: new Date(),
       });
     };
-    colyseusClient.on("rpg:sync", onRpgSync);
-    colyseusClient.on("rpg:error", onRpgError);
+    colyseusClient.on(RpgMessages.Sync, onRpgSync);
+    colyseusClient.on(RpgMessages.Error, onRpgError);
 
     // ES: `connect()` retrasa `setIsConnected` 500ms; antes no hay listeners y se pierde rpg:sync.
     // EN: connect() delays isConnected — request RPG again once handlers are attached.
@@ -511,7 +512,7 @@ export const useSocket = () => {
       try {
         const r = colyseusClient.getSocket();
         if (r?.connection.isOpen) {
-          r.send("rpg:request-sync", {});
+          r.send(RpgMessages.RequestSync, {});
         }
       } catch {
         /* ignore */
@@ -522,8 +523,8 @@ export const useSocket = () => {
 
     // Cleanup function
     return () => {
-      colyseusClient.off("rpg:sync", onRpgSync);
-      colyseusClient.off("rpg:error", onRpgError);
+      colyseusClient.off(RpgMessages.Sync, onRpgSync);
+      colyseusClient.off(RpgMessages.Error, onRpgError);
       colyseusClient.removeAllListeners();
       worldClient.off("map:changed", handleMapChanged);
       worldClient.off("map:update", handleMapUpdate);

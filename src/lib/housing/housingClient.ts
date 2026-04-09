@@ -4,6 +4,7 @@ import {
   snapBuildXZ,
 } from "@/constants/buildPieces";
 import type { HousingUpgradeMode } from "@/constants/housingTiers";
+import { FarmMessages, HousingMessages } from "@nexusworld3d/protocol";
 import { colyseusClient } from "@/lib/colyseus/client";
 import { useGameWorldStore } from "@/store/gameWorldStore";
 import { usePlayerStore } from "@/store/playerStore";
@@ -14,15 +15,15 @@ export function requestHousingSync(mapId?: string): void {
   const room = colyseusClient.getSocket();
   if (!room?.connection.isOpen) return;
   const mid = mapId ?? useGameWorldStore.getState().activeMapId;
-  room.send("housing:request", { mapId: mid });
+  room.send(HousingMessages.Request, { mapId: mid });
 }
 
 export function purchaseHousingPlot(plotId: string = DEFAULT_PLOT): void {
-  colyseusClient.getSocket()?.send("housing:purchase", { plotId });
+  colyseusClient.getSocket()?.send(HousingMessages.Purchase, { plotId });
 }
 
 export function devGrantHousingPlot(plotId: string = DEFAULT_PLOT): void {
-  colyseusClient.getSocket()?.send("housing:dev_grant_plot", { plotId });
+  colyseusClient.getSocket()?.send(HousingMessages.DevGrantPlot, { plotId });
 }
 
 export function placeCabinAtPlayerPosition(): void {
@@ -34,7 +35,7 @@ export function placeCabinAtPlayerPosition(): void {
   const dist = 3.5;
   const x = pos.x + Math.sin(rotY) * dist;
   const z = pos.z + Math.cos(rotY) * dist;
-  room.send("housing:place", {
+  room.send(HousingMessages.Place, {
     mapId,
     x,
     y: pos.y,
@@ -49,7 +50,7 @@ export function placeCabinAtPlayerPosition(): void {
 export function upgradeNearestCabin(mode: HousingUpgradeMode): void {
   const room = colyseusClient.getSocket();
   if (!room?.connection.isOpen) return;
-  room.send("housing:upgrade", { nearest: true, mode });
+  room.send(HousingMessages.Upgrade, { nearest: true, mode });
 }
 
 const BUILD_PLACE_DIST = 2.8;
@@ -85,7 +86,7 @@ export function placeBuildPieceAtPlayer(pieceId: BuildPieceId): void {
   if (!room?.connection.isOpen) return;
   const pose = getBuildPlacementPreviewPose();
   if (!pose) return;
-  room.send("housing:placePiece", {
+  room.send(HousingMessages.PlacePiece, {
     mapId: pose.mapId,
     pieceId,
     x: pose.x,
@@ -99,19 +100,19 @@ export function placeBuildPieceAtPlayer(pieceId: BuildPieceId): void {
 export function removeNearestBuildPiece(): void {
   const room = colyseusClient.getSocket();
   if (!room?.connection.isOpen) return;
-  room.send("housing:removePiece", { nearest: true });
+  room.send(HousingMessages.RemovePiece, { nearest: true });
 }
 
 /** ES: Limpia el escombro de plantilla más cercano en tu lote (Fase 5). EN: Clear nearest plot debris. */
 export function clearNearestPlotDebris(): void {
   const room = colyseusClient.getSocket();
   if (!room?.connection.isOpen) return;
-  room.send("housing:clearDebris", { nearest: true });
+  room.send(HousingMessages.ClearDebris, { nearest: true });
 }
 
 /** ES: Interactúa con un bancal del huerto (sembrar o cosechar). EN: Farm bed interact (plant/harvest). */
 export function interactFarmSlot(slotIndex: number): void {
   const room = colyseusClient.getSocket();
   if (!room?.connection.isOpen) return;
-  room.send("farm:interact", { slotIndex });
+  room.send(FarmMessages.Interact, { slotIndex });
 }

@@ -1,4 +1,5 @@
 import { Room, Client } from "colyseus";
+import { RpgMessages } from "@nexusworld3d/protocol";
 import type { InventoryEvents } from "@resources/inventory/server/InventoryEvents";
 import {
   clampAlloc,
@@ -63,26 +64,26 @@ export class RpgProgression {
 
   private setupHandlers(): void {
     this.room.onMessage(
-      "rpg:allocate-stat",
+      RpgMessages.AllocateStat,
       (client: Client, data: { stat?: string }) => {
         const stat = data?.stat as RpgStatId | undefined;
         if (!stat || !RPG_STAT_IDS.includes(stat)) {
-          client.send("rpg:error", { message: "Stat inválido" });
+          client.send(RpgMessages.Error, { message: "Stat inválido" });
           return;
         }
         const pid = client.sessionId;
         const st = this.sessionRpg.get(pid);
         const p = this.getPlayer(pid);
         if (!st || !p) {
-          client.send("rpg:error", { message: "Sin estado RPG" });
+          client.send(RpgMessages.Error, { message: "Sin estado RPG" });
           return;
         }
         if (st.unspent < 1) {
-          client.send("rpg:error", { message: "Sin puntos libres" });
+          client.send(RpgMessages.Error, { message: "Sin puntos libres" });
           return;
         }
         if (st.alloc[stat] >= RPG_MAX_POINTS_PER_STAT) {
-          client.send("rpg:error", { message: "Stat al máximo" });
+          client.send(RpgMessages.Error, { message: "Stat al máximo" });
           return;
         }
         st.unspent -= 1;
@@ -93,7 +94,7 @@ export class RpgProgression {
       }
     );
 
-    this.room.onMessage("rpg:request-sync", (client: Client) => {
+    this.room.onMessage(RpgMessages.RequestSync, (client: Client) => {
       this.pushSync(client.sessionId);
     });
   }
@@ -267,7 +268,7 @@ export class RpgProgression {
       st.unspent,
       st.alloc
     );
-    client.send("rpg:sync", payload);
+    client.send(RpgMessages.Sync, payload);
   }
 
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { WorldMessages } from "@nexusworld3d/protocol";
 import { colyseusClient } from "@/lib/colyseus/client";
 import { useUIStore } from "@/store/uiStore";
 
@@ -36,9 +37,9 @@ export default function TreeChopFeedback() {
       }
     };
 
-    colyseusClient.on("world:tree-chop-result", onResult);
+    colyseusClient.on(WorldMessages.TreeChopResult, onResult);
     return () => {
-      colyseusClient.off("world:tree-chop-result", onResult);
+      colyseusClient.off(WorldMessages.TreeChopResult, onResult);
     };
   }, [addNotification]);
 
@@ -57,9 +58,9 @@ export default function TreeChopFeedback() {
         });
       }
     };
-    colyseusClient.on("world:rock-mine-result", onRock);
+    colyseusClient.on(WorldMessages.RockMineResult, onRock);
     return () => {
-      colyseusClient.off("world:rock-mine-result", onRock);
+      colyseusClient.off(WorldMessages.RockMineResult, onRock);
     };
   }, [addNotification]);
 

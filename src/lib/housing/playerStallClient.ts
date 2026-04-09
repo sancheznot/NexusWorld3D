@@ -1,3 +1,4 @@
+import { StallMessages } from "@nexusworld3d/protocol";
 import { colyseusClient } from "@/lib/colyseus/client";
 import { PRODUCE_STALL_KIOSK } from "@/constants/playerStall";
 
@@ -10,7 +11,7 @@ export function sendStallAddListing(
 ): void {
   const room = colyseusClient.getSocket();
   if (!room?.connection.isOpen) return;
-  room.send("stall:addListing", {
+  room.send(StallMessages.AddListing, {
     plotId: PLOT_ID,
     itemId,
     quantity,
@@ -30,5 +31,5 @@ export function sendStallBuy(
 ): void {
   const room = colyseusClient.getSocket();
   if (!room?.connection.isOpen) return;
-  room.send("stall:buy", { plotId: PLOT_ID, listingId, quantity });
+  room.send(StallMessages.Buy, { plotId: PLOT_ID, listingId, quantity });
 }

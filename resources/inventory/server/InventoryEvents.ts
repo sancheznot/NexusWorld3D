@@ -13,6 +13,7 @@ import {
 } from '@/lib/inventory/itemStacking';
 import { GAME_CONFIG } from '@/constants/game';
 import { CRAFTING_RECIPES, type CraftRecipe } from '@/constants/crafting';
+import { CraftingMessages, InventoryMessages } from '@nexusworld3d/protocol';
 
 /**
  * Eventos de Inventario para Colyseus
@@ -56,51 +57,51 @@ export class InventoryEvents {
    */
   private setupEventHandlers() {
     // Evento: Actualizar inventario completo
-    this.room.onMessage('inventory:update', (client: Client, data: { inventory: Inventory }) => {
+    this.room.onMessage(InventoryMessages.Update, (client: Client, data: { inventory: Inventory }) => {
       this.handleInventoryUpdate(client, data);
     });
 
     // Evento: Agregar item
-    this.room.onMessage('inventory:add-item', (client: Client, data: { item: InventoryItem }) => {
+    this.room.onMessage(InventoryMessages.AddItem, (client: Client, data: { item: InventoryItem }) => {
       this.handleAddItem(client, data);
     });
 
     // Evento: Remover item
-    this.room.onMessage('inventory:remove-item', (client: Client, data: { itemId: string; quantity?: number }) => {
+    this.room.onMessage(InventoryMessages.RemoveItem, (client: Client, data: { itemId: string; quantity?: number }) => {
       this.handleRemoveItem(client, data);
     });
 
     // Evento: Usar item
-    this.room.onMessage('inventory:use-item', (client: Client, data: { itemId: string; slot: number }) => {
+    this.room.onMessage(InventoryMessages.UseItem, (client: Client, data: { itemId: string; slot: number }) => {
       this.handleUseItem(client, data);
     });
 
     // Evento: Equipar item
-    this.room.onMessage('inventory:equip-item', (client: Client, data: { itemId: string }) => {
+    this.room.onMessage(InventoryMessages.EquipItem, (client: Client, data: { itemId: string }) => {
       this.handleEquipItem(client, data);
     });
 
     // Evento: Desequipar item
-    this.room.onMessage('inventory:unequip-item', (client: Client, data: { itemType: string }) => {
+    this.room.onMessage(InventoryMessages.UnequipItem, (client: Client, data: { itemType: string }) => {
       this.handleUnequipItem(client, data);
     });
 
     // Evento: Actualizar oro
-    this.room.onMessage('inventory:update-gold', (client: Client, data: { amount: number; reason: string }) => {
+    this.room.onMessage(InventoryMessages.UpdateGold, (client: Client, data: { amount: number; reason: string }) => {
       this.handleGoldUpdate(client, data);
     });
 
     // Evento: Solicitar inventario
-    this.room.onMessage('inventory:request', (client: Client) => {
+    this.room.onMessage(InventoryMessages.Request, (client: Client) => {
       this.handleInventoryRequest(client);
     });
 
     this.room.onMessage(
-      'crafting:execute',
+      CraftingMessages.Execute,
       (client: Client, data: { recipeId: string }) => {
         const res = this.tryCraftRecipe(client.sessionId, data.recipeId);
         if (!res.ok) {
-          client.send('inventory:error', {
+          client.send(InventoryMessages.Error, {
             message: res.message || 'Craft fallido',
           });
         }
@@ -108,7 +109,7 @@ export class InventoryEvents {
     );
 
     this.room.onMessage(
-      'inventory:swap-slots',
+      InventoryMessages.SwapSlots,
       (client: Client, data: { fromSlot: number; toSlot: number }) => {
         this.handleSwapSlots(client, data);
       }
@@ -161,7 +162,7 @@ export class InventoryEvents {
     inv.currentWeight = this.calculateTotalWeight(inv);
     const normalized = this.ensureSlots(inv);
     this.playerInventories.set(playerId, normalized);
-    this.room.broadcast('inventory:updated', {
+    this.room.broadcast(InventoryMessages.Updated, {
       playerId,
       inventory: normalized,
       timestamp: Date.now(),
@@ -224,7 +225,7 @@ export class InventoryEvents {
     } as Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'>);
     const inv = this.playerInventories.get(playerId);
     if (inv) {
-      this.room.broadcast('inventory:updated', {
+      this.room.broadcast(InventoryMessages.Updated, {
         playerId,
         inventory: inv,
         timestamp: Date.now(),
@@ -253,7 +254,7 @@ export class InventoryEvents {
     if (!this.consumeRecipeIngredients(playerId, pseudo)) return false;
     const normalized = this.ensureSlots(this.playerInventories.get(playerId)!);
     this.playerInventories.set(playerId, normalized);
-    this.room.broadcast("inventory:updated", {
+    this.room.broadcast(InventoryMessages.Updated, {
       playerId,
       inventory: normalized,
       timestamp: Date.now(),
@@ -404,7 +405,7 @@ export class InventoryEvents {
     const normalized = this.ensureSlots(inventory);
     this.playerInventories.set(playerId, normalized);
 
-    this.room.broadcast('inventory:updated', {
+    this.room.broadcast(InventoryMessages.Updated, {
       playerId,
       inventory: normalized,
       timestamp: Date.now(),
@@ -443,7 +444,7 @@ export class InventoryEvents {
     inv.currentWeight = this.calculateTotalWeight(inv);
     const normalized = this.ensureSlots(inv);
     this.playerInventories.set(playerId, normalized);
-    this.room.broadcast('inventory:updated', {
+    this.room.broadcast(InventoryMessages.Updated, {
       playerId,
       inventory: normalized,
       timestamp: Date.now(),
@@ -480,7 +481,7 @@ export class InventoryEvents {
     inv.currentWeight = this.calculateTotalWeight(inv);
     const normalized = this.ensureSlots(inv);
     this.playerInventories.set(playerId, normalized);
-    this.room.broadcast('inventory:updated', {
+    this.room.broadcast(InventoryMessages.Updated, {
       playerId,
       inventory: normalized,
       timestamp: Date.now(),
@@ -523,7 +524,7 @@ export class InventoryEvents {
     inv.currentWeight = this.calculateTotalWeight(inv);
     const normalized = this.ensureSlots(inv);
     this.playerInventories.set(playerId, normalized);
-    this.room.broadcast('inventory:updated', {
+    this.room.broadcast(InventoryMessages.Updated, {
       playerId,
       inventory: normalized,
       timestamp: Date.now(),
@@ -543,7 +544,7 @@ export class InventoryEvents {
     const playerId = client.sessionId;
     const inventory = this.playerInventories.get(playerId);
     if (!inventory) {
-      client.send('inventory:error', { message: 'Sin inventario' });
+      client.send(InventoryMessages.Error, { message: 'Sin inventario' });
       return;
     }
     if (
@@ -552,7 +553,7 @@ export class InventoryEvents {
       fromSlot >= inventory.maxSlots ||
       toSlot >= inventory.maxSlots
     ) {
-      client.send('inventory:error', { message: 'Slot inválido' });
+      client.send(InventoryMessages.Error, { message: 'Slot inválido' });
       return;
     }
     const a = inventory.items.find((i) => i.slot === fromSlot);
@@ -562,7 +563,7 @@ export class InventoryEvents {
     if (b) b.slot = fromSlot;
     const normalized = this.ensureSlots(inventory);
     this.playerInventories.set(playerId, normalized);
-    this.room.broadcast('inventory:updated', {
+    this.room.broadcast(InventoryMessages.Updated, {
       playerId,
       inventory: normalized,
       timestamp: Date.now(),
@@ -629,7 +630,7 @@ export class InventoryEvents {
     // Validar datos del inventario
     if (!this.validateInventory(data.inventory)) {
       console.log(`❌ [DEBUG] Inventario inválido para ${playerId}`);
-      client.send('inventory:error', { message: 'Datos de inventario inválidos' });
+      client.send(InventoryMessages.Error, { message: 'Datos de inventario inválidos' });
       return;
     }
 
@@ -639,7 +640,7 @@ export class InventoryEvents {
     console.log(`✅ [DEBUG] Inventario actualizado en servidor para ${playerId}:`, data.inventory);
 
     // Enviar actualización a todos los jugadores
-    this.room.broadcast('inventory:updated', {
+    this.room.broadcast(InventoryMessages.Updated, {
       playerId,
       inventory: normalized,
       timestamp: Date.now()
@@ -656,13 +657,13 @@ export class InventoryEvents {
     const inventory = this.playerInventories.get(playerId);
 
     if (!inventory) {
-      client.send('inventory:error', { message: 'Inventario no encontrado' });
+      client.send(InventoryMessages.Error, { message: 'Inventario no encontrado' });
       return;
     }
 
     // Validar item
     if (!this.validateItem(data.item)) {
-      client.send('inventory:error', { message: 'Item inválido' });
+      client.send(InventoryMessages.Error, { message: 'Item inválido' });
       return;
     }
 
@@ -674,7 +675,7 @@ export class InventoryEvents {
     const normalized = this.ensureSlots(inventory);
     this.playerInventories.set(playerId, normalized);
 
-    this.room.broadcast('inventory:updated', {
+    this.room.broadcast(InventoryMessages.Updated, {
       playerId,
       inventory: normalized,
       timestamp: Date.now(),
@@ -691,13 +692,13 @@ export class InventoryEvents {
     const inventory = this.playerInventories.get(playerId);
 
     if (!inventory) {
-      client.send('inventory:error', { message: 'Inventario no encontrado' });
+      client.send(InventoryMessages.Error, { message: 'Inventario no encontrado' });
       return;
     }
 
     const itemIndex = inventory.items.findIndex(item => item.id === data.itemId);
     if (itemIndex === -1) {
-      client.send('inventory:error', { message: 'Item no encontrado' });
+      client.send(InventoryMessages.Error, { message: 'Item no encontrado' });
       return;
     }
 
@@ -717,7 +718,7 @@ export class InventoryEvents {
     this.playerInventories.set(playerId, this.ensureSlots(inventory));
 
     // Notificar a todos los jugadores
-    this.room.broadcast('inventory:item-removed', {
+    this.room.broadcast(InventoryMessages.ItemRemoved, {
       playerId,
       item,
       action: 'remove',
@@ -738,7 +739,7 @@ export class InventoryEvents {
 
     if (!inventory) {
       console.log(`❌ [DEBUG] Inventario no encontrado para ${playerId}`);
-      client.send('inventory:error', { message: 'Inventario no encontrado' });
+      client.send(InventoryMessages.Error, { message: 'Inventario no encontrado' });
       return;
     }
 
@@ -751,7 +752,7 @@ export class InventoryEvents {
     if (!item) {
       console.log(`❌ [DEBUG] Item no encontrado: ${data.itemId} en inventario de ${playerId}`);
       console.log(`📦 [DEBUG] Items disponibles:`, inventory.items.map(i => ({ id: i.id, itemId: i.itemId, name: i.name })));
-      client.send('inventory:error', { message: 'Item no encontrado' });
+      client.send(InventoryMessages.Error, { message: 'Item no encontrado' });
       return;
     }
 
@@ -759,7 +760,7 @@ export class InventoryEvents {
 
     if (item.type !== 'consumable') {
       console.log(`❌ [DEBUG] Item no consumible: ${item.type}`);
-      client.send('inventory:error', { message: 'Item no consumible' });
+      client.send(InventoryMessages.Error, { message: 'Item no consumible' });
       return;
     }
 
@@ -781,7 +782,7 @@ export class InventoryEvents {
       }
       const newGold = (inventory.gold || 0) + amountMajor;
       inventory.gold = newGold;
-      this.room.broadcast('inventory:gold-updated', {
+      this.room.broadcast(InventoryMessages.GoldUpdated, {
         playerId,
         amount: newGold,
         change: amountMajor,
@@ -799,7 +800,7 @@ export class InventoryEvents {
     }
 
     // Notificar uso del item (después de aplicar efectos, antes de mutar)
-    this.room.broadcast('inventory:item-used', {
+    this.room.broadcast(InventoryMessages.ItemUsed, {
       playerId,
       item,
       action: 'use',
@@ -823,7 +824,7 @@ export class InventoryEvents {
       this.playerInventories.set(playerId, this.ensureSlots(inventory));
 
       // Enviar snapshot actualizado al propio jugador
-      client.send('inventory:updated', {
+      client.send(InventoryMessages.Updated, {
         playerId,
         inventory: this.playerInventories.get(playerId)!,
         timestamp: Date.now(),
@@ -841,13 +842,13 @@ export class InventoryEvents {
     const inventory = this.playerInventories.get(playerId);
 
     if (!inventory) {
-      client.send('inventory:error', { message: 'Inventario no encontrado' });
+      client.send(InventoryMessages.Error, { message: 'Inventario no encontrado' });
       return;
     }
 
     const item = inventory.items.find(i => i.id === data.itemId);
     if (!item) {
-      client.send('inventory:error', { message: 'Item no encontrado' });
+      client.send(InventoryMessages.Error, { message: 'Item no encontrado' });
       return;
     }
 
@@ -855,7 +856,7 @@ export class InventoryEvents {
     item.isEquipped = true;
 
     // Notificar equipamiento
-    this.room.broadcast('inventory:item-equipped', {
+    this.room.broadcast(InventoryMessages.ItemEquipped, {
       playerId,
       item,
       action: 'equip',
@@ -873,13 +874,13 @@ export class InventoryEvents {
     const inventory = this.playerInventories.get(playerId);
 
     if (!inventory) {
-      client.send('inventory:error', { message: 'Inventario no encontrado' });
+      client.send(InventoryMessages.Error, { message: 'Inventario no encontrado' });
       return;
     }
 
     const item = inventory.items.find(i => i.type === data.itemType && i.isEquipped);
     if (!item) {
-      client.send('inventory:error', { message: 'Item no equipado' });
+      client.send(InventoryMessages.Error, { message: 'Item no equipado' });
       return;
     }
 
@@ -887,7 +888,7 @@ export class InventoryEvents {
     item.isEquipped = false;
 
     // Notificar desequipamiento
-    this.room.broadcast('inventory:item-unequipped', {
+    this.room.broadcast(InventoryMessages.ItemUnequipped, {
       playerId,
       item,
       action: 'unequip',
@@ -905,7 +906,7 @@ export class InventoryEvents {
     const inventory = this.playerInventories.get(playerId);
 
     if (!inventory) {
-      client.send('inventory:error', { message: 'Inventario no encontrado' });
+      client.send(InventoryMessages.Error, { message: 'Inventario no encontrado' });
       return;
     }
 
@@ -915,7 +916,7 @@ export class InventoryEvents {
     this.playerInventories.set(playerId, inventory);
 
     // Notificar cambio de oro
-    this.room.broadcast('inventory:gold-updated', {
+    this.room.broadcast(InventoryMessages.GoldUpdated, {
       playerId,
       amount: data.amount,
       change,
@@ -969,7 +970,7 @@ export class InventoryEvents {
 
     const normalized = this.ensureSlots(inventory);
     console.log(`📦 [DEBUG] Enviando inventario al cliente:`, normalized);
-    client.send('inventory:data', normalized);
+    client.send(InventoryMessages.Data, normalized);
   }
 
   /**
@@ -1013,7 +1014,7 @@ export class InventoryEvents {
 
   private sendInventoryError(playerId: string, message: string): void {
     const c = this.room.clients.find((cl) => cl.sessionId === playerId);
-    c?.send('inventory:error', { message });
+    c?.send(InventoryMessages.Error, { message });
   }
 
   /**
@@ -1113,7 +1114,7 @@ export class InventoryEvents {
     inv.maxSlots = maxSlots;
     const normalized = this.ensureSlots(inv);
     this.playerInventories.set(playerId, normalized);
-    this.room.broadcast("inventory:updated", {
+    this.room.broadcast(InventoryMessages.Updated, {
       playerId,
       inventory: normalized,
       timestamp: Date.now(),

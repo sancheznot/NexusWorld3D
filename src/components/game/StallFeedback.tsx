@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { StallMessages } from "@nexusworld3d/protocol";
 import { colyseusClient } from "@/lib/colyseus/client";
 import { ITEMS_CATALOG } from "@/constants/items";
 import { useUIStore } from "@/store/uiStore";
@@ -62,9 +63,9 @@ export default function StallFeedback() {
       }
     };
 
-    colyseusClient.on("stall:result", onStall);
+    colyseusClient.on(StallMessages.Result, onStall);
     return () => {
-      colyseusClient.off("stall:result", onStall);
+      colyseusClient.off(StallMessages.Result, onStall);
     };
   }, [addNotification, pushItemGainToast]);
 

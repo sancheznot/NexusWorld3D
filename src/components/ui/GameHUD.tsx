@@ -15,6 +15,7 @@ import type { InventoryItem } from "@/types/inventory.types";
 import ServerClock from "@/components/ui/ServerClock";
 import { frameworkDefaultWorldDisplayName } from "@/lib/frameworkBranding";
 import { getHotbarRow } from "@/lib/gameplay/inventoryHotbar";
+import { EconomyMessages } from "@nexusworld3d/protocol";
 
 const MAP_LOCATIONS: Record<string, string> = {
   exterior: "Sector urbano",
@@ -183,9 +184,9 @@ export default function GameHUD({
     const onWallet = (data: unknown) => {
       setBalance(parseEconomyWalletAmount(data));
     };
-    economyClient.on("economy:wallet", onWallet);
+    economyClient.on(EconomyMessages.Wallet, onWallet);
     economyClient.requestState();
-    return () => economyClient.off("economy:wallet", onWallet);
+    return () => economyClient.off(EconomyMessages.Wallet, onWallet);
   }, []);
 
   useEffect(() => {

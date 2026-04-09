@@ -1,4 +1,5 @@
 import { Room, Client } from "colyseus";
+import { WorldMessages } from "@nexusworld3d/protocol";
 import type { InventoryEvents } from "@resources/inventory/server/InventoryEvents";
 import { InventoryItem, ItemRarity, ItemType } from "@/types/inventory.types";
 import {
@@ -61,7 +62,7 @@ export class TreeChopEvents {
     now: number
   ): void {
     if (rt.stumpUntil > now) {
-      client.send("world:tree-chop-result", {
+      client.send(WorldMessages.TreeChopResult, {
         ok: false,
         treeId,
         message: "Este árbol aún está derribado",
@@ -99,7 +100,7 @@ export class TreeChopEvents {
           0,
           Math.round(((cfg.maxHits - rt.hitsDone) / cfg.maxHits) * 100)
         );
-        client.send("world:tree-chop-result", {
+        client.send(WorldMessages.TreeChopResult, {
           ok: false,
           treeId,
           message:
@@ -128,14 +129,14 @@ export class TreeChopEvents {
       rt.hitsDone = 0;
       rt.stumpUntil = now + TREE_RESPAWN_MS;
 
-      this.room.broadcast("world:tree-sync", {
+      this.room.broadcast(WorldMessages.TreeSync, {
         mapId,
         treeId,
         state: "stump",
         respawnAt: rt.stumpUntil,
       });
 
-      client.send("world:tree-chop-result", {
+      client.send(WorldMessages.TreeChopResult, {
         ok: true,
         treeId,
         felled: true,
@@ -153,14 +154,14 @@ export class TreeChopEvents {
         if (!r) return;
         r.stumpUntil = 0;
         r.hitsDone = 0;
-        this.room.broadcast("world:tree-sync", {
+        this.room.broadcast(WorldMessages.TreeSync, {
           mapId,
           treeId,
           state: "active",
         });
       }, TREE_RESPAWN_MS);
     } else {
-      client.send("world:tree-chop-result", {
+      client.send(WorldMessages.TreeChopResult, {
         ok: true,
         treeId,
         felled: false,
@@ -180,7 +181,7 @@ export class TreeChopEvents {
 
   private setupHandlers(): void {
     this.room.onMessage(
-      "world:tree-chop",
+      WorldMessages.TreeChop,
       (
         client: Client,
         data: {
@@ -191,7 +192,7 @@ export class TreeChopEvents {
       ) => {
         const treeId = data?.treeId;
         if (!treeId || typeof treeId !== "string") {
-          client.send("world:tree-chop-result", {
+          client.send(WorldMessages.TreeChopResult, {
             ok: false,
             message: "treeId inválido",
           });
@@ -207,7 +208,7 @@ export class TreeChopEvents {
         this.lastSwing.set(pid, now);
 
         if (!this.deps.inventory.playerHasAnyChopAxe(pid)) {
-          client.send("world:tree-chop-result", {
+          client.send(WorldMessages.TreeChopResult, {
             ok: false,
             treeId,
             message: "Necesitas un hacha (equípala o ponla en la hotbar)",
@@ -217,7 +218,7 @@ export class TreeChopEvents {
 
         const pos = this.deps.getPlayerPosition(pid);
         if (!pos) {
-          client.send("world:tree-chop-result", {
+          client.send(WorldMessages.TreeChopResult, {
             ok: false,
             treeId,
             message: "Posición desconocida",
@@ -247,7 +248,7 @@ export class TreeChopEvents {
 
         const mapId = this.deps.getPlayerMapId(pid);
         if (!mapId) {
-          client.send("world:tree-chop-result", {
+          client.send(WorldMessages.TreeChopResult, {
             ok: false,
             treeId,
             message: "Mapa desconocido",
@@ -256,7 +257,7 @@ export class TreeChopEvents {
         }
 
         if (treeId.startsWith(CITY_TREE_CHOP_PREFIX)) {
-          client.send("world:tree-chop-result", {
+          client.send(WorldMessages.TreeChopResult, {
             ok: false,
             treeId,
             message:
@@ -267,7 +268,7 @@ export class TreeChopEvents {
 
         const def = getChoppableTreeDef(treeId);
         if (!def) {
-          client.send("world:tree-chop-result", {
+          client.send(WorldMessages.TreeChopResult, {
             ok: false,
             treeId,
             message: "Árbol no existe",
@@ -276,7 +277,7 @@ export class TreeChopEvents {
         }
 
         if (mapId !== def.mapId) {
-          client.send("world:tree-chop-result", {
+          client.send(WorldMessages.TreeChopResult, {
             ok: false,
             treeId,
             message: "No estás en el mapa de este árbol",
@@ -288,7 +289,7 @@ export class TreeChopEvents {
         const dz = refZ - def.position.z;
         const dist = Math.hypot(dx, dz);
         if (dist > TREE_CHOP_MAX_DISTANCE) {
-          client.send("world:tree-chop-result", {
+          client.send(WorldMessages.TreeChopResult, {
             ok: false,
             treeId,
             message: "Demasiado lejos del árbol",

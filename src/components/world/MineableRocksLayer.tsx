@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { WorldMessages } from '@nexusworld3d/protocol';
 import { colyseusClient } from '@/lib/colyseus/client';
 import {
   MINEABLE_PROP_ROCKS,
@@ -68,7 +69,7 @@ export default function MineableRocksLayer({ mapId }: MineableRocksLayerProps) {
       const room = colyseusClient.getSocket();
       if (!room?.sessionId || room.sessionId === lastSessionRef.current) return;
       lastSessionRef.current = room.sessionId;
-      room.onMessage('world:rock-sync', handler);
+      room.onMessage(WorldMessages.RockSync, handler);
     };
 
     colyseusClient.on('room:connected', attach);

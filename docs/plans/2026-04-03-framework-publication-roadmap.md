@@ -1,9 +1,18 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 1.1  
+**Versión:** 1.2  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
+
+### Progreso reciente / Recent progress (implementado en repo)
+
+- [x] **Workspaces npm** + paquete **`@nexusworld3d/protocol`** (`packages/protocol`): `PROTOCOL_VERSION`, `WorldMessages`, `HousingMessages`, `InventoryMessages`, `PlayerMessages`, `RpgMessages`, etc.
+- [x] **Cliente y servidor** migrados a esas constantes en los puntos críticos (sala mundo, inventario, tala/mina/nodos, housing client, feedback UI).
+- [x] **Plugins de sala:** `NexusRoomPlugin`, `attachNexusRoomPlugins`, plugin piloto **`core:world-resource-nodes`** (`server/room/nexusRoomPlugins.ts`).
+- [x] **Demo mode:** `NEXT_PUBLIC_FRAMEWORK_DEMO=1` + `FrameworkDemoGround` (sin `city.glb` ni capas pesadas en exterior).
+- [x] **Docs:** `docs/GETTING_STARTED.md`, `ARCHITECTURE.md`, `ADDING_CONTENT.md`; **`apps/demo/README.md`** explica el demo; **`npm run validate-content`** (stub Fase 2).
+- [ ] Pendiente Fase 1: paquetes `engine-server` / `engine-client` separados del juego; más plugins; economía completa en `EconomyMessages`; handshake `protocolVersion` estricto.
 
 ---
 
@@ -73,7 +82,9 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 **Entregables / Deliverables**
 
-- [ ] `pnpm`/`npm` workspaces (o Turborepo) con dependencias **unidireccionales** (`game` → `engine`, nunca al revés).
+- [x] `npm` **workspaces** (`packages/*`) + dependencia `workspace:*` en la app raíz.
+- [x] Paquete **`@nexusworld3d/protocol`** (mensajes + versión).
+- [ ] Paquetes `engine-server` / `engine-client` extraídos; dependencias solo `game` → `engine`.
 - [ ] Ningún import desde `engine` hacia assets o nombres de Hotel.
 
 ---
@@ -87,7 +98,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 **Incluye / Includes**
 
 - [ ] Esquema: `items[]`, `recipes[]`, `worldSpawns[]`, `interactables[]`, `shops[]`, `buildingPieces[]` (según alcance).
-- [ ] CLI `validate-content` que falle CI si hay IDs duplicados o refs rotas (`itemId` inexistente).
+- [x] Script **`npm run validate-content`** (stub que sale 0; sustituir por validación real en Fase 2).
 - [ ] Loader en servidor que **hidrate** catálogos en memoria al iniciar sala (o en build-time codegen TS opcional).
 
 **Beneficio / Benefit:** el tercero “solo” edita datos; no abre diez archivos TS.
@@ -109,8 +120,8 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 **Entregables / Deliverables**
 
-- [ ] Documento “**Crear tu primera interacción**” con un plugin de ~50 líneas.
-- [ ] La demo pública incluye **un** plugin de ejemplo (p. ej. “cubo que da ítem”).
+- [x] Guía **`docs/ADDING_CONTENT.md`** + plugin piloto documentado (`createWorldResourceNodesPlugin`).
+- [ ] Demo pública con plugin “cubo que da ítem” (opcional; hoy el piloto es recolección de nodos).
 
 ---
 
@@ -120,7 +131,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 **EN.** Centralize message names and payloads.
 
-- [ ] Objeto o enum `WorldMessages` + tipos de payload (TypeScript).
+- [x] Constantes de mensajes en **`@nexusworld3d/protocol`** (`WorldMessages`, etc.); tipos de payload aún dispersos (mejora incremental).
 - [ ] Campo `protocolVersion` en handshake o primer mensaje; servidor rechaza clientes incompatibles con mensaje claro.
 - [ ] Convención de nombres: prefijos `core:` vs `game:` para que el juego privado añada mensajes sin colisionar con el núcleo.
 
@@ -167,9 +178,9 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 **EN.** A 5-minute runnable demo without the full game:
 
-- [ ] Un mapa plano o pequeño + personaje + sala Colyseus.
-- [ ] Inventario mínimo + un ítem + un interactuable de ejemplo.
-- [ ] README con `pnpm install`, `pnpm dev` (cliente + servidor).
+- [x] Mapa plano vía **`NEXT_PUBLIC_FRAMEWORK_DEMO=1`** + personaje + sala Colyseus (misma app; ver `docs/GETTING_STARTED.md`).
+- [ ] Inventario mínimo aislado solo para demo pública (sin DB completa).
+- [x] Instrucciones en **`docs/GETTING_STARTED.md`** (`npm install`, `npm run dev`).
 
 ---
 
@@ -179,10 +190,10 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 **EN.** Minimum viable docs:
 
-- [ ] `README.md` (qué es / qué no es).
-- [ ] `docs/GETTING_STARTED.md`.
-- [ ] `docs/ARCHITECTURE.md` (diagrama cliente ↔ Colyseus ↔ persistencia).
-- [ ] `docs/ADDING_CONTENT.md` (manifest + modelo + plugin).
+- [ ] `README.md` raíz orientado a framework (hoy describe el monorepo completo).
+- [x] `docs/GETTING_STARTED.md`.
+- [x] `docs/ARCHITECTURE.md` (diagrama cliente ↔ Colyseus ↔ persistencia).
+- [x] `docs/ADDING_CONTENT.md` (plugin + mensajes; manifest en Fase 2).
 - [ ] `docs/DEPLOYMENT.md` (opcional v1: Docker compose demo).
 - [ ] `LICENSE` explícito (MIT / Apache-2.0, etc.).
 

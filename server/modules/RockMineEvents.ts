@@ -1,4 +1,5 @@
 import { Room, Client } from "colyseus";
+import { WorldMessages } from "@nexusworld3d/protocol";
 import type { InventoryEvents } from "@resources/inventory/server/InventoryEvents";
 import { InventoryItem, ItemRarity, ItemType } from "@/types/inventory.types";
 import { CLIENT_POS_TRUST_RADIUS } from "@/constants/choppableTrees";
@@ -60,7 +61,7 @@ export class RockMineEvents {
     now: number
   ): void {
     if (rt.rubbleUntil > now) {
-      client.send("world:rock-mine-result", {
+      client.send(WorldMessages.RockMineResult, {
         ok: false,
         rockId,
         message: "Este yacimiento aún está agotado",
@@ -98,7 +99,7 @@ export class RockMineEvents {
           0,
           Math.round(((cfg.maxHits - rt.hitsDone) / cfg.maxHits) * 100)
         );
-        client.send("world:rock-mine-result", {
+        client.send(WorldMessages.RockMineResult, {
           ok: false,
           rockId,
           message:
@@ -127,14 +128,14 @@ export class RockMineEvents {
       rt.hitsDone = 0;
       rt.rubbleUntil = now + ROCK_RESPAWN_MS;
 
-      this.room.broadcast("world:rock-sync", {
+      this.room.broadcast(WorldMessages.RockSync, {
         mapId,
         rockId,
         state: "rubble",
         respawnAt: rt.rubbleUntil,
       });
 
-      client.send("world:rock-mine-result", {
+      client.send(WorldMessages.RockMineResult, {
         ok: true,
         rockId,
         depleted: true,
@@ -152,14 +153,14 @@ export class RockMineEvents {
         if (!r) return;
         r.rubbleUntil = 0;
         r.hitsDone = 0;
-        this.room.broadcast("world:rock-sync", {
+        this.room.broadcast(WorldMessages.RockSync, {
           mapId,
           rockId,
           state: "active",
         });
       }, ROCK_RESPAWN_MS);
     } else {
-      client.send("world:rock-mine-result", {
+      client.send(WorldMessages.RockMineResult, {
         ok: true,
         rockId,
         depleted: false,
@@ -179,7 +180,7 @@ export class RockMineEvents {
 
   private setupHandlers(): void {
     this.room.onMessage(
-      "world:rock-mine",
+      WorldMessages.RockMine,
       (
         client: Client,
         data: {
@@ -189,7 +190,7 @@ export class RockMineEvents {
       ) => {
         const rockId = data?.rockId;
         if (!rockId || typeof rockId !== "string") {
-          client.send("world:rock-mine-result", {
+          client.send(WorldMessages.RockMineResult, {
             ok: false,
             message: "rockId inválido",
           });
@@ -205,7 +206,7 @@ export class RockMineEvents {
         this.lastSwing.set(pid, now);
 
         if (!this.deps.inventory.playerHasAnyMinePickaxe(pid)) {
-          client.send("world:rock-mine-result", {
+          client.send(WorldMessages.RockMineResult, {
             ok: false,
             rockId,
             message: "Necesitas un pico (equípalo o ponlo en la hotbar)",
@@ -215,7 +216,7 @@ export class RockMineEvents {
 
         const pos = this.deps.getPlayerPosition(pid);
         if (!pos) {
-          client.send("world:rock-mine-result", {
+          client.send(WorldMessages.RockMineResult, {
             ok: false,
             rockId,
             message: "Posición desconocida",
@@ -245,7 +246,7 @@ export class RockMineEvents {
 
         const mapId = this.deps.getPlayerMapId(pid);
         if (!mapId) {
-          client.send("world:rock-mine-result", {
+          client.send(WorldMessages.RockMineResult, {
             ok: false,
             rockId,
             message: "Mapa desconocido",
@@ -255,7 +256,7 @@ export class RockMineEvents {
 
         const def = getMineableRockDef(rockId);
         if (!def) {
-          client.send("world:rock-mine-result", {
+          client.send(WorldMessages.RockMineResult, {
             ok: false,
             rockId,
             message: "Roca no existe",
@@ -264,7 +265,7 @@ export class RockMineEvents {
         }
 
         if (mapId !== def.mapId) {
-          client.send("world:rock-mine-result", {
+          client.send(WorldMessages.RockMineResult, {
             ok: false,
             rockId,
             message: "No estás en el mapa de esta roca",
@@ -276,7 +277,7 @@ export class RockMineEvents {
         const dz = refZ - def.position.z;
         const dist = Math.hypot(dx, dz);
         if (dist > ROCK_MINE_MAX_DISTANCE) {
-          client.send("world:rock-mine-result", {
+          client.send(WorldMessages.RockMineResult, {
             ok: false,
             rockId,
             message: "Demasiado lejos de la roca",

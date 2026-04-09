@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { WorldMessages } from '@nexusworld3d/protocol';
 import { colyseusClient } from '@/lib/colyseus/client';
 import {
   CHOPPABLE_PROP_TREES,
@@ -80,7 +81,7 @@ export default function ChoppableTreesLayer({ mapId }: ChoppableTreesLayerProps)
       const room = colyseusClient.getSocket();
       if (!room?.sessionId || room.sessionId === lastSessionRef.current) return;
       lastSessionRef.current = room.sessionId;
-      room.onMessage('world:tree-sync', handler);
+      room.onMessage(WorldMessages.TreeSync, handler);
     };
 
     colyseusClient.on('room:connected', attach);

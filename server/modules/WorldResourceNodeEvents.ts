@@ -1,4 +1,5 @@
 import { Room, Client } from "colyseus";
+import { WorldMessages } from "@nexusworld3d/protocol";
 import type { InventoryEvents } from "@resources/inventory/server/InventoryEvents";
 import { ITEMS_CATALOG } from "@/constants/items";
 import { RPG_XP_RESOURCE_NODE_HARVEST } from "@/constants/rpgProgression";
@@ -59,7 +60,7 @@ export class WorldResourceNodeEvents {
 
   private setupHandlers(): void {
     this.room.onMessage(
-      "world:harvest-node",
+      WorldMessages.HarvestNode,
       (client: Client, data: { nodeId?: string }) => {
         const nodeId = typeof data?.nodeId === "string" ? data.nodeId : "";
         const mapId = this.deps.getPlayerMapId(client.sessionId) ?? "exterior";
@@ -67,7 +68,7 @@ export class WorldResourceNodeEvents {
         const now = Date.now();
 
         if (!nodeId) {
-          client.send("world:harvest-node-result", {
+          client.send(WorldMessages.HarvestNodeResult, {
             ok: false,
             nodeId: "",
             message: "Nodo inválido",
@@ -77,7 +78,7 @@ export class WorldResourceNodeEvents {
 
         const node = getWorldResourceNodeById(nodeId);
         if (!node || node.mapId !== mapId) {
-          client.send("world:harvest-node-result", {
+          client.send(WorldMessages.HarvestNodeResult, {
             ok: false,
             nodeId,
             message: "Este recurso no está disponible aquí",
@@ -86,7 +87,7 @@ export class WorldResourceNodeEvents {
         }
 
         if (!pos) {
-          client.send("world:harvest-node-result", {
+          client.send(WorldMessages.HarvestNodeResult, {
             ok: false,
             nodeId,
             message: "Posición desconocida",
@@ -98,7 +99,7 @@ export class WorldResourceNodeEvents {
         const dz = pos.z - node.position.z;
         const dist = Math.hypot(dx, dz);
         if (dist > node.radius + DIST_SLACK) {
-          client.send("world:harvest-node-result", {
+          client.send(WorldMessages.HarvestNodeResult, {
             ok: false,
             nodeId,
             message: "Acércate más al punto de recolección",
@@ -109,7 +110,7 @@ export class WorldResourceNodeEvents {
         const k = this.harvestKey(client.sessionId, nodeId);
         const prev = this.lastHarvest.get(k) ?? 0;
         if (now - prev < HARVEST_COOLDOWN_MS) {
-          client.send("world:harvest-node-result", {
+          client.send(WorldMessages.HarvestNodeResult, {
             ok: false,
             nodeId,
             message: "Espera un momento antes de volver a recolectar",
@@ -131,7 +132,7 @@ export class WorldResourceNodeEvents {
                 { itemId: r.itemId, quantity: r.quantity },
               ]);
             }
-            client.send("world:harvest-node-result", {
+            client.send(WorldMessages.HarvestNodeResult, {
               ok: false,
               nodeId,
               message: "Ítem de recompensa no configurado",
@@ -148,7 +149,7 @@ export class WorldResourceNodeEvents {
                 { itemId: r.itemId, quantity: r.quantity },
               ]);
             }
-            client.send("world:harvest-node-result", {
+            client.send(WorldMessages.HarvestNodeResult, {
               ok: false,
               nodeId,
               message:
@@ -160,7 +161,7 @@ export class WorldResourceNodeEvents {
         }
 
         if (granted.length === 0) {
-          client.send("world:harvest-node-result", {
+          client.send(WorldMessages.HarvestNodeResult, {
             ok: false,
             nodeId,
             message: "Nodo sin recompensa configurada",
@@ -174,7 +175,7 @@ export class WorldResourceNodeEvents {
           RPG_XP_RESOURCE_NODE_HARVEST
         );
 
-        client.send("world:harvest-node-result", {
+        client.send(WorldMessages.HarvestNodeResult, {
           ok: true,
           nodeId,
           grants: granted,

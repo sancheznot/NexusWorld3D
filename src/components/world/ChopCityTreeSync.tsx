@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useThree } from '@react-three/fiber';
+import { WorldMessages } from '@nexusworld3d/protocol';
 import { colyseusClient } from '@/lib/colyseus/client';
 import { CITY_TREE_CHOP_PREFIX } from '@/constants/choppableTrees';
 import type { TreeSyncPayload } from '@/lib/gameplay/treeChopActions';
@@ -29,7 +30,7 @@ export default function ChopCityTreeSync() {
       const room = colyseusClient.getSocket();
       if (!room?.sessionId || room.sessionId === lastSessionRef.current) return;
       lastSessionRef.current = room.sessionId;
-      room.onMessage("world:tree-sync", handler);
+      room.onMessage(WorldMessages.TreeSync, handler);
     };
 
     colyseusClient.on("room:connected", attach);

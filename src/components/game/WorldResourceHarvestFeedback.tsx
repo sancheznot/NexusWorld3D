@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { WorldMessages } from "@nexusworld3d/protocol";
 import { colyseusClient } from "@/lib/colyseus/client";
 import { useUIStore } from "@/store/uiStore";
 
@@ -33,9 +34,9 @@ export default function WorldResourceHarvestFeedback() {
       }
     };
 
-    colyseusClient.on("world:harvest-node-result", onResult);
+    colyseusClient.on(WorldMessages.HarvestNodeResult, onResult);
     return () => {
-      colyseusClient.off("world:harvest-node-result", onResult);
+      colyseusClient.off(WorldMessages.HarvestNodeResult, onResult);
     };
   }, [addNotification]);
 

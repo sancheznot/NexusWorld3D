@@ -1,4 +1,5 @@
 import { Room, Client } from 'colyseus';
+import { InventoryMessages } from '@nexusworld3d/protocol';
 import { InventoryItem } from '@/types/inventory.types';
 import { ITEM_SPAWNS, ItemSpawnConfig, ITEMS_CATALOG } from '@/constants/items';
 
@@ -127,7 +128,7 @@ export class ItemEvents {
       const result = this.collectItem(data.mapId, data.spawnId, client.sessionId);
       const ok = result.ok;
       if (!ok) {
-        client.send('inventory:error', { message: 'Item no disponible' });
+        client.send(InventoryMessages.Error, { message: 'Item no disponible' });
         return;
       }
       const added =
@@ -136,7 +137,7 @@ export class ItemEvents {
           : 0;
       if (added <= 0) {
         this.rollbackWorldCollect(data.mapId, data.spawnId);
-        client.send("inventory:error", {
+        client.send(InventoryMessages.Error, {
           message:
             "No cabe en el inventario (peso o ranuras). Suelta algo; el límite lo marca el servidor.",
         });
@@ -189,7 +190,7 @@ export class ItemEvents {
       ) => {
         const playerMap = this.getPlayerMapId(client.sessionId);
         if (!playerMap || playerMap !== data.mapId) {
-          client.send("inventory:error", { message: "Mapa inválido" });
+          client.send(InventoryMessages.Error, { message: "Mapa inválido" });
           return;
         }
         const qty = Math.max(1, Math.min(999, data.quantity ?? 1));
@@ -199,14 +200,14 @@ export class ItemEvents {
           qty
         );
         if (!removed.ok || !removed.base) {
-          client.send("inventory:error", {
+          client.send(InventoryMessages.Error, {
             message: removed.message || "No se puede soltar",
           });
           return;
         }
         const pos3 = this.getPlayerPosition(client.sessionId);
         if (!pos3) {
-          client.send("inventory:error", { message: "Posición desconocida" });
+          client.send(InventoryMessages.Error, { message: "Posición desconocida" });
           return;
         }
         const spawnId = `drop_${client.sessionId.slice(0, 6)}_${Date.now()}`;

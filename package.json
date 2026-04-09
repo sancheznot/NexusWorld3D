@@ -1,6 +1,9 @@
 {
   "name": "nexusworld3d-framework",
   "version": "0.1.0",
+  "workspaces": [
+    "packages/*"
+  ],
   "description": "An open-source framework for creating 3D multiplayer worlds without Blender or advanced programming",
   "keywords": [
     "3d",
@@ -24,9 +27,11 @@
     "docker:up:detached": "bash scripts/compose-with-env.sh -f docker-compose.yml up --build -d",
     "docker:down": "bash scripts/compose-with-env.sh -f docker-compose.yml down",
     "db:migrate": "tsx scripts/migrate.ts",
-    "lint": "eslint"
+    "lint": "eslint",
+    "validate-content": "node scripts/validate-content.mjs"
   },
   "dependencies": {
+    "@nexusworld3d/protocol": "workspace:*",
     "@aws-sdk/client-s3": "^3.913.0",
     "@aws-sdk/s3-request-presigner": "^3.913.0",
     "@colyseus/schema": "^3.0.64",

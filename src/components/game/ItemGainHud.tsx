@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { WorldMessages } from '@nexusworld3d/protocol';
 import { colyseusClient } from '@/lib/colyseus/client';
 import itemsClient from '@/lib/colyseus/ItemsClient';
 import { useUIStore } from '@/store/uiStore';
@@ -66,9 +67,9 @@ export default function ItemGainHud() {
         variant: 'chop',
       });
     };
-    colyseusClient.on('world:tree-chop-result', onChop);
+    colyseusClient.on(WorldMessages.TreeChopResult, onChop);
     return () => {
-      colyseusClient.off('world:tree-chop-result', onChop);
+      colyseusClient.off(WorldMessages.TreeChopResult, onChop);
     };
   }, []);
 
@@ -108,9 +109,9 @@ export default function ItemGainHud() {
         variant: 'chop',
       });
     };
-    colyseusClient.on('world:rock-mine-result', onMine);
+    colyseusClient.on(WorldMessages.RockMineResult, onMine);
     return () => {
-      colyseusClient.off('world:rock-mine-result', onMine);
+      colyseusClient.off(WorldMessages.RockMineResult, onMine);
     };
   }, []);
 
@@ -135,9 +136,9 @@ export default function ItemGainHud() {
         });
       }
     };
-    colyseusClient.on('world:harvest-node-result', onHarvest);
+    colyseusClient.on(WorldMessages.HarvestNodeResult, onHarvest);
     return () => {
-      colyseusClient.off('world:harvest-node-result', onHarvest);
+      colyseusClient.off(WorldMessages.HarvestNodeResult, onHarvest);
     };
   }, [pushItemGainToast]);
 

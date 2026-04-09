@@ -1,0 +1,11 @@
+{
+  "name": "@nexusworld3d/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared Colyseus message names and protocol version for NexusWorld3D / hotel-humboldt stack",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts"
+}
