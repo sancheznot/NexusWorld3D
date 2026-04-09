@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { EconomyMessages } from '@nexusworld3d/protocol';
 import economyClient from '@/lib/colyseus/EconomyClient';
 import { colyseusClient } from '@/lib/colyseus/client';
 import { inventoryService, DEFAULT_ITEMS } from '@/lib/services/inventory';
@@ -33,7 +34,7 @@ export function useInventory() {
       setInventory(inventoryService.getInventory());
       console.log(`💰 Wallet sincronizado: ${amount} -> inventario: ${inv.gold}`);
     };
-    economyClient.on('economy:wallet', onWallet);
+    economyClient.on(EconomyMessages.Wallet, onWallet);
 
     // Suscripción a eventos del servidor de inventario
     const onInvUpdated = (data: { playerId: string; inventory: Inventory }) => {
@@ -95,7 +96,7 @@ export function useInventory() {
     economyClient.requestState();
     return () => {
       unsub();
-      economyClient.off('economy:wallet', onWallet);
+      economyClient.off(EconomyMessages.Wallet, onWallet);
       inventoryClient.off('inventory:updated', onInvUpdated as unknown as (d: unknown) => void);
       inventoryClient.off('inventory:data', onInvData as unknown as (d: unknown) => void);
       inventoryClient.off('inventory:error', onInvError as unknown as (d: unknown) => void);

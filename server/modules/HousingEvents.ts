@@ -1,4 +1,5 @@
 import { Room, Client } from "colyseus";
+import { HousingMessages } from "@nexusworld3d/protocol";
 import type { InventoryEvents } from "@resources/inventory/server/InventoryEvents";
 import type { EconomyEvents } from "@resources/economy/server/EconomyEvents";
 import {
@@ -394,7 +395,7 @@ export class HousingEvents {
       farmSlots,
       produceStall,
     };
-    client.send("housing:sync", payload);
+    client.send(HousingMessages.Sync, payload);
   }
 
   private broadcastMap(mapId: string): void {
@@ -407,7 +408,7 @@ export class HousingEvents {
 
   private setupHandlers(): void {
     this.room.onMessage(
-      "housing:request",
+      HousingMessages.Request,
       (client: Client, data: { mapId?: string }) => {
         const mapId =
           typeof data?.mapId === "string"
@@ -418,18 +419,18 @@ export class HousingEvents {
     );
 
     this.room.onMessage(
-      "housing:purchase",
+      HousingMessages.Purchase,
       (client: Client, data: { plotId?: string }) => {
         const plotId = typeof data?.plotId === "string" ? data.plotId : "";
         const plot = getHousingPlotById(plotId);
         const norm = this.normFor(client);
         if (!norm || !plot) {
-          client.send("housing:error", { message: "Lote inválido" });
+          client.send(HousingMessages.Error, { message: "Lote inválido" });
           return;
         }
         const cur = this.housingByNorm.get(norm) ?? emptyHousing();
         if (cur.ownedPlotId != null) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "Ya tienes un lote asignado",
           });
           return;
@@ -440,41 +441,41 @@ export class HousingEvents {
           `housing:plot:${plot.id}`
         );
         if (!charged) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "No tienes créditos suficientes para el lote",
           });
           return;
         }
         cur.ownedPlotId = plot.id;
         this.housingByNorm.set(norm, cur);
-        client.send("housing:purchased", { plotId: plot.id });
+        client.send(HousingMessages.Purchased, { plotId: plot.id });
         this.broadcastMap(plot.mapId);
       }
     );
 
     if (HOUSING_DEV) {
       this.room.onMessage(
-        "housing:dev_grant_plot",
+        HousingMessages.DevGrantPlot,
         (client: Client, data: { plotId?: string }) => {
           const plotId =
             typeof data?.plotId === "string" ? data.plotId : "exterior_lot_a1";
           const plot = getHousingPlotById(plotId);
           const norm = this.normFor(client);
           if (!norm || !plot) {
-            client.send("housing:error", { message: "Lote inválido (dev)" });
+            client.send(HousingMessages.Error, { message: "Lote inválido (dev)" });
             return;
           }
           const cur = this.housingByNorm.get(norm) ?? emptyHousing();
           cur.ownedPlotId = plot.id;
           this.housingByNorm.set(norm, cur);
-          client.send("housing:purchased", { plotId: plot.id, dev: true });
+          client.send(HousingMessages.Purchased, { plotId: plot.id, dev: true });
           this.broadcastMap(plot.mapId);
         }
       );
     }
 
     this.room.onMessage(
-      "housing:place",
+      HousingMessages.Place,
       (
         client: Client,
         data: { mapId?: string; x?: number; y?: number; z?: number; rotY?: number }
@@ -489,25 +490,25 @@ export class HousingEvents {
         const rotY = Number(data?.rotY ?? 0);
         const norm = this.normFor(client);
         if (!norm || !Number.isFinite(x) || !Number.isFinite(z)) {
-          client.send("housing:error", { message: "Datos inválidos" });
+          client.send(HousingMessages.Error, { message: "Datos inválidos" });
           return;
         }
         const yy = Number.isFinite(y) ? y : 0.5;
         const housing = this.housingByNorm.get(norm) ?? emptyHousing();
         const plotId = housing.ownedPlotId;
         if (!plotId) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "Primero compra un lote (pausa → Vivienda)",
           });
           return;
         }
         const plot = getHousingPlotById(plotId);
         if (!plot || plot.mapId !== mapId) {
-          client.send("housing:error", { message: "Lote no válido en este mapa" });
+          client.send(HousingMessages.Error, { message: "Lote no válido en este mapa" });
           return;
         }
         if (!isPointInsidePlotXZ(plot, x, z)) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "Fuera de tu parcela — coloca dentro del área del lote",
           });
           return;
@@ -516,7 +517,7 @@ export class HousingEvents {
         if (pos) {
           const d = Math.hypot(pos.x - x, pos.z - z);
           if (d > MAX_PLACE_DIST) {
-            client.send("housing:error", {
+            client.send(HousingMessages.Error, {
               message: "Demasiado lejos del punto de construcción",
             });
             return;
@@ -526,7 +527,7 @@ export class HousingEvents {
           { itemId: CABIN_KIT_ID, quantity: 1 },
         ]);
         if (!consumed) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "Necesitas un kit cabaña en el inventario",
           });
           return;
@@ -548,13 +549,13 @@ export class HousingEvents {
         housing.structures.push({ ...rec });
         this.housingByNorm.set(norm, housing);
         this.worldStructures.push({ ...rec });
-        client.send("housing:placed", { structure: rec });
+        client.send(HousingMessages.Placed, { structure: rec });
         this.broadcastMap(mapId);
       }
     );
 
     this.room.onMessage(
-      "housing:placePiece",
+      HousingMessages.PlacePiece,
       (
         client: Client,
         data: {
@@ -578,18 +579,18 @@ export class HousingEvents {
         const rotY = Number(data?.rotY ?? 0);
         const norm = this.normFor(client);
         if (!norm || !pieceId || !isBuildPieceId(pieceId)) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "pieza inválida (revisa el catálogo de construcción)",
           });
           return;
         }
         const cat = getBuildPieceCatalogEntry(pieceId);
         if (!cat) {
-          client.send("housing:error", { message: "Pieza no catalogada" });
+          client.send(HousingMessages.Error, { message: "Pieza no catalogada" });
           return;
         }
         if (!Number.isFinite(x) || !Number.isFinite(z)) {
-          client.send("housing:error", { message: "Datos inválidos" });
+          client.send(HousingMessages.Error, { message: "Datos inválidos" });
           return;
         }
         const yy = Number.isFinite(y) ? y : 0.5;
@@ -601,18 +602,18 @@ export class HousingEvents {
         if (!housing.pieces) housing.pieces = [];
         const plotId = housing.ownedPlotId;
         if (!plotId) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "Primero compra un lote (pausa → Vivienda)",
           });
           return;
         }
         const plot = getHousingPlotById(plotId);
         if (!plot || plot.mapId !== mapId) {
-          client.send("housing:error", { message: "Lote no válido en este mapa" });
+          client.send(HousingMessages.Error, { message: "Lote no válido en este mapa" });
           return;
         }
         if (!isPointInsidePlotXZ(plot, sx, sz)) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "Fuera de tu parcela — coloca dentro del área del lote",
           });
           return;
@@ -621,7 +622,7 @@ export class HousingEvents {
         if (pos) {
           const d = Math.hypot(pos.x - sx, pos.z - sz);
           if (d > MAX_PLACE_DIST) {
-            client.send("housing:error", {
+            client.send(HousingMessages.Error, {
               message: "Demasiado lejos del punto de colocación",
             });
             return;
@@ -630,7 +631,7 @@ export class HousingEvents {
 
         const newHalf = getBuildPieceFootprintHalfXZ(pieceId);
         if (!newHalf) {
-          client.send("housing:error", { message: "Pieza sin footprint" });
+          client.send(HousingMessages.Error, { message: "Pieza sin footprint" });
           return;
         }
         for (const q of housing.pieces) {
@@ -652,7 +653,7 @@ export class HousingEvents {
               qRot
             )
           ) {
-            client.send("housing:error", {
+            client.send(HousingMessages.Error, {
               message: "Choca con otra pieza — prueba otro hueco u orientación",
             });
             return;
@@ -676,7 +677,7 @@ export class HousingEvents {
               stRot
             )
           ) {
-            client.send("housing:error", {
+            client.send(HousingMessages.Error, {
               message: "Choca con la cabaña — aléjate o usa otro tile del grid",
             });
             return;
@@ -688,7 +689,7 @@ export class HousingEvents {
           [cat.cost]
         );
         if (!consumed) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message:
               "Materiales insuficientes para esta pieza (tablas / piedra según tipo)",
           });
@@ -709,13 +710,13 @@ export class HousingEvents {
         housing.pieces.push({ ...rec });
         this.housingByNorm.set(norm, housing);
         this.worldPieces.push({ ...rec });
-        client.send("housing:piecePlaced", { piece: rec });
+        client.send(HousingMessages.PiecePlaced, { piece: rec });
         this.broadcastMap(mapId);
       }
     );
 
     this.room.onMessage(
-      "housing:removePiece",
+      HousingMessages.RemovePiece,
       (
         client: Client,
         data: { id?: string; nearest?: boolean }
@@ -724,25 +725,25 @@ export class HousingEvents {
         const mapId =
           this.getPlayerMapId(client.sessionId) ?? "exterior";
         if (!norm) {
-          client.send("housing:error", { message: "Jugador no encontrado" });
+          client.send(HousingMessages.Error, { message: "Jugador no encontrado" });
           return;
         }
         const housing = this.housingByNorm.get(norm) ?? emptyHousing();
         if (!housing.pieces) housing.pieces = [];
         const plotId = housing.ownedPlotId;
         if (!plotId) {
-          client.send("housing:error", { message: "Sin lote asignado" });
+          client.send(HousingMessages.Error, { message: "Sin lote asignado" });
           return;
         }
         const plot = getHousingPlotById(plotId);
         if (!plot || plot.mapId !== mapId) {
-          client.send("housing:error", { message: "Lote no válido aquí" });
+          client.send(HousingMessages.Error, { message: "Lote no válido aquí" });
           return;
         }
 
         const pos = this.getPlayerPosition(client.sessionId);
         if (!pos) {
-          client.send("housing:error", { message: "Posición desconocida" });
+          client.send(HousingMessages.Error, { message: "Posición desconocida" });
           return;
         }
 
@@ -767,7 +768,7 @@ export class HousingEvents {
         }
 
         if (!target) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message:
               "No hay pieza tuya cerca (≤10 m) o id inválido. Acércate o revisa el id.",
           });
@@ -775,7 +776,7 @@ export class HousingEvents {
         }
 
         if (!isPointInsidePlotXZ(plot, target.x, target.z)) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "La pieza quedó fuera de tu parcela (datos inconsistentes)",
           });
           return;
@@ -783,7 +784,7 @@ export class HousingEvents {
 
         const dPlayer = Math.hypot(pos.x - target.x, pos.z - target.z);
         if (dPlayer > MAX_PLACE_DIST) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "Acércate más a la pieza para desmontarla",
           });
           return;
@@ -806,7 +807,7 @@ export class HousingEvents {
             housing.pieces.push({ ...target });
             this.worldPieces.push({ ...target });
             this.housingByNorm.set(norm, housing);
-            client.send("housing:error", {
+            client.send(HousingMessages.Error, {
               message:
                 "No caben los materiales en el inventario — libera espacio o peso e inténtalo de nuevo",
             });
@@ -814,7 +815,7 @@ export class HousingEvents {
           }
         }
 
-        client.send("housing:pieceRemoved", {
+        client.send(HousingMessages.PieceRemoved, {
           pieceId: target.pieceId,
           instanceId: target.id,
         });
@@ -823,33 +824,33 @@ export class HousingEvents {
     );
 
     this.room.onMessage(
-      "housing:clearDebris",
+      HousingMessages.ClearDebris,
       (client: Client, data: { debrisId?: string; nearest?: boolean }) => {
         const norm = this.normFor(client);
         const mapId =
           this.getPlayerMapId(client.sessionId) ?? "exterior";
         if (!norm) {
-          client.send("housing:error", { message: "Jugador no encontrado" });
+          client.send(HousingMessages.Error, { message: "Jugador no encontrado" });
           return;
         }
         const housing = this.housingByNorm.get(norm) ?? emptyHousing();
         if (!housing.clearedDebrisIds) housing.clearedDebrisIds = [];
         const plotId = housing.ownedPlotId;
         if (!plotId) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "Primero compra un lote para limpiar escombros",
           });
           return;
         }
         const plot = getHousingPlotById(plotId);
         if (!plot || plot.mapId !== mapId) {
-          client.send("housing:error", { message: "Lote no válido aquí" });
+          client.send(HousingMessages.Error, { message: "Lote no válido aquí" });
           return;
         }
 
         const pos = this.getPlayerPosition(client.sessionId);
         if (!pos) {
-          client.send("housing:error", { message: "Posición desconocida" });
+          client.send(HousingMessages.Error, { message: "Posición desconocida" });
           return;
         }
 
@@ -884,7 +885,7 @@ export class HousingEvents {
         }
 
         if (!target) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message:
               "No hay escombro cercano en tu parcela (≤4 m) o ya fue limpiado.",
           });
@@ -892,7 +893,7 @@ export class HousingEvents {
         }
 
         if (!isPointInsidePlotXZ(plot, target.x, target.z)) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "Escombro fuera de parcela",
           });
           return;
@@ -900,7 +901,7 @@ export class HousingEvents {
 
         const dPlayer = Math.hypot(pos.x - target.x, pos.z - target.z);
         if (dPlayer > MAX_CLEAR_DEBRIS_DIST) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "Acércate más al escombro (≤4 m)",
           });
           return;
@@ -924,7 +925,7 @@ export class HousingEvents {
                 { itemId: g.itemId, quantity: g.quantity },
               ]);
             }
-            client.send("housing:error", {
+            client.send(HousingMessages.Error, {
               message:
                 "Inventario lleno o sin capacidad de peso — libera espacio e inténtalo de nuevo",
             });
@@ -936,13 +937,13 @@ export class HousingEvents {
         housing.clearedDebrisIds = [...housing.clearedDebrisIds, target.id];
         this.housingByNorm.set(norm, housing);
 
-        client.send("housing:debrisCleared", { debrisId: target.id });
+        client.send(HousingMessages.DebrisCleared, { debrisId: target.id });
         this.broadcastMap(mapId);
       }
     );
 
     this.room.onMessage(
-      "housing:upgrade",
+      HousingMessages.Upgrade,
       (
         client: Client,
         data: {
@@ -957,24 +958,24 @@ export class HousingEvents {
         const mode: HousingUpgradeMode =
           data?.mode === "cash" ? "cash" : "materials";
         if (!norm) {
-          client.send("housing:error", { message: "Jugador no encontrado" });
+          client.send(HousingMessages.Error, { message: "Jugador no encontrado" });
           return;
         }
         const housing = this.housingByNorm.get(norm) ?? emptyHousing();
         const plotId = housing.ownedPlotId;
         if (!plotId) {
-          client.send("housing:error", { message: "Sin lote asignado" });
+          client.send(HousingMessages.Error, { message: "Sin lote asignado" });
           return;
         }
         const plot = getHousingPlotById(plotId);
         if (!plot || plot.mapId !== mapId) {
-          client.send("housing:error", { message: "Lote no válido aquí" });
+          client.send(HousingMessages.Error, { message: "Lote no válido aquí" });
           return;
         }
 
         const pos = this.getPlayerPosition(client.sessionId);
         if (!pos) {
-          client.send("housing:error", { message: "Posición desconocida" });
+          client.send(HousingMessages.Error, { message: "Posición desconocida" });
           return;
         }
 
@@ -999,7 +1000,7 @@ export class HousingEvents {
         }
 
         if (!target) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message:
               "No hay cabaña tuya cerca (≤8 m) o id inválido. Acércate y usa “más cercana”.",
           });
@@ -1007,7 +1008,7 @@ export class HousingEvents {
         }
 
         if (!isPointInsidePlotXZ(plot, target.x, target.z)) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "La estructura quedó fuera de tu parcela",
           });
           return;
@@ -1015,7 +1016,7 @@ export class HousingEvents {
 
         const dPlayer = Math.hypot(pos.x - target.x, pos.z - target.z);
         if (dPlayer > MAX_UPGRADE_DIST) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "Acércate más a la cabaña para mejorarla",
           });
           return;
@@ -1024,7 +1025,7 @@ export class HousingEvents {
         const curTier = normalizeStructureTier(target.tier);
         const def = getCabinUpgradeDef(target.kind, curTier);
         if (!def) {
-          client.send("housing:error", {
+          client.send(HousingMessages.Error, {
             message: "Esta cabaña ya está al máximo de mejora",
           });
           return;
@@ -1037,7 +1038,7 @@ export class HousingEvents {
             `housing:upgrade:cash:${target.id}`
           );
           if (!ok) {
-            client.send("housing:error", {
+            client.send(HousingMessages.Error, {
               message: `Necesitas ${def.cashShortcutMajor} créditos para el atajo de mejora`,
             });
             return;
@@ -1048,7 +1049,7 @@ export class HousingEvents {
             def.materials
           );
           if (!consumed) {
-            client.send("housing:error", {
+            client.send(HousingMessages.Error, {
               message:
                 "Materiales insuficientes (piedra ×12 + tablas ×8) o usa el atajo con créditos",
             });
@@ -1070,7 +1071,7 @@ export class HousingEvents {
           patchWorld.hp = target.hp;
         }
 
-        client.send("housing:upgraded", {
+        client.send(HousingMessages.Upgraded, {
           structureId: target.id,
           tier: target.tier,
           mode,

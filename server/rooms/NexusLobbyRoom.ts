@@ -1,4 +1,5 @@
 import { Client, Room } from "colyseus";
+import { EconomyMessages, InventoryMessages } from "@nexusworld3d/protocol";
 import { nexusWorld3DConfig } from "@repo/nexusworld3d.config";
 import { pushGameMonitorLog } from "@server/metrics/gameMonitor";
 
@@ -33,9 +34,9 @@ export class NexusLobbyRoom extends Room {
     /** ES: La UI de juego monta con el lobby; sin esto Colyseus puede expulsar (4002) en prod. */
     const noop = () => {};
     this.onMessage("time:request", noop);
-    this.onMessage("economy:request", noop);
-    this.onMessage("inventory:request", noop);
-    this.onMessage("inventory:update", noop);
+    this.onMessage(EconomyMessages.Request, noop);
+    this.onMessage(InventoryMessages.Request, noop);
+    this.onMessage(InventoryMessages.Update, noop);
     this.onMessage("jobs:list", noop);
     this.onMessage("shop:list", noop);
 

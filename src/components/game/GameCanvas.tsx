@@ -87,6 +87,7 @@ import LiveCameraCapture from '@/components/cameras/LiveCameraCapture';
 import DebugInfo from '@/components/ui/DebugInfo';
 import TruckSpawner from '@/components/game/TruckSpawner';
 import { loadAllClientResources } from '@/lib/resources/loadClientResources';
+import { HousingMessages } from '@nexusworld3d/protocol';
 import { frameworkColyseusRoomName, frameworkDefaultWorldId } from '@/lib/frameworkBranding';
 import type { PublicPortalRoom } from '@/types/gamePortal.types';
 import FrameworkDemoGround from '@/components/world/FrameworkDemoGround';
@@ -194,8 +195,6 @@ export default function GameCanvas() {
         duration: 4000,
       });
     };
-    colyseusClient.on('housing:error', onHousingErr);
-    colyseusClient.on('housing:upgraded', onHousingUp);
     const onDebrisCleared = (data: unknown) => {
       const d = data as { debrisId?: string };
       const id = typeof d?.debrisId === 'string' ? d.debrisId : 'escombro';
@@ -208,15 +207,15 @@ export default function GameCanvas() {
         duration: 4000,
       });
     };
-    colyseusClient.on('housing:error', onHousingErr);
-    colyseusClient.on('housing:upgraded', onHousingUp);
-    colyseusClient.on('housing:pieceRemoved', onPieceRemoved);
-    colyseusClient.on('housing:debrisCleared', onDebrisCleared);
+    colyseusClient.on(HousingMessages.Error, onHousingErr);
+    colyseusClient.on(HousingMessages.Upgraded, onHousingUp);
+    colyseusClient.on(HousingMessages.PieceRemoved, onPieceRemoved);
+    colyseusClient.on(HousingMessages.DebrisCleared, onDebrisCleared);
     return () => {
-      colyseusClient.off('housing:error', onHousingErr);
-      colyseusClient.off('housing:upgraded', onHousingUp);
-      colyseusClient.off('housing:pieceRemoved', onPieceRemoved);
-      colyseusClient.off('housing:debrisCleared', onDebrisCleared);
+      colyseusClient.off(HousingMessages.Error, onHousingErr);
+      colyseusClient.off(HousingMessages.Upgraded, onHousingUp);
+      colyseusClient.off(HousingMessages.PieceRemoved, onPieceRemoved);
+      colyseusClient.off(HousingMessages.DebrisCleared, onDebrisCleared);
     };
   }, [addNotification]);
   const [isDriving, setIsDriving] = useState(false);

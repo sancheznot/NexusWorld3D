@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { EconomyMessages } from '@nexusworld3d/protocol';
 import { useUIStore } from '@/store/uiStore';
 import economyClient, { EconomyFees, LedgerEntry } from '@/lib/colyseus/EconomyClient';
 import { economy } from '@/lib/services/economy';
@@ -22,18 +23,22 @@ export default function BankUI() {
       else setLedger([]);
     };
     const onErr = (data: unknown) => setError((data as { message: string })?.message ?? '');
-    economyClient.on('economy:bank', onBal);
-    economyClient.on('economy:ledger', onLed);
-    economyClient.on('economy:error', onErr);
-    economyClient.on('economy:limits', (data) => setLimits(data as { deposit: number; withdraw: number; transfer: number; fees: EconomyFees }));
-    economyClient.on('economy:limitsUsed', (data) => setUsed(data as { deposit: number; withdraw: number; transfer: number }));
+    const onLimits = (data: unknown) =>
+      setLimits(data as { deposit: number; withdraw: number; transfer: number; fees: EconomyFees });
+    const onLimitsUsed = (data: unknown) =>
+      setUsed(data as { deposit: number; withdraw: number; transfer: number });
+    economyClient.on(EconomyMessages.Bank, onBal);
+    economyClient.on(EconomyMessages.Ledger, onLed);
+    economyClient.on(EconomyMessages.Error, onErr);
+    economyClient.on(EconomyMessages.Limits, onLimits);
+    economyClient.on(EconomyMessages.LimitsUsed, onLimitsUsed);
     economyClient.requestState();
     return () => {
-      economyClient.off('economy:bank', onBal);
-      economyClient.off('economy:ledger', onLed);
-      economyClient.off('economy:error', onErr);
-      economyClient.off('economy:limits', (data) => setLimits(data as { deposit: number; withdraw: number; transfer: number; fees: EconomyFees }));
-      economyClient.off('economy:limitsUsed', (data) => setUsed(data as { deposit: number; withdraw: number; transfer: number }));
+      economyClient.off(EconomyMessages.Bank, onBal);
+      economyClient.off(EconomyMessages.Ledger, onLed);
+      economyClient.off(EconomyMessages.Error, onErr);
+      economyClient.off(EconomyMessages.Limits, onLimits);
+      economyClient.off(EconomyMessages.LimitsUsed, onLimitsUsed);
     };
   }, [isBankOpen]);
 

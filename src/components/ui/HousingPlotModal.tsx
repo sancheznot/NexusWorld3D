@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { EconomyMessages } from '@nexusworld3d/protocol';
 import economyClient from '@/lib/colyseus/EconomyClient';
 import { parseEconomyWalletAmount } from '@/lib/economy/parseWalletPayload';
 import { inventoryService } from '@/lib/services/inventory';
@@ -30,13 +31,13 @@ export default function HousingPlotModal() {
     const onWallet = (data: unknown) => {
       setBalance(parseEconomyWalletAmount(data));
     };
-    economyClient.on('economy:wallet', onWallet);
+    economyClient.on(EconomyMessages.Wallet, onWallet);
     economyClient.requestState();
     const sync = () => setBalance(inventoryService.getInventory().gold);
     sync();
     const unsub = inventoryService.subscribe(sync);
     return () => {
-      economyClient.off('economy:wallet', onWallet);
+      economyClient.off(EconomyMessages.Wallet, onWallet);
       unsub();
     };
   }, [housingPlotModalOpen]);

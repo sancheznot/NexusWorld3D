@@ -14,4 +14,5 @@ export {
   SystemMessages,
   type WorldMessageKey,
   type HousingMessageKey,
+  type EconomyEventName,
 } from "./messages";

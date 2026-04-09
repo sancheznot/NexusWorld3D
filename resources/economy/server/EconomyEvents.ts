@@ -1,4 +1,5 @@
 import { Room, Client } from 'colyseus';
+import { EconomyMessages } from '@nexusworld3d/protocol';
 import { GAME_CONFIG } from '@/constants/game';
 import { money } from '@/lib/utils/money';
 
@@ -70,17 +71,17 @@ export class EconomyEvents {
 
   private sendWallet(client: Client, userId: string) {
     const minor = this.getWalletMinor(userId);
-    client.send('economy:wallet', { amount: money.toMajor(minor) });
+    client.send(EconomyMessages.Wallet, { amount: money.toMajor(minor) });
   }
 
   private sendBank(client: Client, userId: string) {
     const minor = this.getBankMinor(userId);
-    client.send('economy:bank', { amount: money.toMajor(minor) });
+    client.send(EconomyMessages.Bank, { amount: money.toMajor(minor) });
   }
 
   private sendLimitsUsed(client: Client, userId: string) {
     const d = this.getDaily(userId);
-    client.send('economy:limitsUsed', {
+    client.send(EconomyMessages.LimitsUsed, {
       deposit: money.toMajor(d.depositMinor),
       withdraw: money.toMajor(d.withdrawMinor),
       transfer: money.toMajor(d.transferMinor),
@@ -89,17 +90,17 @@ export class EconomyEvents {
 
   private sendLedger(client: Client, userId: string) {
     const entries = this.state.ledger.get(userId) ?? [];
-    client.send('economy:ledger', { entries });
+    client.send(EconomyMessages.Ledger, { entries });
   }
 
   private setupHandlers() {
-    this.room.onMessage('economy:request', (client: Client) => {
+    this.room.onMessage(EconomyMessages.Request, (client: Client) => {
       const userId = client.sessionId;
       this.sendWallet(client, userId);
       this.sendBank(client, userId);
       this.sendLedger(client, userId);
       this.sendLimitsUsed(client, userId);
-      client.send('economy:limits', {
+      client.send(EconomyMessages.Limits, {
         deposit: GAME_CONFIG.currency.maxDailyDeposit,
         withdraw: GAME_CONFIG.currency.maxDailyWithdraw,
         transfer: GAME_CONFIG.currency.maxDailyTransfer,
@@ -108,7 +109,7 @@ export class EconomyEvents {
     });
 
     // Depositar: de monedero -> banco
-    this.room.onMessage('economy:deposit', (client: Client, data: { amount: number; reason?: string }) => {
+    this.room.onMessage(EconomyMessages.Deposit, (client: Client, data: { amount: number; reason?: string }) => {
       const userId = client.sessionId;
       const minor = money.clampTransferMinor(money.toMinor(data.amount));
       // Apply deposit fee
@@ -117,12 +118,12 @@ export class EconomyEvents {
       const daily = this.getDaily(userId);
       const maxMinor = money.toMinor(GAME_CONFIG.currency.maxDailyDeposit);
       if (daily.depositMinor + minor > maxMinor) {
-        client.send('economy:error', { message: 'Daily deposit limit reached' });
+        client.send(EconomyMessages.Error, { message: 'Daily deposit limit reached' });
         return;
       }
       const wallet = this.getWalletMinor(userId);
       if (wallet < minor) {
-        client.send('economy:error', { message: 'Insufficient wallet funds' });
+        client.send(EconomyMessages.Error, { message: 'Insufficient wallet funds' });
         return;
       }
       // Debit wallet full amount, credit bank net
@@ -141,7 +142,7 @@ export class EconomyEvents {
     });
 
     // Retirar: de banco -> monedero
-    this.room.onMessage('economy:withdraw', (client: Client, data: { amount: number; reason?: string }) => {
+    this.room.onMessage(EconomyMessages.Withdraw, (client: Client, data: { amount: number; reason?: string }) => {
       const userId = client.sessionId;
       const minor = money.clampTransferMinor(money.toMinor(data.amount));
       // Apply withdraw fee
@@ -151,11 +152,11 @@ export class EconomyEvents {
       const maxMinor = money.toMinor(GAME_CONFIG.currency.maxDailyWithdraw);
       const bank = this.getBankMinor(userId);
       if (bank < grossMinor) {
-        client.send('economy:error', { message: 'Insufficient funds' });
+        client.send(EconomyMessages.Error, { message: 'Insufficient funds' });
         return;
       }
       if (daily.withdrawMinor + minor > maxMinor) {
-        client.send('economy:error', { message: 'Daily withdraw limit reached' });
+        client.send(EconomyMessages.Error, { message: 'Daily withdraw limit reached' });
         return;
       }
       const bankNext = money.subMinor(bank, grossMinor);
@@ -173,11 +174,11 @@ export class EconomyEvents {
     });
 
     // Transferir: banco -> banco
-    this.room.onMessage('economy:transfer', (client: Client, data: { toUserId: string; amount: number; reason?: string }) => {
+    this.room.onMessage(EconomyMessages.Transfer, (client: Client, data: { toUserId: string; amount: number; reason?: string }) => {
       const fromUserId = client.sessionId;
       const toUserId = data.toUserId;
       if (!toUserId || toUserId === fromUserId) {
-        client.send('economy:error', { message: 'Invalid target user' });
+        client.send(EconomyMessages.Error, { message: 'Invalid target user' });
         return;
       }
       const minor = money.clampTransferMinor(money.toMinor(data.amount));
@@ -187,12 +188,12 @@ export class EconomyEvents {
       const daily = this.getDaily(fromUserId);
       const maxMinor = money.toMinor(GAME_CONFIG.currency.maxDailyTransfer);
       if (daily.transferMinor + minor > maxMinor) {
-        client.send('economy:error', { message: 'Daily transfer limit reached' });
+        client.send(EconomyMessages.Error, { message: 'Daily transfer limit reached' });
         return;
       }
       const fromCurrent = this.getBankMinor(fromUserId);
       if (fromCurrent < totalDebit) {
-        client.send('economy:error', { message: 'Insufficient funds' });
+        client.send(EconomyMessages.Error, { message: 'Insufficient funds' });
         return;
       }
       const fromNext = money.subMinor(fromCurrent, totalDebit);
@@ -220,14 +221,14 @@ export class EconomyEvents {
 
     // Purchase endpoint (for shop integration)
     // Compra: usa monedero (wallet)
-    this.room.onMessage('economy:purchase', (client: Client, data: { total: number; reason?: string }) => {
+    this.room.onMessage(EconomyMessages.Purchase, (client: Client, data: { total: number; reason?: string }) => {
       const userId = client.sessionId;
       const amountMinor = money.clampTransferMinor(money.toMinor(data.total));
       const feeMinor = this.applyRate(amountMinor, GAME_CONFIG.currency.fees.purchaseRate);
       const gross = amountMinor + feeMinor;
       const current = this.getWalletMinor(userId);
       if (current < gross) {
-        client.send('economy:error', { message: 'Insufficient funds' });
+        client.send(EconomyMessages.Error, { message: 'Insufficient funds' });
         return;
       }
       const next = money.subMinor(current, gross);
@@ -239,7 +240,7 @@ export class EconomyEvents {
     });
 
     // Pago de trabajos: acredita monedero (wallet)
-    this.room.onMessage('economy:job-pay', (client: Client, data: { amount: number; reason?: string }) => {
+    this.room.onMessage(EconomyMessages.JobPay, (client: Client, data: { amount: number; reason?: string }) => {
       const userId = client.sessionId;
       const amountMinor = money.clampTransferMinor(money.toMinor(data.amount));
       const feeMinor = this.applyRate(amountMinor, GAME_CONFIG.currency.fees.jobRate);

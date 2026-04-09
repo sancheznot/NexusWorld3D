@@ -12,6 +12,7 @@ import {
   isProduceStallItemId,
 } from '@/constants/playerStall';
 import { GameButton } from '@/components/ui/GameButton';
+import { EconomyMessages } from '@nexusworld3d/protocol';
 import { colyseusClient } from '@/lib/colyseus/client';
 import economyClient from '@/lib/colyseus/EconomyClient';
 import { parseEconomyWalletAmount } from '@/lib/economy/parseWalletPayload';
@@ -55,13 +56,13 @@ export default function PlayerStallModal() {
     const onWallet = (data: unknown) => {
       setBalance(parseEconomyWalletAmount(data));
     };
-    economyClient.on('economy:wallet', onWallet);
+    economyClient.on(EconomyMessages.Wallet, onWallet);
     economyClient.requestState();
     const unsub = inventoryService.subscribe(() => {
       setInvTick((n) => n + 1);
     });
     return () => {
-      economyClient.off('economy:wallet', onWallet);
+      economyClient.off(EconomyMessages.Wallet, onWallet);
       unsub();
     };
   }, [produceStallModalOpen]);

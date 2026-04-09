@@ -1,3 +1,4 @@
+import { EconomyMessages, type EconomyEventName } from '@nexusworld3d/protocol';
 import { colyseusClient } from './client';
 
 export type LedgerEntry = {
@@ -48,33 +49,33 @@ export class EconomyClient {
     if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     if (!room) return;
-    room.onMessage('economy:wallet', (data: { amount: number } | unknown) => {
+    room.onMessage(EconomyMessages.Wallet, (data: { amount: number } | unknown) => {
       const raw = (data as { amount?: unknown })?.amount;
       const num = typeof raw === 'number' ? raw : Number(raw ?? 0);
       // Normalizar por si llega en minor units accidentalmente
       const normalized = num >= 10000 ? Math.round(num / 100) : num;
       this.latestWallet = normalized;
-      this.emit('economy:wallet', normalized);
+      this.emit(EconomyMessages.Wallet, normalized);
     });
-    room.onMessage('economy:bank', (data: { amount: number } | unknown) => {
+    room.onMessage(EconomyMessages.Bank, (data: { amount: number } | unknown) => {
       const raw = (data as { amount?: unknown })?.amount;
       const num = typeof raw === 'number' ? raw : Number(raw ?? 0);
       const normalized = num >= 10000 ? Math.round(num / 100) : num;
       this.latestBank = normalized;
-      this.emit('economy:bank', normalized);
+      this.emit(EconomyMessages.Bank, normalized);
     });
-    room.onMessage('economy:ledger', (data: { entries: LedgerEntry[] }) => {
+    room.onMessage(EconomyMessages.Ledger, (data: { entries: LedgerEntry[] }) => {
       this.latestLedger = data.entries;
-      this.emit('economy:ledger', data.entries);
+      this.emit(EconomyMessages.Ledger, data.entries);
     });
-    room.onMessage('economy:error', (data: { message: string }) => {
-      this.emit('economy:error', data);
+    room.onMessage(EconomyMessages.Error, (data: { message: string }) => {
+      this.emit(EconomyMessages.Error, data);
     });
-    room.onMessage('economy:limits', (data: { deposit: number; withdraw: number; transfer: number; fees: EconomyFees }) => {
+    room.onMessage(EconomyMessages.Limits, (data: { deposit: number; withdraw: number; transfer: number; fees: EconomyFees }) => {
       this.limits = data;
-      this.emit('economy:limits', data);
+      this.emit(EconomyMessages.Limits, data);
     });
-    room.onMessage('economy:limitsUsed', (data: { deposit: number; withdraw: number; transfer: number } | unknown) => {
+    room.onMessage(EconomyMessages.LimitsUsed, (data: { deposit: number; withdraw: number; transfer: number } | unknown) => {
       const d = data as { deposit?: unknown; withdraw?: unknown; transfer?: unknown };
       const norm = {
         deposit: typeof d.deposit === 'number' ? d.deposit : Math.round(Number(d.deposit ?? 0)),
@@ -89,31 +90,31 @@ export class EconomyClient {
         transfer: normalize(norm.transfer),
       };
       this.limitsUsed = normalized;
-      this.emit('economy:limitsUsed', normalized);
+      this.emit(EconomyMessages.LimitsUsed, normalized);
     });
   }
 
   requestState() {
     if (!colyseusClient.isConnectedToWorldRoom()) return;
-    colyseusClient.getSocket()?.send('economy:request');
+    colyseusClient.getSocket()?.send(EconomyMessages.Request);
   }
 
   deposit(amount: number, reason?: string) {
     if (!colyseusClient.isConnectedToWorldRoom()) return;
-    colyseusClient.getSocket()?.send('economy:deposit', { amount, reason });
+    colyseusClient.getSocket()?.send(EconomyMessages.Deposit, { amount, reason });
   }
 
   withdraw(amount: number, reason?: string) {
     if (!colyseusClient.isConnectedToWorldRoom()) return;
-    colyseusClient.getSocket()?.send('economy:withdraw', { amount, reason });
+    colyseusClient.getSocket()?.send(EconomyMessages.Withdraw, { amount, reason });
   }
 
   transfer(toUserId: string, amount: number, reason?: string) {
     if (!colyseusClient.isConnectedToWorldRoom()) return;
-    colyseusClient.getSocket()?.send('economy:transfer', { toUserId, amount, reason });
+    colyseusClient.getSocket()?.send(EconomyMessages.Transfer, { toUserId, amount, reason });
   }
 
-  on(event: 'economy:wallet' | 'economy:bank' | 'economy:ledger' | 'economy:error' | 'economy:limits' | 'economy:limitsUsed', cb: (data: unknown) => void) {
+  on(event: EconomyEventName, cb: (data: unknown) => void) {
     if (!this.listeners.has(event)) this.listeners.set(event, []);
     this.listeners.get(event)!.push(cb);
   }

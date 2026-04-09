@@ -71,7 +71,17 @@ export const InventoryMessages = {
 
 export const EconomyMessages = {
   Wallet: "economy:wallet",
+  Bank: "economy:bank",
+  Ledger: "economy:ledger",
+  Error: "economy:error",
+  Limits: "economy:limits",
+  LimitsUsed: "economy:limitsUsed",
   Request: "economy:request",
+  Deposit: "economy:deposit",
+  Withdraw: "economy:withdraw",
+  Transfer: "economy:transfer",
+  Purchase: "economy:purchase",
+  JobPay: "economy:job-pay",
 } as const;
 
 export const CraftingMessages = {
@@ -128,3 +138,5 @@ export const SystemMessages = {
 
 export type WorldMessageKey = keyof typeof WorldMessages;
 export type HousingMessageKey = keyof typeof HousingMessages;
+/** Wire string for economy Colyseus messages (wallet, bank, ledger, …). */
+export type EconomyEventName = (typeof EconomyMessages)[keyof typeof EconomyMessages];
