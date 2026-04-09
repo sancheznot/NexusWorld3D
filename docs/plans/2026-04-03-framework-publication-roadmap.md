@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 1.3  
+**Versión:** 1.4  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -11,10 +11,11 @@
 - [x] **Cliente y servidor** migrados a esas constantes en los puntos críticos (sala mundo, inventario, tala/mina/nodos, housing client, feedback UI).
 - [x] **Plugins de sala:** `NexusRoomPlugin`, `attachNexusRoomPlugins`, plugin piloto **`core:world-resource-nodes`** (`server/room/nexusRoomPlugins.ts`).
 - [x] **Demo mode:** `NEXT_PUBLIC_FRAMEWORK_DEMO=1` + `FrameworkDemoGround` (sin `city.glb` ni capas pesadas en exterior).
-- [x] **Docs:** `docs/GETTING_STARTED.md`, `ARCHITECTURE.md`, `ADDING_CONTENT.md`; **`apps/demo/README.md`** explica el demo; **`npm run validate-content`** (stub Fase 2).
+- [x] **Docs:** `docs/GETTING_STARTED.md`, `ARCHITECTURE.md`, `ADDING_CONTENT.md`; **`apps/demo/README.md`** explica el demo; **`npm run validate-content`** (JSON + ids ⊆ `ITEMS_CATALOG`).
 - [x] Handshake **`protocolVersion`**: opción de join `protocolVersion` (ver `JOIN_OPTION_PROTOCOL_VERSION_KEY` en `@nexusworld3d/protocol`); `NexusWorldRoom` rechaza join si no coincide con `PROTOCOL_VERSION`.
 - [x] **`content/manifest.json`** + `npm run validate-content` (validación estructural v1, no stub).
-- [ ] Pendiente Fase 1: paquetes `engine-server` / `engine-client` separados del juego; más plugins.
+- [x] **Primera capa `engine-*`:** `@nexusworld3d/engine-server` (`NexusRoomPlugin`, `attachNexusRoomPlugins`); `@nexusworld3d/engine-client` (`withWorldProtocolJoinOptions`). La sala y plugins concretos siguen en `server/` + `src/`.
+- [ ] Pendiente: mover más subsistemas al motor; loader runtime desde manifest; más plugins demo.
 
 ---
 
@@ -86,7 +87,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 - [x] `npm` **workspaces** (`packages/*`) + dependencia `workspace:*` en la app raíz.
 - [x] Paquete **`@nexusworld3d/protocol`** (mensajes + versión).
-- [ ] Paquetes `engine-server` / `engine-client` extraídos; dependencias solo `game` → `engine`.
+- [x] Paquetes **`@nexusworld3d/engine-server`** / **`@nexusworld3d/engine-client`** (capa mínima; extracción completa de sala/subsistemas pendiente).
 - [ ] Ningún import desde `engine` hacia assets o nombres de Hotel.
 
 ---

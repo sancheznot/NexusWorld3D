@@ -23,7 +23,9 @@
       "@resources/*": ["./resources/*"],
       "@repo/*": ["./*"],
       "@server/*": ["./server/*"],
-      "@nexusworld3d/protocol": ["./packages/protocol/src/index.ts"]
+      "@nexusworld3d/protocol": ["./packages/protocol/src/index.ts"],
+      "@nexusworld3d/engine-server": ["./packages/engine-server/src/index.ts"],
+      "@nexusworld3d/engine-client": ["./packages/engine-client/src/index.ts"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

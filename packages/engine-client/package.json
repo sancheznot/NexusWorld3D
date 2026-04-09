@@ -1,0 +1,14 @@
+{
+  "name": "@nexusworld3d/engine-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Core client helpers for NexusWorld3D (Colyseus join, protocol)",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "peerDependencies": {
+    "@nexusworld3d/protocol": "*"
+  }
+}

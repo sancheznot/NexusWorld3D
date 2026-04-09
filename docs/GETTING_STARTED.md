@@ -34,7 +34,9 @@ Luego entra al mapa **exterior** como siempre. Útil para aislar motor vs conten
 
 Los nombres de mensajes Colyseus compartidos viven en `packages/protocol` (`@nexusworld3d/protocol`). Importa desde cliente y servidor para evitar typos.
 
-**Handshake:** al unirse a la **sala mundo**, el cliente envía `protocolVersion` en las opciones de join (lo hace `src/lib/colyseus/client.ts`). El servidor (`NexusWorldRoom`) debe ver el mismo `PROTOCOL_VERSION` del paquete; si no, el join falla con un error explícito (actualiza cliente o servidor).
+**Handshake:** al unirse a la **sala mundo**, el cliente envía `protocolVersion` en las opciones de join (`withWorldProtocolJoinOptions` en `@nexusworld3d/engine-client`, usado desde `src/lib/colyseus/client.ts`). El servidor (`NexusWorldRoom`) debe ver el mismo `PROTOCOL_VERSION` del paquete; si no, el join falla con un error explícito.
+
+**Paquetes motor (capa inicial):** `@nexusworld3d/engine-server` (contrato de plugins de sala), `@nexusworld3d/engine-client` (helpers de join cliente).
 
 ## Siguientes pasos / Next steps
 

@@ -28,9 +28,11 @@
     "docker:down": "bash scripts/compose-with-env.sh -f docker-compose.yml down",
     "db:migrate": "tsx scripts/migrate.ts",
     "lint": "eslint",
-    "validate-content": "node scripts/validate-content.mjs"
+    "validate-content": "node scripts/validate-content.mjs && tsx scripts/validate-manifest-catalog.ts"
   },
   "dependencies": {
+    "@nexusworld3d/engine-client": "workspace:*",
+    "@nexusworld3d/engine-server": "workspace:*",
     "@nexusworld3d/protocol": "workspace:*",
     "@aws-sdk/client-s3": "^3.913.0",
     "@aws-sdk/s3-request-presigner": "^3.913.0",

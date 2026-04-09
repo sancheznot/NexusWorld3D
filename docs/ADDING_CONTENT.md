@@ -8,7 +8,7 @@
 
 ## 2. Plugin de sala (patrón actual) / Room plugin pattern
 
-Implementa `NexusRoomPlugin` en `server/room/nexusRoomPlugins.ts` (o un archivo junto a tu feature):
+El contrato **`NexusRoomPlugin`** y **`attachNexusRoomPlugins`** viven en **`@nexusworld3d/engine-server`**. Las fábricas concretas (p. ej. `createWorldResourceNodesPlugin`) siguen en `server/room/nexusRoomPlugins.ts` o junto a tu feature.
 
 ```typescript
 export function createMyGamePlugin(deps: MyDeps): NexusRoomPlugin {
@@ -28,7 +28,7 @@ Regístralo en `NexusWorldRoom` con `attachNexusRoomPlugins(this, [createMyGameP
 ## 3. Contenido data-driven / Data-driven content (Fase 2)
 
 - **Manifest:** `content/manifest.json` — `schemaVersion`, `items[]` con `{ id }`, y arrays opcionales (`recipes`, `worldSpawns`, `buildingPieces`, `shops`).
-- **Validación:** `npm run validate-content` (falla si falta el archivo, JSON inválido, o ids duplicados).
+- **Validación:** `npm run validate-content` — JSON + ids únicos + cada `items[].id` debe existir en **`ITEMS_CATALOG`** (`src/constants/items.ts`).
 - El catálogo en runtime sigue en `src/constants/items.ts` hasta que un loader hidrate desde el manifest (roadmap).
 
 ## 4. Demo sin arte del juego / Demo without game art

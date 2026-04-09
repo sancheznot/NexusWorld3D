@@ -1,0 +1,14 @@
+{
+  "name": "@nexusworld3d/engine-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Core server-side room plugin contract for NexusWorld3D (Colyseus)",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "peerDependencies": {
+    "colyseus": "^0.16.0"
+  }
+}
