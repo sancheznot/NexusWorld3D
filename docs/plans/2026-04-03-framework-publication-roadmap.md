@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 2.1  
+**Versión:** 2.2  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -26,7 +26,8 @@
 - [x] **`@nexusworld3d/content-schema`** (Zod v1) + `validate-content` unificado en `tsx scripts/validate-content.ts`; loader runtime usa el mismo parse.
 - [x] **Interfaces persistencia** (`PlayerStore`, `SessionStore`, `WorldStateStore`) en `engine-server` + `docs/PERSISTENCE.md`.
 - [x] **`docs/AUTH_OVERVIEW.md`** (NextAuth, invitados dev, extensión).
-- [ ] Pendiente: más subsistemas al motor; app Next `apps/demo` separada (opcional); inyectar stores en sala; repaso manual de docs históricos con nombre del juego.
+- [x] **Stores en sala:** `NexusWorldRoom` expone `playerStore` / `sessionStore` / `worldStateStore`; demo en memoria (`createInMemory*`); inyección vía `createPersistenceStores()` en subclase.
+- [ ] Pendiente: migrar llamadas Redis/MariaDB a esas interfaces donde tenga sentido; app Next `apps/demo` separada (opcional); repaso manual de docs históricos con nombre del juego.
 
 ---
 
@@ -170,7 +171,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 **EN.** Engine should not hardcode one game’s DB layout.
 
 - [x] Interfaces: `PlayerStore`, `WorldStateStore`, `SessionStore` (`packages/engine-server` + `docs/PERSISTENCE.md`).
-- [ ] Implementaciones de ejemplo en demo (en memoria o SQLite); el juego privado implementa las reales.
+- [x] Implementaciones de ejemplo en memoria (`createInMemoryPlayerStore`, etc.) + cableado en `NexusWorldRoom`; SQLite opcional para más adelante.
 
 ---
 

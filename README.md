@@ -24,7 +24,7 @@
 | Package | Role |
 |---------|------|
 | [`@nexusworld3d/protocol`](./packages/protocol) | Colyseus message names + `PROTOCOL_VERSION` |
-| [`@nexusworld3d/engine-server`](./packages/engine-server) | `NexusRoomPlugin`, `attachNexusRoomPlugins` |
+| [`@nexusworld3d/engine-server`](./packages/engine-server) | `NexusRoomPlugin`, `attachNexusRoomPlugins`, persistence interfaces + `createInMemory*` ([`PERSISTENCE`](./docs/PERSISTENCE.md)) |
 | [`@nexusworld3d/engine-client`](./packages/engine-client) | `withWorldProtocolJoinOptions` (join handshake) |
 | [`@nexusworld3d/content-schema`](./packages/content-schema) | Zod schema for `content/manifest.json` v1 |
 | [`content/manifest.json`](./content/manifest.json) | Declared item ids + extension arrays; `npm run validate-content` |

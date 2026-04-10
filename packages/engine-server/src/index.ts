@@ -14,6 +14,12 @@ export {
   type WorldStateStore,
 } from "./persistence";
 
+export {
+  createInMemoryPlayerStore,
+  createInMemorySessionStore,
+  createInMemoryWorldStateStore,
+} from "./persistenceMemory";
+
 /**
  * ES: Contrato para montar subsistemas en la sala mundo sin acoplar la clase de la sala.
  * EN: Contract to attach subsystems to the world room without hard-wiring the room class.

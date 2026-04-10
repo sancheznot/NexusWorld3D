@@ -12,8 +12,21 @@
 
 ```ts
 import type { PlayerStore, SessionStore } from "@nexusworld3d/engine-server";
+import {
+  createInMemoryPlayerStore,
+  createInMemorySessionStore,
+  createInMemoryWorldStateStore,
+} from "@nexusworld3d/engine-server";
 ```
 
-**EN.** A future refactor can inject implementations into `NexusWorldRoom` or a slimmer “game host” without changing plugin APIs.
+**Demo en memoria / In-memory demo**
+
+**EN.** `createInMemoryPlayerStore`, `createInMemorySessionStore`, and `createInMemoryWorldStateStore` are **Map-backed** references for local dev and tests. `SessionStore` honors `ttlSeconds` lazily on `get`.
+
+**ES.** `NexusWorldRoom` inicializa esos tres por defecto en `onCreate`. Para enchufar Redis/MariaDB, **subclase** `NexusWorldRoom` y sobreescribe `createPersistenceStores()` devolviendo tus implementaciones (el resto del juego sigue usando `this.playerStore` / `sessionStore` / `worldStateStore` cuando migres llamadas desde Redis directo).
+
+**EN.** `NexusWorldRoom` wires the three defaults in `onCreate`. To inject real backends, **subclass** `NexusWorldRoom` and override `createPersistenceStores()`.
+
+**EN.** A future refactor can move more call sites off ad-hoc Redis/MariaDB onto these interfaces without changing plugin APIs.
 
 **ES.** Ver también `docs/ARCHITECTURE.md` y `docs/DEPLOYMENT.md` para MariaDB y Docker.

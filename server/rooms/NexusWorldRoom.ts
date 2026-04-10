@@ -14,7 +14,15 @@ import { ItemEvents } from "@server/modules/ItemEvents";
 import { ShopEvents } from "@server/modules/ShopEvents";
 import { TreeChopEvents } from "@server/modules/TreeChopEvents";
 import { RockMineEvents } from "@server/modules/RockMineEvents";
-import { attachContextRoomPlugins } from "@nexusworld3d/engine-server";
+import {
+  attachContextRoomPlugins,
+  createInMemoryPlayerStore,
+  createInMemorySessionStore,
+  createInMemoryWorldStateStore,
+  type PlayerStore,
+  type SessionStore,
+  type WorldStateStore,
+} from "@nexusworld3d/engine-server";
 import {
   attachNexusRoomPlugins,
   createFrameworkDemoCubePlugin,
@@ -74,6 +82,30 @@ export class NexusWorldRoom extends Room {
   private players = new Map<string, PlayerData>();
   private chatMessages: ChatMessage[] = [];
   private redis = gameRedis;
+
+  /**
+   * ES: Contratos de persistencia. Por defecto memoria (`createPersistenceStores`).
+   * EN: Persistence contracts; default in-memory via `createPersistenceStores`.
+   */
+  playerStore!: PlayerStore;
+  sessionStore!: SessionStore;
+  worldStateStore!: WorldStateStore;
+
+  /**
+   * ES: Sobreescribe en una subclase para Redis/MariaDB/etc.
+   * EN: Override in a subclass to plug Redis/MariaDB-backed stores.
+   */
+  protected createPersistenceStores(): {
+    playerStore: PlayerStore;
+    sessionStore: SessionStore;
+    worldStateStore: WorldStateStore;
+  } {
+    return {
+      playerStore: createInMemoryPlayerStore(),
+      sessionStore: createInMemorySessionStore(),
+      worldStateStore: createInMemoryWorldStateStore(),
+    };
+  }
   /** ES: Throttle guardado MariaDB/Redis en movimiento. EN: Throttle DB save on move. */
   private lastMoveProfileSaveAt = new Map<string, number>();
 
@@ -109,6 +141,11 @@ export class NexusWorldRoom extends Room {
   }
 
   onCreate(_options: { [key: string]: string }) {
+    const persistence = this.createPersistenceStores();
+    this.playerStore = persistence.playerStore;
+    this.sessionStore = persistence.sessionStore;
+    this.worldStateStore = persistence.worldStateStore;
+
     console.log(
       `🌐 NexusWorldRoom creada (${nexusWorld3DConfig.branding.appName})`
     );
