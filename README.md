@@ -17,7 +17,7 @@
 - 🇺🇸 **[English Documentation](./docs/en/README.md)** - Complete documentation in English
 - 🇪🇸 **[Documentación en Español](./docs/es/README.md)** - Documentación completa en español
 
-**Framework split (motor vs juego) / Framework vs game:** [Getting started](./docs/GETTING_STARTED.md) · [Minimal demo (no DB)](./docs/DEMO_MINIMAL.md) · [Architecture](./docs/ARCHITECTURE.md) · [Adding content / plugins](./docs/ADDING_CONTENT.md) · [Public asset licenses](./docs/ASSETS_PUBLIC_REPO.md) · [Auth](./docs/AUTH_OVERVIEW.md) · [Persistence](./docs/PERSISTENCE.md) · [Deployment](./docs/DEPLOYMENT.md) · [Security](./docs/SECURITY.md) · [Contributing](./CONTRIBUTING.md) · [Publication roadmap](./docs/plans/2026-04-03-framework-publication-roadmap.md).
+**Framework split (motor vs juego) / Framework vs game:** [Getting started](./docs/GETTING_STARTED.md) · [Minimal demo (no DB)](./docs/DEMO_MINIMAL.md) · [Architecture](./docs/ARCHITECTURE.md) · [Adding content / plugins](./docs/ADDING_CONTENT.md) · [Extension APIs (planned)](./docs/EXTENSION_APIS.md) · [Public asset licenses](./docs/ASSETS_PUBLIC_REPO.md) · [Auth](./docs/AUTH_OVERVIEW.md) · [Persistence](./docs/PERSISTENCE.md) · [Deployment](./docs/DEPLOYMENT.md) · [Security](./docs/SECURITY.md) · [Contributing](./CONTRIBUTING.md) · [Publication roadmap](./docs/plans/2026-04-03-framework-publication-roadmap.md).
 
 **Quick start (demo) / Arranque rápido (demo):** `git clone` → **repo root** `npm install` → `npm run dev:demo` **or** `cd apps/demo && npm run dev:demo` — see [`apps/demo/README.md`](./apps/demo/README.md).
 

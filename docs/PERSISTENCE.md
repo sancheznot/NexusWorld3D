@@ -31,6 +31,8 @@ import {
 
 **Player snapshot / Jugador:** `NexusWorldRoom` **loads** `PlayerStore.loadSnapshot(sessionId)` first, then falls back to mock **`gameRedis.getPlayer`**; **saves** with **`playerStore.saveSnapshot(sessionId, playerData)`** together with **`gameRedis.addPlayer`** (same payload shape) for compatibility.
 
+**Inventario por usuario / Per-user inventory cache:** `getPlayerInventorySnapshot` / `savePlayerInventorySnapshot` siguen en **`gameRedis`** (singleton en proceso) porque el índice es **username normalizado**, compartido entre **instancias de sala**; un `SessionStore` **por sala** no sería equivalente. Para producción, enchufa un backend compartido vía **`createPersistenceStores()`** (p. ej. Redis real) cuando migres ese mapa.
+
 **EN.** A future refactor can move more call sites off ad-hoc Redis/MariaDB onto these interfaces without changing plugin APIs.
 
 **ES.** Ver también `docs/ARCHITECTURE.md` y `docs/DEPLOYMENT.md` para MariaDB y Docker.

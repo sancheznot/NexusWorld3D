@@ -25,6 +25,8 @@ export function createMyGamePlugin(deps: MyDeps): NexusRoomPlugin {
 
 Regístralo en `NexusWorldRoom` con `attachNexusRoomPlugins(this, [createMyGamePlugin(ctx), ...])`.
 
+**APIs tipo `registerWorldTool` (futuro):** ver [`docs/EXTENSION_APIS.md`](./EXTENSION_APIS.md).
+
 **Referencia / Reference:** `createWorldResourceNodesPlugin` — ~10 líneas.
 
 **Plugin demo cubo:** `createFrameworkDemoCubePlugin` (`server/room/frameworkDemoCubePlugin.ts`) + mensaje `DemoMessages.FrameworkCubePickup` — visible con `NEXT_PUBLIC_FRAMEWORK_DEMO=1` (cubo dorado en `FrameworkDemoGround`); el servidor comprueba distancia y cooldown.
