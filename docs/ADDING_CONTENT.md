@@ -29,7 +29,9 @@ Regístralo en `NexusWorldRoom` con `attachNexusRoomPlugins(this, [createMyGameP
 
 **Efecto al usar consumible:** `registerItemEffect(itemId, ctx => { … })` — tras efectos del catálogo y antes de quitar el stack. Arranque: `server/bootstrap/gameItemEffects.ts`.
 
-**APIs tipo `registerWorldTool` (futuro):** ver [`docs/EXTENSION_APIS.md`](./EXTENSION_APIS.md).
+**Herramienta de mundo:** `registerWorldTool` + mensajes `WorldMessages.GenericTool` / `GenericToolResult`; `attachGenericWorldToolRouter` en la sala; cliente `sendGenericWorldTool`. Constantes compartidas: `src/constants/frameworkWorldTools.ts` + `server/bootstrap/gameWorldTools.ts`.
+
+**Más APIs / More:** [`docs/EXTENSION_APIS.md`](./EXTENSION_APIS.md).
 
 **Referencia / Reference:** `createWorldResourceNodesPlugin` — ~10 líneas.
 

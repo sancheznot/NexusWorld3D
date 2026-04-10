@@ -8,7 +8,7 @@
     ".": "./src/index.ts"
   },
   "types": "./src/index.ts",
-  "peerDependencies": {
+  "dependencies": {
     "@nexusworld3d/protocol": "*"
   }
 }

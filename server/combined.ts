@@ -1,6 +1,7 @@
 import "@server/env-bootstrap";
 import "@server/bootstrap/gameResourceNodes";
 import "@server/bootstrap/gameItemEffects";
+import "@server/bootstrap/gameWorldTools";
 import { createServer } from "http";
 import next from "next";
 import { Server as ColyseusServer } from "colyseus";

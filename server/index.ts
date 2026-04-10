@@ -1,6 +1,7 @@
 import "@server/env-bootstrap";
 import "@server/bootstrap/gameResourceNodes";
 import "@server/bootstrap/gameItemEffects";
+import "@server/bootstrap/gameWorldTools";
 import { Server } from "colyseus";
 import { loadContentManifestOrThrow } from "@server/content/loadContentManifest";
 import { registerNexusWorldRooms } from "@server/colyseus/registerRooms";

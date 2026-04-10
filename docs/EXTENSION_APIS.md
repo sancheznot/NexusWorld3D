@@ -1,8 +1,8 @@
 # Planned extension APIs / APIs de extensión previstas
 
-**EN.** The roadmap (§3.3) describes **ergonomic registrars** so games add tools, resource nodes, and item effects without forking core loops. They are **not implemented yet**; today you achieve the same with **room plugins** and **message handlers**.
+**EN.** The roadmap (§3.3) **`registerResourceNode`**, **`registerItemEffect`**, and **`registerWorldTool`** are **implemented** (see sections below). Older flows (`TreeChop`, `RockMine`) still use dedicated messages; migrating them is optional.
 
-**ES.** El roadmap (§3.3) describe **registros ergonómicos** para herramientas, nodos de recurso y efectos de ítem. **Aún no están en código**; hoy se logra lo mismo con **plugins de sala** y **`onMessage`**.
+**ES.** Los tres registros principales del §3.3 están **en código**; tala y mina siguen con mensajes dedicados hasta que se unifiquen si se desea.
 
 ---
 
@@ -10,7 +10,7 @@
 
 | Goal / Objetivo | Pattern / Patrón |
 |-----------------|------------------|
-| World interaction (raycast, use key) | `NexusContextRoomPlugin` + `FrameworkRoomPluginContext`; message in `@nexusworld3d/protocol`; server validates distance / cooldown (see `createFrameworkDemoCubePlugin`). |
+| World interaction (raycast, use key) | **`registerWorldTool`** + `GenericTool` or `NexusContextRoomPlugin` / demo cube (`createFrameworkDemoCubePlugin`). |
 | Resource node (chop, mine) | **`registerResourceNode`** (engine-server) + static `WORLD_RESOURCE_NODES`; server handler `WorldResourceNodeEvents` + plugin `createWorldResourceNodesPlugin`. |
 | Item consume effect | **`registerItemEffect`** + catálogo `ITEMS_CATALOG.effects` en `InventoryEvents.handleUseItem`. |
 
@@ -43,11 +43,15 @@ registerResourceNode({
 
 **ES.** No sustituye efectos del catálogo (`ITEMS_CATALOG.effects`); **añade** comportamiento (broadcast, integraciones, etc.). Async deliberadamente **no** en v1.
 
+## Implemented (world tools) / Implementado (herramientas mundo)
+
+**EN.** `registerWorldTool({ id, itemIds, durabilityKey?, clientTargetUserData?, serverOnUse })` — **`WorldMessages.GenericTool`** / **`GenericToolResult`**. Router: `attachGenericWorldToolRouter(room, gate)` (wired in `NexusWorldRoom` with inventory gate). **Client:** `sendGenericWorldTool`, `userDataMatchesWorldToolHint` (`@nexusworld3d/engine-client`). **Shared ids:** `src/constants/frameworkWorldTools.ts` + `server/bootstrap/gameWorldTools.ts`. Demo: green sphere in `FrameworkDemoGround` (needs `food_apple`).
+
+**ES.** `clientTargetUserData` sustituye la función `clientRaycastFilter` del roadmap: el juego compara `userData` en el raycast con el helper del engine-client.
+
 ## Planned (roadmap) / Previsto (roadmap)
 
-**EN.** Still open:
-
-- `registerWorldTool({ id, clientRaycastFilter, serverOnUse, durabilityKey })`
+**EN.** Optional: fold `TreeChop` / `RockMine` into the same router; per-tool cooldown; async handlers.
 
 **Optional hardening for `registerResourceNode`:** per-node cooldown / `distanceCheck` overrides (today global constants in `WorldResourceNodeEvents`).
 

@@ -27,8 +27,8 @@
 |---------|------|
 | [`apps/demo`](./apps/demo) | Demo entry (scripts delegate to root; no second Next app) |
 | [`@nexusworld3d/protocol`](./packages/protocol) | Colyseus message names + `PROTOCOL_VERSION` |
-| [`@nexusworld3d/engine-server`](./packages/engine-server) | `NexusRoomPlugin`, `registerResourceNode`, `registerItemEffect`, persistence + `createInMemory*` ([`PERSISTENCE`](./docs/PERSISTENCE.md), [`EXTENSION_APIS`](./docs/EXTENSION_APIS.md)) |
-| [`@nexusworld3d/engine-client`](./packages/engine-client) | `withWorldProtocolJoinOptions` (join handshake) |
+| [`@nexusworld3d/engine-server`](./packages/engine-server) | `NexusRoomPlugin`, `registerResourceNode`, `registerItemEffect`, `registerWorldTool`, `attachGenericWorldToolRouter`, persistence + `createInMemory*` ([`PERSISTENCE`](./docs/PERSISTENCE.md), [`EXTENSION_APIS`](./docs/EXTENSION_APIS.md)) |
+| [`@nexusworld3d/engine-client`](./packages/engine-client) | `withWorldProtocolJoinOptions`, `sendGenericWorldTool` |
 | [`@nexusworld3d/content-schema`](./packages/content-schema) | Zod schema for `content/manifest.json` v1 |
 | [`content/manifest.json`](./content/manifest.json) | Declared item ids + extension arrays; `npm run validate-content` · build GLBs: `npm run validate-build-assets` ([`ADDING_CONTENT`](./docs/ADDING_CONTENT.md) §5) |
 

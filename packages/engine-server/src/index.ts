@@ -37,6 +37,23 @@ export {
   clearItemEffectRegistry,
 } from "./itemEffectRegistry";
 
+export {
+  type WorldToolServerContext,
+  type WorldToolClientTargetHint,
+  type WorldToolMeta,
+  type WorldToolRegistration,
+  registerWorldTool,
+  getWorldToolMeta,
+  getWorldToolHandler,
+  getWorldToolClientDescriptors,
+  clearWorldToolRegistry,
+} from "./worldToolRegistry";
+
+export {
+  type WorldToolInventoryGate,
+  attachGenericWorldToolRouter,
+} from "./genericWorldToolRouter";
+
 /**
  * ES: Contrato para montar subsistemas en la sala mundo sin acoplar la clase de la sala.
  * EN: Contract to attach subsystems to the world room without hard-wiring the room class.

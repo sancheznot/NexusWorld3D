@@ -1100,6 +1100,15 @@ export class InventoryEvents {
     );
   }
 
+  /** ES: Alguno de los `itemIds` con cantidad > 0 (misma regla que hacha/pico). EN: Any listed catalog id with qty > 0. */
+  public playerHasAnyOfCatalogItemIds(
+    playerId: string,
+    itemIds: readonly string[]
+  ): boolean {
+    if (itemIds.length === 0) return false;
+    return itemIds.some((id) => this.playerHasCatalogItem(playerId, id));
+  }
+
   /** ES: Cualquier hacha de tala en inventario. EN: Any chop axe in inventory. */
   public playerHasAnyChopAxe(playerId: string): boolean {
     const inventory = this.playerInventories.get(playerId);

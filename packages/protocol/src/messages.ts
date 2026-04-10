@@ -18,6 +18,9 @@ export const WorldMessages = {
   RockSync: "world:rock-sync",
   HarvestNode: "world:harvest-node",
   HarvestNodeResult: "world:harvest-node-result",
+  /** ES: Herramienta registrada vía `registerWorldTool`. EN: Tool registered with `registerWorldTool`. */
+  GenericTool: "world:generic-tool",
+  GenericToolResult: "world:generic-tool-result",
   Change: "world:change",
   RequestData: "world:request-data",
   Update: "world:update",

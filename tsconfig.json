@@ -31,6 +31,9 @@
       "@nexusworld3d/engine-server/item-effect-registry": [
         "./packages/engine-server/src/itemEffectRegistry.ts"
       ],
+      "@nexusworld3d/engine-server/world-tool-registry": [
+        "./packages/engine-server/src/worldToolRegistry.ts"
+      ],
       "@nexusworld3d/engine-client": ["./packages/engine-client/src/index.ts"],
       "@nexusworld3d/content-schema": ["./packages/content-schema/src/index.ts"]
     }

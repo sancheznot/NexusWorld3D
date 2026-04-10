@@ -7,9 +7,13 @@
   "exports": {
     ".": "./src/index.ts",
     "./resource-node-registry": "./src/resourceNodeRegistry.ts",
-    "./item-effect-registry": "./src/itemEffectRegistry.ts"
+    "./item-effect-registry": "./src/itemEffectRegistry.ts",
+    "./world-tool-registry": "./src/worldToolRegistry.ts"
   },
   "types": "./src/index.ts",
+  "dependencies": {
+    "@nexusworld3d/protocol": "*"
+  },
   "peerDependencies": {
     "colyseus": "^0.16.0"
   }

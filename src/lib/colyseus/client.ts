@@ -203,6 +203,10 @@ class ColyseusClient {
       this.emit(WorldMessages.HarvestNodeResult, data);
     });
 
+    this.room.onMessage(WorldMessages.GenericToolResult, (data: unknown) => {
+      this.emit(WorldMessages.GenericToolResult, data);
+    });
+
     this.room.onMessage(RpgMessages.Sync, (data: unknown) => {
       this.emit(RpgMessages.Sync, data);
     });

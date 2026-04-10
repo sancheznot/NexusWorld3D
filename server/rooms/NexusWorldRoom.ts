@@ -16,6 +16,7 @@ import { TreeChopEvents } from "@server/modules/TreeChopEvents";
 import { RockMineEvents } from "@server/modules/RockMineEvents";
 import {
   attachContextRoomPlugins,
+  attachGenericWorldToolRouter,
   createInMemoryPlayerStore,
   createInMemorySessionStore,
   createInMemoryWorldStateStore,
@@ -178,6 +179,10 @@ export class NexusWorldRoom extends Room {
     // ES: Recursos core (economía → inventario) antes de ítems/tienda.
     // EN: Core resources (economy → inventory) before items/shop.
     attachCoreFrameworkResources(this);
+
+    attachGenericWorldToolRouter(this, (playerId, itemIds) =>
+      this.inventoryEvents.playerHasAnyOfCatalogItemIds(playerId, itemIds)
+    );
 
     this.rpgProgression = new RpgProgression({
       room: this,
