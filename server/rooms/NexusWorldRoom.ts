@@ -78,6 +78,9 @@ interface ChatMessage {
   type: string;
 }
 
+/** ES: Clave SessionStore para historial de chat de esta sala. EN: SessionStore key for this room's chat log. */
+const SESSION_CHAT_KEY = "framework:room:chat:v1";
+
 export class NexusWorldRoom extends Room {
   private players = new Map<string, PlayerData>();
   private chatMessages: ChatMessage[] = [];
@@ -899,8 +902,7 @@ export class NexusWorldRoom extends Room {
             this.chatMessages = this.chatMessages.slice(-100);
           }
 
-          // Guardar en Redis
-          this.saveChatMessageToRedis(chatMessage);
+          void this.persistChatMessages();
 
           // Broadcast a todos
           this.broadcast(ChatMessages.Message, chatMessage);
@@ -946,28 +948,27 @@ export class NexusWorldRoom extends Room {
 
   private async loadRecentChatMessages() {
     try {
-      const messages = await this.redis.getChatMessages(50);
-      if (messages) {
-        const typed = messages as {
-          id: string;
-          playerId: string;
-          username: string;
-          message: string;
-          channel: string;
-          timestamp: string | number;
-          type: string;
-        }[];
-        this.chatMessages = typed.map((msg) => ({
-          id: msg.id,
-          playerId: msg.playerId,
-          username: msg.username,
-          message: msg.message,
-          channel: msg.channel,
-          timestamp: new Date(msg.timestamp),
-          type: msg.type,
-        }));
-        console.log(`💬 ${messages.length} mensajes de chat cargados`);
-      }
+      const raw = await this.sessionStore.get(SESSION_CHAT_KEY);
+      if (!raw || !Array.isArray(raw)) return;
+      const typed = raw as {
+        id: string;
+        playerId: string;
+        username: string;
+        message: string;
+        channel: string;
+        timestamp: string;
+        type: string;
+      }[];
+      this.chatMessages = typed.map((msg) => ({
+        id: msg.id,
+        playerId: msg.playerId,
+        username: msg.username,
+        message: msg.message,
+        channel: msg.channel,
+        timestamp: new Date(msg.timestamp),
+        type: msg.type,
+      }));
+      console.log(`💬 ${this.chatMessages.length} mensajes de chat cargados (SessionStore)`);
     } catch (error) {
       console.warn("⚠️ Error cargando mensajes de chat:", error);
     }
@@ -1076,21 +1077,20 @@ export class NexusWorldRoom extends Room {
     this.applyPlayerJobRole(playerId, roleId);
   }
 
-  private async saveChatMessageToRedis(message: ChatMessage) {
+  private async persistChatMessages(): Promise<void> {
     try {
-      const messageData = {
-        id: message.id,
-        playerId: message.playerId,
-        username: message.username,
-        message: message.message,
-        channel: message.channel,
-        timestamp: message.timestamp,
-        type: message.type,
-      };
-
-      await this.redis.addChatMessage(messageData);
+      const payload = this.chatMessages.map((m) => ({
+        id: m.id,
+        playerId: m.playerId,
+        username: m.username,
+        message: m.message,
+        channel: m.channel,
+        timestamp: m.timestamp.toISOString(),
+        type: m.type,
+      }));
+      await this.sessionStore.set(SESSION_CHAT_KEY, payload);
     } catch (error) {
-      console.warn("⚠️ Error guardando mensaje en Redis:", error);
+      console.warn("⚠️ Error guardando historial de chat (SessionStore):", error);
     }
   }
 
@@ -1111,6 +1111,8 @@ export class NexusWorldRoom extends Room {
     if (this.chatMessages.length > 100) {
       this.chatMessages = this.chatMessages.slice(-100);
     }
+
+    void this.persistChatMessages();
 
     this.broadcast(ChatMessages.Message, systemMessage);
   }

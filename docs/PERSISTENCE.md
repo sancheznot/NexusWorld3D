@@ -27,6 +27,8 @@ import {
 
 **EN.** `NexusWorldRoom` wires the three defaults in `onCreate`. To inject real backends, **subclass** `NexusWorldRoom` and override `createPersistenceStores()`.
 
+**Chat / Chat:** recent room chat history is stored under **`SessionStore`** key `framework:room:chat:v1` (per Colyseus room instance), not the global mock `gameRedis` chat list.
+
 **EN.** A future refactor can move more call sites off ad-hoc Redis/MariaDB onto these interfaces without changing plugin APIs.
 
 **ES.** Ver también `docs/ARCHITECTURE.md` y `docs/DEPLOYMENT.md` para MariaDB y Docker.

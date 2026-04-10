@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 2.4  
+**Versión:** 2.5  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -29,7 +29,8 @@
 - [x] **Stores en sala:** `NexusWorldRoom` expone `playerStore` / `sessionStore` / `worldStateStore`; demo en memoria (`createInMemory*`); inyección vía `createPersistenceStores()` en subclase.
 - [x] **`npm run validate-build-assets`** — GLB `public/models/build/{pieceId}.glb` (catálogo + manifest `buildingPieces[]`); `--strict` para CI.
 - [x] **`apps/demo`** — workspace + `package.json` que delega `dev` / `dev:demo` / `validate` a la raíz (sin duplicar Next); README “máquina limpia”.
-- [ ] Pendiente: migrar llamadas Redis/MariaDB a `PlayerStore` / `SessionStore` donde tenga sentido; repaso manual de docs históricos con nombre del juego.
+- [x] **Chat de sala → `SessionStore`:** historial reciente (`framework:room:chat:v1`) por instancia de sala; ya no usa `gameRedis.getChatMessages` / `addChatMessage`.
+- [ ] Pendiente: `PlayerStore` / más `SessionStore` vs mock Redis; repaso manual de docs históricos con nombre del juego.
 
 ---
 
