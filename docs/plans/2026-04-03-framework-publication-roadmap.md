@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 1.5  
+**Versión:** 1.6  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -16,7 +16,9 @@
 - [x] **`content/manifest.json`** + `npm run validate-content` (validación estructural v1, no stub).
 - [x] **Primera capa `engine-*`:** `@nexusworld3d/engine-server` (`NexusRoomPlugin`, `attachNexusRoomPlugins`); `@nexusworld3d/engine-client` (`withWorldProtocolJoinOptions`). La sala y plugins concretos siguen en `server/` + `src/`.
 - [x] **Loader runtime:** `server/content/loadContentManifest.ts` — hidrata y valida el manifest al arranque; `getContentManifest`, `isDeclaredManifestItemId`.
-- [ ] Pendiente: mover más subsistemas al motor; usar manifest en reglas de juego (craft/spawn); más plugins demo.
+- [x] **Manifest en reglas:** `InventoryEvents.addItemFromWorld` rechaza `itemId` no declarado en `content/manifest.json` (craft, mundo, tienda pasan por ahí).
+- [x] **`LICENSE`** (MIT) en raíz; README con tabla de paquetes + manifest.
+- [ ] Pendiente: más subsistemas al motor; plugin demo “cubo”; inventario mínimo aislado para demo pública.
 
 ---
 
@@ -194,12 +196,12 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 **EN.** Minimum viable docs:
 
-- [ ] `README.md` raíz orientado a framework (hoy describe el monorepo completo).
+- [x] `README.md` — sección monorepo (protocol, engine-*, manifest) + enlace al roadmap.
 - [x] `docs/GETTING_STARTED.md`.
 - [x] `docs/ARCHITECTURE.md` (diagrama cliente ↔ Colyseus ↔ persistencia).
 - [x] `docs/ADDING_CONTENT.md` (plugin + mensajes; manifest en Fase 2).
 - [ ] `docs/DEPLOYMENT.md` (opcional v1: Docker compose demo).
-- [ ] `LICENSE` explícito (MIT / Apache-2.0, etc.).
+- [x] `LICENSE` explícito (**MIT**).
 
 ---
 

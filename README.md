@@ -17,7 +17,18 @@
 - 🇺🇸 **[English Documentation](./docs/en/README.md)** - Complete documentation in English
 - 🇪🇸 **[Documentación en Español](./docs/es/README.md)** - Documentación completa en español
 
-**Framework split (motor vs juego) / Framework vs game:** [Getting started](./docs/GETTING_STARTED.md) · [Architecture](./docs/ARCHITECTURE.md) · [Adding content / plugins](./docs/ADDING_CONTENT.md) · [Publication roadmap](./docs/plans/2026-04-03-framework-publication-roadmap.md) · package [`@nexusworld3d/protocol`](./packages/protocol).
+**Framework split (motor vs juego) / Framework vs game:** [Getting started](./docs/GETTING_STARTED.md) · [Architecture](./docs/ARCHITECTURE.md) · [Adding content / plugins](./docs/ADDING_CONTENT.md) · [Publication roadmap](./docs/plans/2026-04-03-framework-publication-roadmap.md).
+
+**Monorepo packages / Paquetes npm (workspace):**
+
+| Package | Role |
+|---------|------|
+| [`@nexusworld3d/protocol`](./packages/protocol) | Colyseus message names + `PROTOCOL_VERSION` |
+| [`@nexusworld3d/engine-server`](./packages/engine-server) | `NexusRoomPlugin`, `attachNexusRoomPlugins` |
+| [`@nexusworld3d/engine-client`](./packages/engine-client) | `withWorldProtocolJoinOptions` (join handshake) |
+| [`content/manifest.json`](./content/manifest.json) | Declared item ids + extension arrays; `npm run validate-content` |
+
+Server grants items via `InventoryEvents.addItemFromWorld` only for ids listed in the manifest when it is loaded.
 
 ---
 

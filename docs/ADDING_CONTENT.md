@@ -30,6 +30,7 @@ Regístralo en `NexusWorldRoom` con `attachNexusRoomPlugins(this, [createMyGameP
 - **Manifest:** `content/manifest.json` — `schemaVersion`, `items[]` con `{ id }`, y arrays opcionales (`recipes`, `worldSpawns`, `buildingPieces`, `shops`).
 - **Validación:** `npm run validate-content` — JSON + ids únicos + cada `items[].id` debe existir en **`ITEMS_CATALOG`** (`src/constants/items.ts`).
 - **Runtime:** al arrancar Colyseus (`server/index.ts` / `server/combined.ts`) se llama `loadContentManifestOrThrow()` — misma validación que `validate-content`. Usa `getContentManifest()` / `isDeclaredManifestItemId()` desde `@server/content/loadContentManifest` cuando quieras comprobar “subset publicado”.
+- **Otorgamiento:** `InventoryEvents.addItemFromWorld` solo acepta `itemId` presentes en el manifest (mundo, craft, tiendas que usan esa API). Añade el id a `content/manifest.json` y pasa `npm run validate-content`.
 - El catálogo de definiciones completas sigue en `src/constants/items.ts` (el manifest lista qué ids están activos / documentados).
 
 ## 4. Demo sin arte del juego / Demo without game art

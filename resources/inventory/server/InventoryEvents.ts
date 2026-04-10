@@ -14,6 +14,10 @@ import {
 import { GAME_CONFIG } from '@/constants/game';
 import { CRAFTING_RECIPES, type CraftRecipe } from '@/constants/crafting';
 import { CraftingMessages, InventoryMessages } from '@nexusworld3d/protocol';
+import {
+  getContentManifest,
+  isDeclaredManifestItemId,
+} from '@server/content/loadContentManifest';
 
 /**
  * Eventos de Inventario para Colyseus
@@ -284,6 +288,18 @@ export class InventoryEvents {
 
     const cat = ITEMS_CATALOG[baseItem.itemId];
     const itemId = baseItem.itemId;
+
+    if (getContentManifest() && !isDeclaredManifestItemId(itemId)) {
+      console.warn(
+        `[inventory] addItemFromWorld rejected: "${itemId}" not in content manifest`
+      );
+      this.sendInventoryError(
+        playerId,
+        'Este objeto no está disponible en esta versión del mundo.'
+      );
+      return 0;
+    }
+
     const fromPayload =
       typeof (baseItem as any).maxStack === 'number' && (baseItem as any).maxStack > 0
         ? Math.floor((baseItem as any).maxStack)
