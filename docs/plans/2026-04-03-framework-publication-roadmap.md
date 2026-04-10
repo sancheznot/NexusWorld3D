@@ -204,6 +204,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 - [x] `docs/ARCHITECTURE.md` (diagrama cliente ↔ Colyseus ↔ persistencia).
 - [x] `docs/ADDING_CONTENT.md` (plugin + mensajes; manifest en Fase 2).
 - [x] `docs/DEPLOYMENT.md` (dev, `npm start`, Docker Compose, checklist).
+- [x] `docs/SECURITY.md` (reporte privado de vulnerabilidades).
 - [x] `LICENSE` explícito (**MIT**).
 
 ---
