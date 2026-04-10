@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 1.8  
+**Versión:** 1.9  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -20,7 +20,8 @@
 - [x] **`LICENSE`** (MIT) en raíz; README con tabla de paquetes + manifest.
 - [x] **Plugin demo cubo:** `DemoMessages` + `createFrameworkDemoCubePlugin` + cubo en `FrameworkDemoGround` (distancia + cooldown).
 - [x] **Ops / OSS:** `docs/DEPLOYMENT.md`, `.env.example` (entrada mínima), `CONTRIBUTING.md`, plantillas GitHub (motor vs juego).
-- [ ] Pendiente: más subsistemas al motor; inventario mínimo aislado para demo pública; auditoría de secretos en código.
+- [x] **Seguridad / higiene:** `inventory:add-item` solo si `itemId` ∈ catálogo + manifest; `docs/SECURITY.md`; descripción neutral en `@nexusworld3d/protocol`.
+- [ ] Pendiente: más subsistemas al motor; inventario mínimo aislado para demo pública; repaso manual residual de docs históricos con nombre del juego.
 
 ---
 
@@ -209,7 +210,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 ### 3.10 Higiene para GitHub público / Open-source hygiene
 
-- [ ] Eliminar secretos, URLs internas, nombres de producción del juego en código del núcleo.
+- [x] Patrones obvios en código TS/TSX (sin claves embebidas; `handleAddItem` alineado con manifest). Repaso manual de **docs antiguos** / JSON de mundos con marca del juego → baja prioridad.
 - [x] `.env.example` en raíz (mínimo + puntero a `.env.local.example` / `env.docker.example`); `.gitignore` ya excluye `.env*local`.
 - [x] `CONTRIBUTING.md` (Convención de conducta: enlace a Contributor Covenant en texto).
 - [x] Issue templates: **Engine / framework bug** vs **Game content / private fork** (`.github/ISSUE_TEMPLATE/`).

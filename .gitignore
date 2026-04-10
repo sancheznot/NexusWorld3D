@@ -1,4 +1,4 @@
-# Hotel Humboldt specific ignores
+# NexusWorld3D / local ignores
 node_modules/
 .env
 .env.local

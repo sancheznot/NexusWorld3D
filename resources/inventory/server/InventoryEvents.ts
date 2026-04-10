@@ -683,6 +683,13 @@ export class InventoryEvents {
       return;
     }
 
+    if (!this.isClientAddItemAllowed(data.item.itemId)) {
+      client.send(InventoryMessages.Error, {
+        message: 'No se puede añadir ese objeto desde el cliente',
+      });
+      return;
+    }
+
     // Agregar item al inventario
     inventory.items.push(data.item);
     inventory.usedSlots++;
@@ -1017,6 +1024,16 @@ export class InventoryEvents {
       typeof item.level === 'number' &&
       typeof item.isEquipped === 'boolean'
     );
+  }
+
+  /**
+   * ES: El mensaje `inventory:add-item` no debe otorgar ids inventados (alinear con manifest).
+   * EN: Client-initiated add must not grant arbitrary ids (manifest-aligned).
+   */
+  private isClientAddItemAllowed(itemId: string): boolean {
+    if (!ITEMS_CATALOG[itemId]) return false;
+    if (getContentManifest() && !isDeclaredManifestItemId(itemId)) return false;
+    return true;
   }
 
   /**

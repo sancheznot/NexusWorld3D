@@ -20,7 +20,7 @@ Write clear messages in English or Spanish; describe **what** changed and **why*
 
 ## Security
 
-Do **not** commit `.env`, `.env.local`, API keys, or production URLs. Use `.env.local.example` as reference only.
+Do **not** commit `.env`, `.env.local`, API keys, or production URLs. Use `.env.local.example` as reference only. See [`docs/SECURITY.md`](./docs/SECURITY.md) for reporting vulnerabilities.
 
 ## Code of conduct
 
