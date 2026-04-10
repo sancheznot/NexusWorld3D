@@ -29,6 +29,8 @@ import {
 
 **Chat / Chat:** recent room chat history is stored under **`SessionStore`** key `framework:room:chat:v1` (per Colyseus room instance), not the global mock `gameRedis` chat list.
 
+**Player snapshot / Jugador:** `NexusWorldRoom` **loads** `PlayerStore.loadSnapshot(sessionId)` first, then falls back to mock **`gameRedis.getPlayer`**; **saves** with **`playerStore.saveSnapshot(sessionId, playerData)`** together with **`gameRedis.addPlayer`** (same payload shape) for compatibility.
+
 **EN.** A future refactor can move more call sites off ad-hoc Redis/MariaDB onto these interfaces without changing plugin APIs.
 
 **ES.** Ver también `docs/ARCHITECTURE.md` y `docs/DEPLOYMENT.md` para MariaDB y Docker.

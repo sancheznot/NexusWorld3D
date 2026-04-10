@@ -59,3 +59,26 @@ npx tsx scripts/validate-build-assets.ts --strict
 ```
 
 Sin `--strict`, faltan GLB → **warning** (el juego puede seguir con primitivos). Con `--strict`, cualquier pieza requerida sin archivo → **exit 1**.
+
+## 6. Licencias de assets (repo público) / Asset licenses (public repo)
+
+**ES.** Política resumida: solo obra propia, **CC0** / **CC-BY** documentado, o placeholders de demo. Detalle: [`docs/ASSETS_PUBLIC_REPO.md`](./ASSETS_PUBLIC_REPO.md).
+
+**EN.** Policy in short: own work, **CC0** / **CC-BY** with attribution, or demo placeholders. Full text: [`docs/ASSETS_PUBLIC_REPO.md`](./ASSETS_PUBLIC_REPO.md).
+
+## 7. Receta: ítem + interactuable (criterio §6 roadmap) / Recipe: item + interactable
+
+**ES.** Checklist para un colaborador (o cuenta de prueba):
+
+1. **Ítem**
+   - Añade `{ "id": "tu_item_id" }` en `content/manifest.json`.
+   - Define el ítem en `src/constants/items.ts` (`ITEMS_CATALOG`) con nombre, icono, reglas que uses.
+   - `npm run validate-content`.
+2. **Interactuable**
+   - Añade un **plugin de sala** (patrón §2): por ejemplo copia la idea de `createFrameworkDemoCubePlugin` (`server/room/frameworkDemoCubePlugin.ts`) — mensaje en `packages/protocol`, `onMessage` en servidor, comprobación de distancia/cooldown, y otorgamiento vía `InventoryEvents.addItemFromWorld` con `itemId` del manifest.
+   - Registra el plugin en `NexusWorldRoom` / `nexusRoomPlugins` según el estilo del repo.
+3. **Cliente (mínimo)** — botón o mesh que envíe el mismo mensaje Colyseus que escucha el plugin (el cubo demo ya hace de referencia en `FrameworkDemoGround`).
+
+**EN.** Same flow: manifest row + `ITEMS_CATALOG` + `validate-content`; small room plugin modeled on `createFrameworkDemoCubePlugin`; wire client to send the message.
+
+**Referencia / Reference:** `DemoMessages`, `server/room/frameworkDemoCubePlugin.ts`, `FrameworkDemoGround.tsx`.

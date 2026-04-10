@@ -409,11 +409,25 @@ export class NexusWorldRoom extends Room {
 
     let storedData: Record<string, unknown> | null = null;
     try {
-      const stored = await this.redis.getPlayer(client.sessionId);
-      if (stored && Object.keys(stored).length > 0)
-        storedData = stored as Record<string, unknown>;
+      const snap = await this.playerStore.loadSnapshot(client.sessionId);
+      if (
+        snap &&
+        typeof snap === "object" &&
+        Object.keys(snap as object).length > 0
+      ) {
+        storedData = snap as Record<string, unknown>;
+      }
     } catch (error) {
-      console.warn("⚠️ Error recuperando jugador desde Redis:", error);
+      console.warn("⚠️ Error recuperando jugador desde PlayerStore:", error);
+    }
+    if (!storedData) {
+      try {
+        const stored = await this.redis.getPlayer(client.sessionId);
+        if (stored && Object.keys(stored).length > 0)
+          storedData = stored as Record<string, unknown>;
+      } catch (error) {
+        console.warn("⚠️ Error recuperando jugador desde Redis:", error);
+      }
     }
 
     const position = parseVector(storedData?.position, defaultPosition);
@@ -998,8 +1012,9 @@ export class NexusWorldRoom extends Room {
       };
 
       await this.redis.addPlayer(player.id, playerData);
+      await this.playerStore.saveSnapshot(player.id, playerData);
     } catch (error) {
-      console.warn("⚠️ Error guardando jugador en Redis:", error);
+      console.warn("⚠️ Error guardando jugador (Redis / PlayerStore):", error);
     }
 
     try {

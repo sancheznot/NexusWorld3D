@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 2.5  
+**Versión:** 2.6  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -30,7 +30,10 @@
 - [x] **`npm run validate-build-assets`** — GLB `public/models/build/{pieceId}.glb` (catálogo + manifest `buildingPieces[]`); `--strict` para CI.
 - [x] **`apps/demo`** — workspace + `package.json` que delega `dev` / `dev:demo` / `validate` a la raíz (sin duplicar Next); README “máquina limpia”.
 - [x] **Chat de sala → `SessionStore`:** historial reciente (`framework:room:chat:v1`) por instancia de sala; ya no usa `gameRedis.getChatMessages` / `addChatMessage`.
-- [ ] Pendiente: `PlayerStore` / más `SessionStore` vs mock Redis; repaso manual de docs históricos con nombre del juego.
+- [x] **`PlayerStore` en join/save:** snapshot por `sessionId` (fallback a mock Redis); dual-write con `addPlayer` para compat.
+- [x] **Política assets públicos:** `docs/ASSETS_PUBLIC_REPO.md` + `ADDING_CONTENT` §6; README enlazado.
+- [x] **Receta colaborador (docs):** `ADDING_CONTENT` §7 — ítem + interactuable tipo plugin cubo demo.
+- [ ] Pendiente: ejercicio real §6 (alguien ejecuta la receta); más `SessionStore`/Redis; repaso manual docs históricos con marca del juego; repo público + consumidor privado semver.
 
 ---
 
@@ -186,7 +189,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 - [x] Árbol y reglas `pieceId` ↔ `public/models/build/{pieceId}.glb` documentados (`docs/ADDING_CONTENT.md` §5).
 - [x] Script `npm run validate-build-assets` (catálogo + `buildingPieces[].pieceId`; `--strict` para CI).
-- [ ] Política de licencias de assets en repo **público** (solo CC0 / propios / placeholders).
+- [x] Política de licencias: [`docs/ASSETS_PUBLIC_REPO.md`](../../docs/ASSETS_PUBLIC_REPO.md) + enlace en `ADDING_CONTENT` §6 / README.
 
 ---
 
@@ -270,8 +273,8 @@ Eso permanece en el **repo privado** como consumidor del motor.
 Marcar el framework como **“v1 listo para público”** cuando:
 
 - [x] `apps/demo` + README raíz: clon → `npm install` en raíz → `cd apps/demo && npm run dev:demo` (o equivalente desde raíz); ver [`apps/demo/README.md`](../../apps/demo/README.md).
-- [ ] Un colaborador externo (o tú con cuenta secundaria) añade **un ítem y un interactuable** usando solo docs + manifest + un plugin pequeño.
-- [ ] No hay imports de `hotel`, `humboldt`, ni constantes de mapas reales dentro de `packages/engine-*`.
+- [ ] Un colaborador externo (o tú con cuenta secundaria) añade **un ítem y un interactuable** usando solo docs + manifest + un plugin pequeño (guía: `docs/ADDING_CONTENT.md` §7).
+- [x] `packages/*` sin cadenas `hotel` / `humboldt` (auditoría por búsqueda; repetir antes del release).
 - [ ] Licencia y repositorio público publicados; el juego completo está en repo privado que **depende** del paquete público (versión semver).
 
 ---
