@@ -3,6 +3,7 @@ import { createServer } from "http";
 import next from "next";
 import { Server as ColyseusServer } from "colyseus";
 import { WebSocketTransport } from "@colyseus/ws-transport";
+import { loadContentManifestOrThrow } from "@server/content/loadContentManifest";
 import { registerNexusWorldRooms } from "@server/colyseus/registerRooms";
 import { printUnifiedServerBanner } from "@server/banners/nexusColyseusBanner";
 import { runPendingMigrations } from "@/lib/db/runMigrations";
@@ -23,6 +24,8 @@ async function bootstrap() {
   }
 
   await app.prepare();
+
+  loadContentManifestOrThrow();
 
   // Create a single HTTP server for both Next and Colyseus
   const httpServer = createServer((req, res) => {

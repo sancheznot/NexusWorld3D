@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 1.4  
+**Versión:** 1.5  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -15,7 +15,8 @@
 - [x] Handshake **`protocolVersion`**: opción de join `protocolVersion` (ver `JOIN_OPTION_PROTOCOL_VERSION_KEY` en `@nexusworld3d/protocol`); `NexusWorldRoom` rechaza join si no coincide con `PROTOCOL_VERSION`.
 - [x] **`content/manifest.json`** + `npm run validate-content` (validación estructural v1, no stub).
 - [x] **Primera capa `engine-*`:** `@nexusworld3d/engine-server` (`NexusRoomPlugin`, `attachNexusRoomPlugins`); `@nexusworld3d/engine-client` (`withWorldProtocolJoinOptions`). La sala y plugins concretos siguen en `server/` + `src/`.
-- [ ] Pendiente: mover más subsistemas al motor; loader runtime desde manifest; más plugins demo.
+- [x] **Loader runtime:** `server/content/loadContentManifest.ts` — hidrata y valida el manifest al arranque; `getContentManifest`, `isDeclaredManifestItemId`.
+- [ ] Pendiente: mover más subsistemas al motor; usar manifest en reglas de juego (craft/spawn); más plugins demo.
 
 ---
 
@@ -102,7 +103,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 - [x] Esquema v1 en **`content/manifest.json`**: `items[]`, `recipes[]`, `worldSpawns[]`, `shops[]`, `buildingPieces[]` (extensible).
 - [x] Script **`npm run validate-content`** (validación real: JSON, `schemaVersion`, ids únicos).
-- [ ] Loader en servidor que **hidrate** catálogos en memoria al iniciar sala (o en build-time codegen TS opcional).
+- [x] Loader en servidor que **hidrate** el manifest en memoria al iniciar (validación + cache); extender a recetas/spawns cuando existan en JSON.
 
 **Beneficio / Benefit:** el tercero “solo” edita datos; no abre diez archivos TS.
 
@@ -136,7 +137,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 - [x] Constantes de mensajes en **`@nexusworld3d/protocol`** (`WorldMessages`, etc.); tipos de payload aún dispersos (mejora incremental).
 - [x] Campo `protocolVersion` en **opciones de join** a la sala mundo; servidor rechaza con error claro si falta o no coincide.
-- [ ] Convención de nombres: prefijos `core:` vs `game:` para que el juego privado añada mensajes sin colisionar con el núcleo.
+- [x] Convención documentada: prefijos **`core:`** / **`game:`** (plugins + mensajes) en comentarios de `packages/protocol/src/messages.ts`.
 
 ---
 

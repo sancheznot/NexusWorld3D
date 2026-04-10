@@ -5,7 +5,8 @@
  *
  * Prefijos / Prefixes:
  * - `world:`, `housing:`, `rpg:` … = núcleo compartido / shared core
- * - Los juegos privados pueden añadir `game:` o su propio prefijo / private games may use `game:` etc.
+ * - IDs de plugins de sala: **`core:*`** (motor), **`game:*`** (tu juego privado) — ver `NexusRoomPlugin.id`
+ * - Mensajes nuevos del juego: prefijo `game:` (p. ej. `game:quest-accept`) para no chocar con el núcleo
  */
 
 export const WorldMessages = {

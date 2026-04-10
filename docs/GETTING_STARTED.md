@@ -38,6 +38,8 @@ Los nombres de mensajes Colyseus compartidos viven en `packages/protocol` (`@nex
 
 **Paquetes motor (capa inicial):** `@nexusworld3d/engine-server` (contrato de plugins de sala), `@nexusworld3d/engine-client` (helpers de join cliente).
 
+**Manifest en runtime:** Colyseus carga `content/manifest.json` al arranque (`loadContentManifestOrThrow`); si falla la validación, el proceso termina — alinea con `npm run validate-content` antes de desplegar.
+
 ## Siguientes pasos / Next steps
 
 - `docs/ARCHITECTURE.md` — flujo cliente ↔ sala ↔ persistencia

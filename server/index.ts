@@ -1,5 +1,6 @@
 import "@server/env-bootstrap";
 import { Server } from "colyseus";
+import { loadContentManifestOrThrow } from "@server/content/loadContentManifest";
 import { registerNexusWorldRooms } from "@server/colyseus/registerRooms";
 import { printGameServerDevBanner } from "@server/banners/nexusColyseusBanner";
 import { runPendingMigrations } from "@/lib/db/runMigrations";
@@ -14,6 +15,8 @@ const CLIENT_URL =
   process.env.CLIENT_URL ||
   process.env.NEXT_PUBLIC_APP_URL ||
   "http://localhost:3000";
+
+loadContentManifestOrThrow();
 
 const gameServer = new Server({ greet: false });
 
