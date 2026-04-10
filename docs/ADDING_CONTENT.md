@@ -27,6 +27,8 @@ Regístralo en `NexusWorldRoom` con `attachNexusRoomPlugins(this, [createMyGameP
 
 **Nodos de recurso en mapa:** `registerResourceNode` (`@nexusworld3d/engine-server`) — se fusionan con `WORLD_RESOURCE_NODES` en `src/constants/worldResourceNodes.ts`. Arranque: `server/bootstrap/gameResourceNodes.ts`.
 
+**Efecto al usar consumible:** `registerItemEffect(itemId, ctx => { … })` — tras efectos del catálogo y antes de quitar el stack. Arranque: `server/bootstrap/gameItemEffects.ts`.
+
 **APIs tipo `registerWorldTool` (futuro):** ver [`docs/EXTENSION_APIS.md`](./EXTENSION_APIS.md).
 
 **Referencia / Reference:** `createWorldResourceNodesPlugin` — ~10 líneas.

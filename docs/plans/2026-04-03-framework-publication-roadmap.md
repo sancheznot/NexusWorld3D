@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 2.8  
+**Versión:** 2.9  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -36,6 +36,7 @@
 - [x] **CI GitHub Actions:** `tsc`, `validate-content`, `validate-build-assets`, `npm run check:packages` (sin `eslint` hasta limpiar warnings).
 - [x] **`docs/EXTENSION_APIS.md`** — APIs `register*` planificadas vs patrón actual (plugins).
 - [x] **`registerResourceNode`** en `engine-server` + fusión en `worldResourceNodes.ts`; subpath `resource-node-registry` para cliente; `server/bootstrap/gameResourceNodes.ts`.
+- [x] **`registerItemEffect`** — hooks síncronos en uso de consumibles (`InventoryEvents`); `server/bootstrap/gameItemEffects.ts`; subpath `item-effect-registry`.
 - [ ] Pendiente: ejercicio real §6 (alguien ejecuta la receta); implementar `register*`; repaso manual docs históricos con marca del juego; repo público + consumidor privado semver.
 
 ---
@@ -142,7 +143,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 - [ ] `registerWorldTool({ id, clientRaycastFilter, serverOnUse, durabilityKey })`
 - [x] `registerResourceNode({ id, mapId, position, radius, grants, … })` — registro + merge con nodos estáticos; cooldown/distancia globales en `WorldResourceNodeEvents` (overrides futuros).
 - [x] Patrón **`attach(room, ctx)`** con `FrameworkRoomPluginContext` (extensible); `inventory` sigue en closure/factory hasta ampliar `ctx`.
-- [ ] `registerItemEffect({ itemId, onConsume })` (servidor)
+- [x] `registerItemEffect(itemId, onConsume)` (servidor — síncrono v1; ver `EXTENSION_APIS.md`)
 
 **Entregables / Deliverables**
 

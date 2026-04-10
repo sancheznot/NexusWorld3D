@@ -6,7 +6,8 @@
   "license": "MIT",
   "exports": {
     ".": "./src/index.ts",
-    "./resource-node-registry": "./src/resourceNodeRegistry.ts"
+    "./resource-node-registry": "./src/resourceNodeRegistry.ts",
+    "./item-effect-registry": "./src/itemEffectRegistry.ts"
   },
   "types": "./src/index.ts",
   "peerDependencies": {

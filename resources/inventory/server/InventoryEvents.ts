@@ -18,6 +18,7 @@ import {
   getContentManifest,
   isDeclaredManifestItemId,
 } from '@server/content/loadContentManifest';
+import { getItemConsumeEffects } from '@nexusworld3d/engine-server/item-effect-registry';
 
 /**
  * Eventos de Inventario para Colyseus
@@ -820,6 +821,20 @@ export class InventoryEvents {
     }
     if (catalog?.effects?.food) {
       // TODO: integrar con sistema de hambre cuando exista (store/redis)
+    }
+
+    for (const effect of getItemConsumeEffects(item.itemId)) {
+      try {
+        effect({
+          room: this.room,
+          client,
+          playerId,
+          itemId: item.itemId,
+          economy: this.economyEvents,
+        });
+      } catch (e) {
+        console.warn(`[registerItemEffect] ${item.itemId}`, e);
+      }
     }
 
     // Notificar uso del item (después de aplicar efectos, antes de mutar)

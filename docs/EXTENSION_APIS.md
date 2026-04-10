@@ -12,7 +12,7 @@
 |-----------------|------------------|
 | World interaction (raycast, use key) | `NexusContextRoomPlugin` + `FrameworkRoomPluginContext`; message in `@nexusworld3d/protocol`; server validates distance / cooldown (see `createFrameworkDemoCubePlugin`). |
 | Resource node (chop, mine) | **`registerResourceNode`** (engine-server) + static `WORLD_RESOURCE_NODES`; server handler `WorldResourceNodeEvents` + plugin `createWorldResourceNodesPlugin`. |
-| Item consume effect | Server-only handler in inventory/economy flow (`InventoryEvents`, crafting, or custom `onMessage` gated by manifest + catalog). |
+| Item consume effect | **`registerItemEffect`** + catálogo `ITEMS_CATALOG.effects` en `InventoryEvents.handleUseItem`. |
 
 ---
 
@@ -37,14 +37,21 @@ registerResourceNode({
 });
 ```
 
+## Implemented (item consume) / Implementado (consumo de ítem)
+
+**EN.** `registerItemEffect(itemId, onConsume)` — **synchronous** hooks run after catalog effects (gold, etc.) and **before** `ItemUsed` broadcast and stack decrement. Multiple handlers per `itemId` run in registration order. Bootstrap: `server/bootstrap/gameItemEffects.ts`. Import: `@nexusworld3d/engine-server` or `@nexusworld3d/engine-server/item-effect-registry` (server-only; wired from `resources/inventory/server/InventoryEvents.ts`).
+
+**ES.** No sustituye efectos del catálogo (`ITEMS_CATALOG.effects`); **añade** comportamiento (broadcast, integraciones, etc.). Async deliberadamente **no** en v1.
+
 ## Planned (roadmap) / Previsto (roadmap)
 
 **EN.** Still open:
 
 - `registerWorldTool({ id, clientRaycastFilter, serverOnUse, durabilityKey })`
-- `registerItemEffect({ itemId, onConsume })` (server)
 
 **Optional hardening for `registerResourceNode`:** per-node cooldown / `distanceCheck` overrides (today global constants in `WorldResourceNodeEvents`).
+
+**Future `registerItemEffect`:** async hooks with explicit cancel / “skip consume” contract.
 
 ---
 
