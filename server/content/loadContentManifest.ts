@@ -5,60 +5,21 @@
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  parseContentManifestV1,
+  type ContentManifestV1,
+} from "@nexusworld3d/content-schema";
 import { ITEMS_CATALOG } from "@/constants/items";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-export type ContentManifestV1 = {
-  schemaVersion: number;
-  items: Array<{ id: string }>;
-  recipes?: unknown[];
-  worldSpawns?: unknown[];
-  buildingPieces?: unknown[];
-  shops?: unknown[];
-};
+export type { ContentManifestV1 };
 
 let cachedManifest: ContentManifestV1 | null = null;
 let declaredItemIds: ReadonlySet<string> | null = null;
 
 function manifestPath(): string {
   return join(__dirname, "..", "..", "content", "manifest.json");
-}
-
-function validateStructure(data: unknown): ContentManifestV1 {
-  if (!data || typeof data !== "object") {
-    throw new Error("[content] manifest root must be an object");
-  }
-  const o = data as Record<string, unknown>;
-  if (typeof o.schemaVersion !== "number" || o.schemaVersion < 1) {
-    throw new Error('[content] "schemaVersion" must be a number >= 1');
-  }
-  if (!Array.isArray(o.items)) {
-    throw new Error('[content] "items" must be an array');
-  }
-  const seen = new Set<string>();
-  for (let i = 0; i < o.items.length; i++) {
-    const row = o.items[i];
-    if (!row || typeof row !== "object") {
-      throw new Error(`[content] items[${i}] must be an object`);
-    }
-    const id = (row as { id?: unknown }).id;
-    if (typeof id !== "string" || id.trim() === "") {
-      throw new Error(`[content] items[${i}].id must be a non-empty string`);
-    }
-    if (seen.has(id)) {
-      throw new Error(`[content] duplicate item id: "${id}"`);
-    }
-    seen.add(id);
-  }
-  const optionalArrays = ["recipes", "worldSpawns", "buildingPieces", "shops"];
-  for (const key of optionalArrays) {
-    if (o[key] === undefined) continue;
-    if (!Array.isArray(o[key])) {
-      throw new Error(`[content] "${key}" must be an array when present`);
-    }
-  }
-  return data as ContentManifestV1;
 }
 
 function assertItemsInCatalog(manifest: ContentManifestV1): void {
@@ -93,7 +54,7 @@ export function loadContentManifestOrThrow(): ContentManifestV1 {
     );
   }
 
-  const manifest = validateStructure(raw);
+  const manifest = parseContentManifestV1(raw);
   assertItemsInCatalog(manifest);
 
   cachedManifest = manifest;

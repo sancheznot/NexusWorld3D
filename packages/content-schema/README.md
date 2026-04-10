@@ -1,5 +1,15 @@
-# @nexusworld3d/content-schema (placeholder)
+# @nexusworld3d/content-schema
 
-**ES.** El manifest vive en **`content/manifest.json`** (raíz del repo). `npm run validate-content` aplica comprobaciones v1 (estructura + ids únicos). Aquí puede colocarse más adelante JSON Schema / Zod compartido.
+**EN.** Zod schemas for **`content/manifest.json`**. Primary export: `parseContentManifestV1`, `contentManifestV1Schema`, type `ContentManifestV1`.
 
-**EN.** Content manifest is **`content/manifest.json`**. `npm run validate-content` enforces v1 checks. This package can later hold shared JSON Schema / Zod definitions.
+**ES.** El CLI raíz **`npm run validate-content`** y el loader en runtime (`server/content/loadContentManifest.ts`) usan este paquete para no duplicar reglas.
+
+## Usage / Uso
+
+```ts
+import { parseContentManifestV1 } from "@nexusworld3d/content-schema";
+
+const manifest = parseContentManifestV1(JSON.parse(raw));
+```
+
+Add optional sections to the manifest as needed; unknown top-level keys are allowed (`.passthrough()`).

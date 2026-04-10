@@ -1,0 +1,14 @@
+{
+  "name": "@nexusworld3d/content-schema",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zod schemas for NexusWorld3D content manifest (v1+)",
+  "license": "MIT",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "dependencies": {
+    "zod": "^3.24.2"
+  }
+}

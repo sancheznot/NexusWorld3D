@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 2.0  
+**Versión:** 2.1  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -23,7 +23,10 @@
 - [x] **Seguridad / higiene:** `inventory:add-item` solo si `itemId` ∈ catálogo + manifest; `docs/SECURITY.md`; descripción neutral en `@nexusworld3d/protocol`.
 - [x] **Plugins con contexto:** `FrameworkRoomPluginContext`, `NexusContextRoomPlugin`, `attachContextRoomPlugins` en `@nexusworld3d/engine-server`; cubo demo migrado.
 - [x] **Demo mínima documentada:** `docs/DEMO_MINIMAL.md`, `npm run dev:demo`, enlaces desde README / `apps/demo`.
-- [ ] Pendiente: más subsistemas al motor; app Next `apps/demo` separada (opcional); repaso manual de docs históricos con nombre del juego.
+- [x] **`@nexusworld3d/content-schema`** (Zod v1) + `validate-content` unificado en `tsx scripts/validate-content.ts`; loader runtime usa el mismo parse.
+- [x] **Interfaces persistencia** (`PlayerStore`, `SessionStore`, `WorldStateStore`) en `engine-server` + `docs/PERSISTENCE.md`.
+- [x] **`docs/AUTH_OVERVIEW.md`** (NextAuth, invitados dev, extensión).
+- [ ] Pendiente: más subsistemas al motor; app Next `apps/demo` separada (opcional); inyectar stores en sala; repaso manual de docs históricos con nombre del juego.
 
 ---
 
@@ -87,7 +90,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 | `@repo/protocol` o `packages/protocol` | Tipos TS + nombres de mensajes Colyseus + versionado (`protocolVersion`) |
 | `@repo/engine-server` | Sala base, registro de handlers, validación de jugador genérica, hooks de persistencia **interfaces** |
 | `@repo/engine-client` | Canvas R3F base, input, cámara, puente Colyseus genérico (sin textos de Hotel) |
-| `@repo/content-schema` | JSON Schema / Zod para manifest de contenido |
+| `@nexusworld3d/content-schema` | Zod para manifest de contenido (v1) |
 | `apps/demo` o `apps/starter` | Next minimal + sala demo |
 | *(privado)* `packages/game-humboldt` | Constantes del juego, NPCs, mapas, copy |
 
@@ -154,9 +157,9 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 **EN.** Minimum credible story for third parties:
 
-- [ ] Modo **dev**: sesión anónima o token falso documentado.
-- [ ] Interfaz `AuthProvider` intercambiable (su juego privado conecta Supabase/Auth0/etc.).
-- [ ] Sin credenciales reales en el repo público (solo `.env.example`).
+- [x] Modo **dev**: invitado + demo documentados (`docs/AUTH_OVERVIEW.md`, `docs/DEMO_MINIMAL.md`).
+- [x] Extensión: **NextAuth** como punto de extensión documentado (sin `AuthProvider` genérico en el motor por ahora).
+- [x] Sin credenciales en el repo: `.env.local.example` + `docs/SECURITY.md`.
 
 ---
 
@@ -166,7 +169,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 **EN.** Engine should not hardcode one game’s DB layout.
 
-- [ ] Interfaces: `PlayerStore`, `WorldStateStore`, `SessionStore`.
+- [x] Interfaces: `PlayerStore`, `WorldStateStore`, `SessionStore` (`packages/engine-server` + `docs/PERSISTENCE.md`).
 - [ ] Implementaciones de ejemplo en demo (en memoria o SQLite); el juego privado implementa las reales.
 
 ---
