@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 2.3  
+**Versión:** 2.4  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -28,7 +28,8 @@
 - [x] **`docs/AUTH_OVERVIEW.md`** (NextAuth, invitados dev, extensión).
 - [x] **Stores en sala:** `NexusWorldRoom` expone `playerStore` / `sessionStore` / `worldStateStore`; demo en memoria (`createInMemory*`); inyección vía `createPersistenceStores()` en subclase.
 - [x] **`npm run validate-build-assets`** — GLB `public/models/build/{pieceId}.glb` (catálogo + manifest `buildingPieces[]`); `--strict` para CI.
-- [ ] Pendiente: migrar llamadas Redis/MariaDB a esas interfaces donde tenga sentido; app Next `apps/demo` separada (opcional); repaso manual de docs históricos con nombre del juego.
+- [x] **`apps/demo`** — workspace + `package.json` que delega `dev` / `dev:demo` / `validate` a la raíz (sin duplicar Next); README “máquina limpia”.
+- [ ] Pendiente: migrar llamadas Redis/MariaDB a `PlayerStore` / `SessionStore` donde tenga sentido; repaso manual de docs históricos con nombre del juego.
 
 ---
 
@@ -233,7 +234,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 **Fase 1 — Separar sin romper (~1–2 semanas de enfoque)**  
 1. Extraer `protocol` (tipos + constantes de mensajes).  
 2. Introducir `registerRoomPlugin` y migrar **un** sistema (el más pequeño) como prueba.  
-3. Añadir `apps/demo` que arranque sin mapa de Hotel.
+3. [x] `apps/demo` como entrada de demo (delegación a raíz + modo `NEXT_PUBLIC_FRAMEWORK_DEMO`); mapa Hotel no requerido en demo.
 
 **Fase 2 — Contenido y contratos (~2–4 semanas)**  
 4. Manifest + validador + migrar catálogo de ítems de la demo.  
@@ -267,7 +268,7 @@ Eso permanece en el **repo privado** como consumidor del motor.
 
 Marcar el framework como **“v1 listo para público”** cuando:
 
-- [ ] `apps/demo` corre en máquina limpia siguiendo solo el README.
+- [x] `apps/demo` + README raíz: clon → `npm install` en raíz → `cd apps/demo && npm run dev:demo` (o equivalente desde raíz); ver [`apps/demo/README.md`](../../apps/demo/README.md).
 - [ ] Un colaborador externo (o tú con cuenta secundaria) añade **un ítem y un interactuable** usando solo docs + manifest + un plugin pequeño.
 - [ ] No hay imports de `hotel`, `humboldt`, ni constantes de mapas reales dentro de `packages/engine-*`.
 - [ ] Licencia y repositorio público publicados; el juego completo está en repo privado que **depende** del paquete público (versión semver).

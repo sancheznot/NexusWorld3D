@@ -19,10 +19,13 @@
 
 **Framework split (motor vs juego) / Framework vs game:** [Getting started](./docs/GETTING_STARTED.md) · [Minimal demo (no DB)](./docs/DEMO_MINIMAL.md) · [Architecture](./docs/ARCHITECTURE.md) · [Adding content / plugins](./docs/ADDING_CONTENT.md) · [Auth](./docs/AUTH_OVERVIEW.md) · [Persistence](./docs/PERSISTENCE.md) · [Deployment](./docs/DEPLOYMENT.md) · [Security](./docs/SECURITY.md) · [Contributing](./CONTRIBUTING.md) · [Publication roadmap](./docs/plans/2026-04-03-framework-publication-roadmap.md).
 
+**Quick start (demo) / Arranque rápido (demo):** `git clone` → **repo root** `npm install` → `npm run dev:demo` **or** `cd apps/demo && npm run dev:demo` — see [`apps/demo/README.md`](./apps/demo/README.md).
+
 **Monorepo packages / Paquetes npm (workspace):**
 
 | Package | Role |
 |---------|------|
+| [`apps/demo`](./apps/demo) | Demo entry (scripts delegate to root; no second Next app) |
 | [`@nexusworld3d/protocol`](./packages/protocol) | Colyseus message names + `PROTOCOL_VERSION` |
 | [`@nexusworld3d/engine-server`](./packages/engine-server) | `NexusRoomPlugin`, `attachNexusRoomPlugins`, persistence interfaces + `createInMemory*` ([`PERSISTENCE`](./docs/PERSISTENCE.md)) |
 | [`@nexusworld3d/engine-client`](./packages/engine-client) | `withWorldProtocolJoinOptions` (join handshake) |

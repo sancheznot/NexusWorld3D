@@ -7,9 +7,15 @@
 
 ## Instalar / Install
 
+Desde la **raíz del repositorio** / From the **repository root**:
+
 ```bash
 npm install
 ```
+
+**ES.** El workspace incluye `apps/demo`: puedes ejecutar `npm run dev:demo` allí (`cd apps/demo`) — delega a la raíz. Ver [`apps/demo/README.md`](../apps/demo/README.md).
+
+**EN.** Workspace includes `apps/demo`; `cd apps/demo && npm run dev:demo` forwards to root scripts. See [`apps/demo/README.md`](../apps/demo/README.md).
 
 ## Desarrollo / Development
 

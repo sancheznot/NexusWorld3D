@@ -1,0 +1,12 @@
+{
+  "name": "nexusworld3d-framework-demo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Demo entrypoint — delegates to the repository root (single Next + Colyseus app)",
+  "license": "MIT",
+  "scripts": {
+    "dev": "npm run dev --prefix ../..",
+    "dev:demo": "npm run dev:demo --prefix ../..",
+    "validate": "npm run validate-content --prefix ../.. && npm run validate-build-assets --prefix ../.."
+  }
+}
