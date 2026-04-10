@@ -17,7 +17,7 @@
 - 🇺🇸 **[English Documentation](./docs/en/README.md)** - Complete documentation in English
 - 🇪🇸 **[Documentación en Español](./docs/es/README.md)** - Documentación completa en español
 
-**Framework split (motor vs juego) / Framework vs game:** [Getting started](./docs/GETTING_STARTED.md) · [Architecture](./docs/ARCHITECTURE.md) · [Adding content / plugins](./docs/ADDING_CONTENT.md) · [Publication roadmap](./docs/plans/2026-04-03-framework-publication-roadmap.md).
+**Framework split (motor vs juego) / Framework vs game:** [Getting started](./docs/GETTING_STARTED.md) · [Architecture](./docs/ARCHITECTURE.md) · [Adding content / plugins](./docs/ADDING_CONTENT.md) · [Deployment](./docs/DEPLOYMENT.md) · [Contributing](./CONTRIBUTING.md) · [Publication roadmap](./docs/plans/2026-04-03-framework-publication-roadmap.md).
 
 **Monorepo packages / Paquetes npm (workspace):**
 

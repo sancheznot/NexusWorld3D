@@ -46,3 +46,4 @@ Los nombres de mensajes Colyseus compartidos viven en `packages/protocol` (`@nex
 
 - `docs/ARCHITECTURE.md` — flujo cliente ↔ sala ↔ persistencia
 - `docs/ADDING_CONTENT.md` — plugins de sala y datos
+- `docs/DEPLOYMENT.md` — producción, Docker, variables

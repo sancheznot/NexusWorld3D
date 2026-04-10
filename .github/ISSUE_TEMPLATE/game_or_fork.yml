@@ -1,0 +1,25 @@
+name: Game content / private fork
+description: Questions about your own game, maps, assets, or balances — may be out of scope for the public framework repo.
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The **public framework** repo focuses on reusable engine pieces (`packages/*`, Colyseus room, docs).
+
+        If your issue is about **proprietary content**, a **commercial fork**, or **Hotel-specific** design, maintainers may redirect you to a **private game repo** that consumes `@nexusworld3d/*` packages.
+  - type: textarea
+    id: question
+    attributes:
+      label: What do you need?
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: This is about…
+      options:
+        - label: Something that could be a generic framework feature (please explain)
+        - label: My private game / fork only
+    validations:
+      required: false

@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 1.7  
+**Versión:** 1.8  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -19,7 +19,8 @@
 - [x] **Manifest en reglas:** `InventoryEvents.addItemFromWorld` rechaza `itemId` no declarado en `content/manifest.json` (craft, mundo, tienda pasan por ahí).
 - [x] **`LICENSE`** (MIT) en raíz; README con tabla de paquetes + manifest.
 - [x] **Plugin demo cubo:** `DemoMessages` + `createFrameworkDemoCubePlugin` + cubo en `FrameworkDemoGround` (distancia + cooldown).
-- [ ] Pendiente: más subsistemas al motor; inventario mínimo aislado para demo pública.
+- [x] **Ops / OSS:** `docs/DEPLOYMENT.md`, `.env.example` (entrada mínima), `CONTRIBUTING.md`, plantillas GitHub (motor vs juego).
+- [ ] Pendiente: más subsistemas al motor; inventario mínimo aislado para demo pública; auditoría de secretos en código.
 
 ---
 
@@ -201,7 +202,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 - [x] `docs/GETTING_STARTED.md`.
 - [x] `docs/ARCHITECTURE.md` (diagrama cliente ↔ Colyseus ↔ persistencia).
 - [x] `docs/ADDING_CONTENT.md` (plugin + mensajes; manifest en Fase 2).
-- [ ] `docs/DEPLOYMENT.md` (opcional v1: Docker compose demo).
+- [x] `docs/DEPLOYMENT.md` (dev, `npm start`, Docker Compose, checklist).
 - [x] `LICENSE` explícito (**MIT**).
 
 ---
@@ -209,9 +210,9 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 ### 3.10 Higiene para GitHub público / Open-source hygiene
 
 - [ ] Eliminar secretos, URLs internas, nombres de producción del juego en código del núcleo.
-- [ ] `.env.example` completo; `.gitignore` correcto.
-- [ ] `CONTRIBUTING.md` + `CODE_OF_CONDUCT.md` (opcional pero recomendable).
-- [ ] Issue templates: “bug del motor” vs “pregunta de mi juego” (orientar a que el juego vaya al repo privado).
+- [x] `.env.example` en raíz (mínimo + puntero a `.env.local.example` / `env.docker.example`); `.gitignore` ya excluye `.env*local`.
+- [x] `CONTRIBUTING.md` (Convención de conducta: enlace a Contributor Covenant en texto).
+- [x] Issue templates: **Engine / framework bug** vs **Game content / private fork** (`.github/ISSUE_TEMPLATE/`).
 
 ---
 

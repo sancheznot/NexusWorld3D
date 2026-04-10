@@ -1,0 +1,41 @@
+name: Engine / framework bug
+description: Bugs in core multiplayer stack (Colyseus, protocol, manifest, plugins, engine packages).
+labels: ["triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for **open-source core** issues (protocol, `NexusWorldRoom`, `validate-content`, demo mode, etc.).
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What broke or what is wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: false
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: false
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      placeholder: "1. …\n2. …"
+    validations:
+      required: false
+  - type: input
+    id: env
+    attributes:
+      label: Environment (optional)
+      description: Node version, OS, `NEXT_PUBLIC_FRAMEWORK_DEMO`, Docker vs `npm run dev`, etc.
+    validations:
+      required: false
