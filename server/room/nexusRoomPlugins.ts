@@ -5,6 +5,8 @@ import {
   type WorldResourceNodeDeps,
 } from "@server/modules/WorldResourceNodeEvents";
 
+export { createFrameworkDemoCubePlugin } from "@server/room/frameworkDemoCubePlugin";
+
 /**
  * ES: Recolección en nodos del mapa (`world:harvest-node`). EN: Map resource node harvesting.
  */

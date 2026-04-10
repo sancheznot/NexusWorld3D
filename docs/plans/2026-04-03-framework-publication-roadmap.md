@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 1.6  
+**Versión:** 1.7  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -18,7 +18,8 @@
 - [x] **Loader runtime:** `server/content/loadContentManifest.ts` — hidrata y valida el manifest al arranque; `getContentManifest`, `isDeclaredManifestItemId`.
 - [x] **Manifest en reglas:** `InventoryEvents.addItemFromWorld` rechaza `itemId` no declarado en `content/manifest.json` (craft, mundo, tienda pasan por ahí).
 - [x] **`LICENSE`** (MIT) en raíz; README con tabla de paquetes + manifest.
-- [ ] Pendiente: más subsistemas al motor; plugin demo “cubo”; inventario mínimo aislado para demo pública.
+- [x] **Plugin demo cubo:** `DemoMessages` + `createFrameworkDemoCubePlugin` + cubo en `FrameworkDemoGround` (distancia + cooldown).
+- [ ] Pendiente: más subsistemas al motor; inventario mínimo aislado para demo pública.
 
 ---
 
@@ -127,7 +128,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 **Entregables / Deliverables**
 
 - [x] Guía **`docs/ADDING_CONTENT.md`** + plugin piloto documentado (`createWorldResourceNodesPlugin`).
-- [ ] Demo pública con plugin “cubo que da ítem” (opcional; hoy el piloto es recolección de nodos).
+- [x] Demo pública con plugin “cubo que da ítem” (`core:demo-framework-cube` + modo `FRAMEWORK_DEMO`).
 
 ---
 

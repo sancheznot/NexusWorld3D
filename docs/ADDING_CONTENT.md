@@ -25,6 +25,8 @@ Regístralo en `NexusWorldRoom` con `attachNexusRoomPlugins(this, [createMyGameP
 
 **Referencia / Reference:** `createWorldResourceNodesPlugin` — ~10 líneas.
 
+**Plugin demo cubo:** `createFrameworkDemoCubePlugin` (`server/room/frameworkDemoCubePlugin.ts`) + mensaje `DemoMessages.FrameworkCubePickup` — visible con `NEXT_PUBLIC_FRAMEWORK_DEMO=1` (cubo dorado en `FrameworkDemoGround`); el servidor comprueba distancia y cooldown.
+
 ## 3. Contenido data-driven / Data-driven content (Fase 2)
 
 - **Manifest:** `content/manifest.json` — `schemaVersion`, `items[]` con `{ id }`, y arrays opcionales (`recipes`, `worldSpawns`, `buildingPieces`, `shops`).

@@ -137,6 +137,12 @@ export const SystemMessages = {
   Maintenance: "system:maintenance",
 } as const;
 
+/** ES: Demo del framework (`NEXT_PUBLIC_FRAMEWORK_DEMO`). EN: Framework demo room messages. */
+export const DemoMessages = {
+  /** ES: Pedir recompensa del cubo dorado (servidor valida distancia + cooldown). */
+  FrameworkCubePickup: "core:demo-framework-cube-pickup",
+} as const;
+
 export type WorldMessageKey = keyof typeof WorldMessages;
 export type HousingMessageKey = keyof typeof HousingMessages;
 /** Wire string for economy Colyseus messages (wallet, bank, ledger, …). */

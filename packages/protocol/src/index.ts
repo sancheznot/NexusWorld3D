@@ -17,6 +17,7 @@ export {
   ChatMessages,
   MonsterMessages,
   SystemMessages,
+  DemoMessages,
   type WorldMessageKey,
   type HousingMessageKey,
   type EconomyEventName,

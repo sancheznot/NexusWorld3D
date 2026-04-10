@@ -30,6 +30,8 @@ NEXT_PUBLIC_FRAMEWORK_DEMO=1
 
 Luego entra al mapa **exterior** como siempre. Útil para aislar motor vs contenido del juego.
 
+Hay un **cubo dorado** cerca del origen: acércate (~5 m), haz clic; el servidor otorga una manzana (`food_apple`) si pasas validación de distancia y cooldown (plugin `core:demo-framework-cube`).
+
 ## Paquete `protocol` / `protocol` package
 
 Los nombres de mensajes Colyseus compartidos viven en `packages/protocol` (`@nexusworld3d/protocol`). Importa desde cliente y servidor para evitar typos.

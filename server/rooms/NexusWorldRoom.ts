@@ -16,6 +16,7 @@ import { TreeChopEvents } from "@server/modules/TreeChopEvents";
 import { RockMineEvents } from "@server/modules/RockMineEvents";
 import {
   attachNexusRoomPlugins,
+  createFrameworkDemoCubePlugin,
   createWorldResourceNodesPlugin,
 } from "@server/room/nexusRoomPlugins";
 import { HousingEvents } from "@server/modules/HousingEvents";
@@ -208,6 +209,13 @@ export class NexusWorldRoom extends Room {
         },
         awardExperience: (pid, amount) =>
           this.rpgProgression.addXp(pid, amount),
+      }),
+      createFrameworkDemoCubePlugin({
+        inventory: this.inventoryEvents,
+        getPlayerPosition: (id: string) => {
+          const p = this.players.get(id);
+          return p ? { ...p.position } : null;
+        },
       }),
     ]);
 
