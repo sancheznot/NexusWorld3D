@@ -20,6 +20,7 @@
   "private": false,
   "scripts": {
     "dev": "concurrently \"next dev\" \"tsx server/index.ts\"",
+    "dev:demo": "env NEXT_PUBLIC_FRAMEWORK_DEMO=1 concurrently \"next dev\" \"tsx server/index.ts\"",
     "build": "next build",
     "start": "tsx server/combined.ts",
     "start:all": "npm run start",

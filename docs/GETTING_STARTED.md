@@ -28,7 +28,11 @@ Para un mundo **ligero** (plano + rejilla, sin ciudad GLB ni capas de juego pesa
 NEXT_PUBLIC_FRAMEWORK_DEMO=1
 ```
 
+O en la raíz del repo (Linux/macOS): `npm run dev:demo` (equivale a fijar la variable y arrancar Next + Colyseus).
+
 Luego entra al mapa **exterior** como siempre. Útil para aislar motor vs contenido del juego.
+
+**Demo sin DB ni Redis real:** `docs/DEMO_MINIMAL.md`.
 
 Hay un **cubo dorado** cerca del origen: acércate (~5 m), haz clic; el servidor otorga una manzana (`food_apple`) si pasas validación de distancia y cooldown (plugin `core:demo-framework-cube`).
 

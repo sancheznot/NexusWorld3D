@@ -1,5 +1,11 @@
 import type { Room } from "colyseus";
 
+export {
+  type FrameworkRoomPluginContext,
+  type NexusContextRoomPlugin,
+  attachContextRoomPlugins,
+} from "./roomPluginContext";
+
 /**
  * ES: Contrato para montar subsistemas en la sala mundo sin acoplar la clase de la sala.
  * EN: Contract to attach subsystems to the world room without hard-wiring the room class.

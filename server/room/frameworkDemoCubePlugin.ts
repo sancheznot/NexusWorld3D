@@ -1,5 +1,5 @@
 import type { Room, Client } from "colyseus";
-import type { NexusRoomPlugin } from "@nexusworld3d/engine-server";
+import type { NexusContextRoomPlugin } from "@nexusworld3d/engine-server";
 import { DemoMessages } from "@nexusworld3d/protocol";
 import type { InventoryEvents } from "@resources/inventory/server/InventoryEvents";
 import { ITEMS_CATALOG } from "@/constants/items";
@@ -11,9 +11,6 @@ const REWARD_ITEM_ID = "food_apple" as const;
 
 export type FrameworkDemoCubeDeps = {
   inventory: InventoryEvents;
-  getPlayerPosition: (
-    sessionId: string
-  ) => { x: number; y: number; z: number } | null;
 };
 
 /**
@@ -22,18 +19,18 @@ export type FrameworkDemoCubeDeps = {
  */
 export function createFrameworkDemoCubePlugin(
   deps: FrameworkDemoCubeDeps
-): NexusRoomPlugin {
+): NexusContextRoomPlugin {
   const lastPickup = new Map<string, number>();
 
   return {
     id: "core:demo-framework-cube",
-    attach(room: Room) {
+    attach(room: Room, ctx) {
       room.onMessage(DemoMessages.FrameworkCubePickup, (client: Client) => {
         const now = Date.now();
         const prev = lastPickup.get(client.sessionId) ?? 0;
         if (now - prev < COOLDOWN_MS) return;
 
-        const pos = deps.getPlayerPosition(client.sessionId);
+        const pos = ctx.getPlayerPosition(client.sessionId);
         if (!pos) return;
 
         const c = FRAMEWORK_DEMO_CUBE_CENTER;

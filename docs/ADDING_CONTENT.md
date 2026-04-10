@@ -8,7 +8,9 @@
 
 ## 2. Plugin de sala (patrón actual) / Room plugin pattern
 
-El contrato **`NexusRoomPlugin`** y **`attachNexusRoomPlugins`** viven en **`@nexusworld3d/engine-server`**. Las fábricas concretas (p. ej. `createWorldResourceNodesPlugin`) siguen en `server/room/nexusRoomPlugins.ts` o junto a tu feature.
+El contrato **`NexusRoomPlugin`** y **`attachNexusRoomPlugins`** viven en **`@nexusworld3d/engine-server`**. Para código nuevo, preferir **`NexusContextRoomPlugin`** + **`attachContextRoomPlugins(room, ctx, plugins)`** con **`FrameworkRoomPluginContext`** (`getPlayerPosition`, ampliable en tu juego). Ejemplo: `createFrameworkDemoCubePlugin`.
+
+Las fábricas que aún usan el estilo clásico (`attach(room)` sin ctx) siguen en `server/room/nexusRoomPlugins.ts` o junto a tu feature.
 
 ```typescript
 export function createMyGamePlugin(deps: MyDeps): NexusRoomPlugin {

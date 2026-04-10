@@ -70,6 +70,7 @@ bash scripts/compose-with-env.sh -f docker-compose.yml exec app npm run db:migra
 
 ## Related docs / Documentación relacionada
 
+- `docs/DEMO_MINIMAL.md` — try multiplayer without DB/Redis.
 - `docs/GETTING_STARTED.md` — first run, demo mode.
 - `docs/ARCHITECTURE.md` — client ↔ Colyseus ↔ persistence.
 - `.env.local.example` — full commented variable list.

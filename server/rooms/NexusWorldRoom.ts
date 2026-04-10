@@ -14,6 +14,7 @@ import { ItemEvents } from "@server/modules/ItemEvents";
 import { ShopEvents } from "@server/modules/ShopEvents";
 import { TreeChopEvents } from "@server/modules/TreeChopEvents";
 import { RockMineEvents } from "@server/modules/RockMineEvents";
+import { attachContextRoomPlugins } from "@nexusworld3d/engine-server";
 import {
   attachNexusRoomPlugins,
   createFrameworkDemoCubePlugin,
@@ -199,23 +200,26 @@ export class NexusWorldRoom extends Room {
       awardExperience: (pid, amount) => this.rpgProgression.addXp(pid, amount),
     });
 
+    const roomPluginCtx = {
+      getPlayerPosition: (id: string) => {
+        const p = this.players.get(id);
+        return p ? { ...p.position } : null;
+      },
+    };
+
     attachNexusRoomPlugins(this, [
       createWorldResourceNodesPlugin({
         inventory: this.inventoryEvents,
         getPlayerMapId: (clientId: string) => this.getPlayerMapId(clientId),
-        getPlayerPosition: (id: string) => {
-          const p = this.players.get(id);
-          return p ? { ...p.position } : null;
-        },
+        getPlayerPosition: roomPluginCtx.getPlayerPosition,
         awardExperience: (pid, amount) =>
           this.rpgProgression.addXp(pid, amount),
       }),
+    ]);
+
+    attachContextRoomPlugins(this, roomPluginCtx, [
       createFrameworkDemoCubePlugin({
         inventory: this.inventoryEvents,
-        getPlayerPosition: (id: string) => {
-          const p = this.players.get(id);
-          return p ? { ...p.position } : null;
-        },
       }),
     ]);
 
