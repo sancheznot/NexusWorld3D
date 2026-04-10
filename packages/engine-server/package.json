@@ -5,7 +5,8 @@
   "description": "Core server-side room plugin contract for NexusWorld3D (Colyseus)",
   "license": "MIT",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./resource-node-registry": "./src/resourceNodeRegistry.ts"
   },
   "types": "./src/index.ts",
   "peerDependencies": {

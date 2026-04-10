@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@nexusworld3d/protocol", "@nexusworld3d/engine-client"],
+  transpilePackages: [
+    "@nexusworld3d/protocol",
+    "@nexusworld3d/engine-client",
+    "@nexusworld3d/engine-server",
+  ],
   /* config options here */
   env: {
     NEXT_PUBLIC_SOCKET_URL: process.env.NEXT_PUBLIC_SOCKET_URL,

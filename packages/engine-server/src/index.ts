@@ -20,6 +20,15 @@ export {
   createInMemoryWorldStateStore,
 } from "./persistenceMemory";
 
+export {
+  type ResourceNodeGrantSpec,
+  type ResourceNodeRegistration,
+  registerResourceNode,
+  getResourceNodeRegistrations,
+  getRegisteredResourceNodeById,
+  clearResourceNodeRegistry,
+} from "./resourceNodeRegistry";
+
 /**
  * ES: Contrato para montar subsistemas en la sala mundo sin acoplar la clase de la sala.
  * EN: Contract to attach subsystems to the world room without hard-wiring the room class.

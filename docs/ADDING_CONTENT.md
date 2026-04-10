@@ -25,6 +25,8 @@ export function createMyGamePlugin(deps: MyDeps): NexusRoomPlugin {
 
 Regístralo en `NexusWorldRoom` con `attachNexusRoomPlugins(this, [createMyGamePlugin(ctx), ...])`.
 
+**Nodos de recurso en mapa:** `registerResourceNode` (`@nexusworld3d/engine-server`) — se fusionan con `WORLD_RESOURCE_NODES` en `src/constants/worldResourceNodes.ts`. Arranque: `server/bootstrap/gameResourceNodes.ts`.
+
 **APIs tipo `registerWorldTool` (futuro):** ver [`docs/EXTENSION_APIS.md`](./EXTENSION_APIS.md).
 
 **Referencia / Reference:** `createWorldResourceNodesPlugin` — ~10 líneas.

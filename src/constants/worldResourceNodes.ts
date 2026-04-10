@@ -3,6 +3,11 @@
  * EN: World resource nodes (Phase 6) — tune positions when city art is final.
  */
 
+import {
+  getResourceNodeRegistrations,
+  type ResourceNodeRegistration,
+} from "@nexusworld3d/engine-server/resource-node-registry";
+
 export type WorldResourceNodeGrant = { itemId: string; quantity: number };
 
 export type WorldResourceNodeVisual = "quarry" | "wood_pile";
@@ -18,6 +23,30 @@ export type WorldResourceNodeDef = {
   /** ES: Entregas por interacción (servidor valida catálogo). EN: Grants per harvest. */
   grants: WorldResourceNodeGrant[];
 };
+
+function normalizeVisual(
+  v: string | undefined
+): WorldResourceNodeVisual {
+  return v === "quarry" ? "quarry" : "wood_pile";
+}
+
+function registrationToDef(
+  r: ResourceNodeRegistration
+): WorldResourceNodeDef {
+  return {
+    id: r.id,
+    mapId: r.mapId,
+    position: r.position,
+    radius: r.radius,
+    labelEs: r.labelEs?.trim() || r.id,
+    labelEn: r.labelEn?.trim() || r.id,
+    visual: normalizeVisual(r.visual),
+    grants: r.grants.map((g) => ({
+      itemId: g.itemId,
+      quantity: Math.max(0, Math.floor(g.quantity)),
+    })),
+  };
+}
 
 export const WORLD_RESOURCE_NODES: WorldResourceNodeDef[] = [
   {
@@ -45,11 +74,19 @@ export const WORLD_RESOURCE_NODES: WorldResourceNodeDef[] = [
 export function getWorldResourceNodeById(
   id: string
 ): WorldResourceNodeDef | undefined {
-  return WORLD_RESOURCE_NODES.find((n) => n.id === id);
+  const builtin = WORLD_RESOURCE_NODES.find((n) => n.id === id);
+  if (builtin) return builtin;
+  const reg = getResourceNodeRegistrations().find((n) => n.id === id);
+  return reg ? registrationToDef(reg) : undefined;
 }
 
 export function getWorldResourceNodesForMap(
   mapId: string
 ): WorldResourceNodeDef[] {
-  return WORLD_RESOURCE_NODES.filter((n) => n.mapId === mapId);
+  const builtins = WORLD_RESOURCE_NODES.filter((n) => n.mapId === mapId);
+  const builtinIds = new Set(builtins.map((n) => n.id));
+  const extra = getResourceNodeRegistrations()
+    .filter((r) => r.mapId === mapId && !builtinIds.has(r.id))
+    .map(registrationToDef);
+  return [...builtins, ...extra];
 }

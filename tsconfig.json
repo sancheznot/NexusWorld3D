@@ -25,6 +25,9 @@
       "@server/*": ["./server/*"],
       "@nexusworld3d/protocol": ["./packages/protocol/src/index.ts"],
       "@nexusworld3d/engine-server": ["./packages/engine-server/src/index.ts"],
+      "@nexusworld3d/engine-server/resource-node-registry": [
+        "./packages/engine-server/src/resourceNodeRegistry.ts"
+      ],
       "@nexusworld3d/engine-client": ["./packages/engine-client/src/index.ts"],
       "@nexusworld3d/content-schema": ["./packages/content-schema/src/index.ts"]
     }
