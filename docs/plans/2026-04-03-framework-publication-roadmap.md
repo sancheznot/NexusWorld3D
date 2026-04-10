@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 2.2  
+**Versión:** 2.3  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -27,6 +27,7 @@
 - [x] **Interfaces persistencia** (`PlayerStore`, `SessionStore`, `WorldStateStore`) en `engine-server` + `docs/PERSISTENCE.md`.
 - [x] **`docs/AUTH_OVERVIEW.md`** (NextAuth, invitados dev, extensión).
 - [x] **Stores en sala:** `NexusWorldRoom` expone `playerStore` / `sessionStore` / `worldStateStore`; demo en memoria (`createInMemory*`); inyección vía `createPersistenceStores()` en subclase.
+- [x] **`npm run validate-build-assets`** — GLB `public/models/build/{pieceId}.glb` (catálogo + manifest `buildingPieces[]`); `--strict` para CI.
 - [ ] Pendiente: migrar llamadas Redis/MariaDB a esas interfaces donde tenga sentido; app Next `apps/demo` separada (opcional); repaso manual de docs históricos con nombre del juego.
 
 ---
@@ -181,8 +182,8 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 
 **EN.** Document and automate where possible:
 
-- [ ] Árbol de carpetas `public/models/...` o CDN + reglas de `pieceId` ↔ archivo.
-- [ ] Script que valide que cada `pieceId` del manifest tiene GLB.
+- [x] Árbol y reglas `pieceId` ↔ `public/models/build/{pieceId}.glb` documentados (`docs/ADDING_CONTENT.md` §5).
+- [x] Script `npm run validate-build-assets` (catálogo + `buildingPieces[].pieceId`; `--strict` para CI).
 - [ ] Política de licencias de assets en repo **público** (solo CC0 / propios / placeholders).
 
 ---

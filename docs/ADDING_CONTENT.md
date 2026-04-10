@@ -41,3 +41,21 @@ Regístralo en `NexusWorldRoom` con `attachNexusRoomPlugins(this, [createMyGameP
 ## 4. Demo sin arte del juego / Demo without game art
 
 `NEXT_PUBLIC_FRAMEWORK_DEMO=1` + mapa exterior → ver `FrameworkDemoGround` en `src/components/world/FrameworkDemoGround.tsx`.
+
+## 5. Modelos de construcción (`pieceId`) / Build piece GLBs
+
+**Convención / Convention**
+
+- **Ruta pública / Public path:** `public/models/build/{pieceId}.glb` (mismo basename que `pieceId`, caracteres seguros: letras, dígitos, `_`, `-`).
+- **Catálogo de código / Code catalog:** `src/constants/buildPieces.ts` — `BUILD_PIECE_CATALOG` + `fallback` primitivo si el `.glb` no está en el servidor o falla la carga.
+- **Manifest (opcional):** `content/manifest.json` → `buildingPieces[]` puede incluir objetos con `pieceId` para documentar piezas adicionales; el validador las incluye en el chequeo.
+
+**Validación / Validation**
+
+```bash
+npm run validate-build-assets
+# CI estricto / strict CI:
+npx tsx scripts/validate-build-assets.ts --strict
+```
+
+Sin `--strict`, faltan GLB → **warning** (el juego puede seguir con primitivos). Con `--strict`, cualquier pieza requerida sin archivo → **exit 1**.

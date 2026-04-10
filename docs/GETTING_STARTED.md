@@ -46,6 +46,8 @@ Los nombres de mensajes Colyseus compartidos viven en `packages/protocol` (`@nex
 
 **Manifest en runtime:** Colyseus carga `content/manifest.json` al arranque (`loadContentManifestOrThrow`); si falla la validación, el proceso termina — alinea con `npm run validate-content` antes de desplegar.
 
+**Assets de construcción:** `npm run validate-build-assets` comprueba `public/models/build/{pieceId}.glb` para el catálogo de piezas + `buildingPieces[].pieceId` del manifest (ver `docs/ADDING_CONTENT.md` §5). Usa `--strict` en CI si quieres fallar sin GLB.
+
 ## Siguientes pasos / Next steps
 
 - `docs/ARCHITECTURE.md` — flujo cliente ↔ sala ↔ persistencia

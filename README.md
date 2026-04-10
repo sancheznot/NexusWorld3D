@@ -27,7 +27,7 @@
 | [`@nexusworld3d/engine-server`](./packages/engine-server) | `NexusRoomPlugin`, `attachNexusRoomPlugins`, persistence interfaces + `createInMemory*` ([`PERSISTENCE`](./docs/PERSISTENCE.md)) |
 | [`@nexusworld3d/engine-client`](./packages/engine-client) | `withWorldProtocolJoinOptions` (join handshake) |
 | [`@nexusworld3d/content-schema`](./packages/content-schema) | Zod schema for `content/manifest.json` v1 |
-| [`content/manifest.json`](./content/manifest.json) | Declared item ids + extension arrays; `npm run validate-content` |
+| [`content/manifest.json`](./content/manifest.json) | Declared item ids + extension arrays; `npm run validate-content` · build GLBs: `npm run validate-build-assets` ([`ADDING_CONTENT`](./docs/ADDING_CONTENT.md) §5) |
 
 Server grants items via `InventoryEvents.addItemFromWorld` only for ids listed in the manifest when it is loaded.
 
