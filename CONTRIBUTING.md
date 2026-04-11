@@ -12,7 +12,10 @@ Thanks for helping improve the framework and sample stack.
 1. Install dependencies: `npm install`
 2. Typecheck: `npx tsc --noEmit`
 3. Validate content: `npm run validate-content`
-4. Match existing code style (imports, naming, no drive-by refactors unrelated to the fix).
+4. Framework boundaries: `npm run check:framework` — no `hotel`/`humboldt` strings in `packages/*` (`check:packages`) and no app aliases `@/` / `@server/` / `@resources/` inside packages (`check:engine-imports`).
+5. Match existing code style (imports, naming, no drive-by refactors unrelated to the fix).
+
+CI runs `tsc`, validators, and `check:framework` on push/PR (see `.github/workflows/ci.yml`).
 
 ## Commits
 

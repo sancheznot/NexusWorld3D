@@ -33,3 +33,6 @@ jobs:
 
       - name: OSS package boundaries
         run: npm run check:packages
+
+      - name: Engine packages import boundaries
+        run: npm run check:engine-imports

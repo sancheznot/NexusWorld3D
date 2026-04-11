@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 3.0  
+**Versión:** 3.1  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -33,12 +33,12 @@
 - [x] **`PlayerStore` en join/save:** snapshot por `sessionId` (fallback a mock Redis); dual-write con `addPlayer` para compat.
 - [x] **Política assets públicos:** `docs/ASSETS_PUBLIC_REPO.md` + `ADDING_CONTENT` §6; README enlazado.
 - [x] **Receta colaborador (docs):** `ADDING_CONTENT` §7 — ítem + interactuable tipo plugin cubo demo.
-- [x] **CI GitHub Actions:** `tsc`, `validate-content`, `validate-build-assets`, `npm run check:packages` (sin `eslint` hasta limpiar warnings).
+- [x] **CI GitHub Actions:** `tsc`, `validate-content`, `validate-build-assets`, `npm run check:framework` (`check:packages` + `check:engine-imports`) (sin `eslint` hasta limpiar warnings).
 - [x] **`docs/EXTENSION_APIS.md`** — APIs `register*` planificadas vs patrón actual (plugins).
 - [x] **`registerResourceNode`** en `engine-server` + fusión en `worldResourceNodes.ts`; subpath `resource-node-registry` para cliente; `server/bootstrap/gameResourceNodes.ts`.
 - [x] **`registerItemEffect`** — hooks síncronos en uso de consumibles (`InventoryEvents`); `server/bootstrap/gameItemEffects.ts`; subpath `item-effect-registry`.
 - [x] **`registerWorldTool`** + `WorldMessages.GenericTool` / `GenericToolResult` + `attachGenericWorldToolRouter` + demo esfera en `FrameworkDemoGround`.
-- [ ] Pendiente: ejercicio real §6 (alguien ejecuta la receta); implementar `register*`; repaso manual docs históricos con marca del juego; repo público + consumidor privado semver.
+- [ ] Pendiente: ejercicio real §6 (alguien ejecuta la receta); repaso manual docs históricos con marca del juego; repo público + consumidor privado semver.
 
 ---
 
@@ -111,7 +111,7 @@ Hasta que eso no sea cierto, el proyecto sigue siendo **“juego con código reu
 - [x] `npm` **workspaces** (`packages/*`) + dependencia `workspace:*` en la app raíz.
 - [x] Paquete **`@nexusworld3d/protocol`** (mensajes + versión).
 - [x] Paquetes **`@nexusworld3d/engine-server`** / **`@nexusworld3d/engine-client`** (capa mínima; extracción completa de sala/subsistemas pendiente).
-- [ ] Ningún import desde `engine` hacia assets o nombres de Hotel.
+- [x] Paquetes motor sin acoplar a la app: `npm run check:engine-imports` (sin `@/` / `@server/` / `@resources/` en `packages/*`) + `check:packages` (sin cadenas hotel/humboldt); ver `CONTRIBUTING.md`.
 
 ---
 

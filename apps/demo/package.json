@@ -7,6 +7,6 @@
   "scripts": {
     "dev": "npm run dev --prefix ../..",
     "dev:demo": "npm run dev:demo --prefix ../..",
-    "validate": "npm run validate-content --prefix ../.. && npm run validate-build-assets --prefix ../.. && npm run check:packages --prefix ../.."
+    "validate": "npm run validate-content --prefix ../.. && npm run validate-build-assets --prefix ../.. && npm run check:framework --prefix ../.."
   }
 }

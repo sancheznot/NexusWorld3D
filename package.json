@@ -32,7 +32,9 @@
     "lint": "eslint",
     "validate-content": "tsx scripts/validate-content.ts",
     "validate-build-assets": "tsx scripts/validate-build-assets.ts",
-    "check:packages": "tsx scripts/check-package-boundaries.ts"
+    "check:packages": "tsx scripts/check-package-boundaries.ts",
+    "check:engine-imports": "tsx scripts/check-engine-imports.ts",
+    "check:framework": "npm run check:packages && npm run check:engine-imports"
   },
   "dependencies": {
     "@nexusworld3d/content-schema": "workspace:*",

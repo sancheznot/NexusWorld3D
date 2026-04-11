@@ -34,6 +34,8 @@
 
 Server grants items via `InventoryEvents.addItemFromWorld` only for ids listed in the manifest when it is loaded.
 
+**Contributors / Contribuidores:** `npm run check:framework` before a PR (package string + import boundaries). See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+
 ---
 
 ## ✨ Features / Características
