@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 3.1  
+**Versión:** 3.2  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -33,7 +33,7 @@
 - [x] **`PlayerStore` en join/save:** snapshot por `sessionId` (fallback a mock Redis); dual-write con `addPlayer` para compat.
 - [x] **Política assets públicos:** `docs/ASSETS_PUBLIC_REPO.md` + `ADDING_CONTENT` §6; README enlazado.
 - [x] **Receta colaborador (docs):** `ADDING_CONTENT` §7 — ítem + interactuable tipo plugin cubo demo.
-- [x] **CI GitHub Actions:** `tsc`, `validate-content`, `validate-build-assets`, `npm run check:framework` (`check:packages` + `check:engine-imports`) (sin `eslint` hasta limpiar warnings).
+- [x] **CI GitHub Actions:** `tsc`, `validate-content`, `validate-build-assets`, `npm run check:framework` (+ `lint:packages`); ESLint completo del `src/` principal pendiente de deuda histórica.
 - [x] **`docs/EXTENSION_APIS.md`** — APIs `register*` planificadas vs patrón actual (plugins).
 - [x] **`registerResourceNode`** en `engine-server` + fusión en `worldResourceNodes.ts`; subpath `resource-node-registry` para cliente; `server/bootstrap/gameResourceNodes.ts`.
 - [x] **`registerItemEffect`** — hooks síncronos en uso de consumibles (`InventoryEvents`); `server/bootstrap/gameItemEffects.ts`; subpath `item-effect-registry`.

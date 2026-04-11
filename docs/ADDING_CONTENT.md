@@ -90,3 +90,17 @@ Sin `--strict`, faltan GLB → **warning** (el juego puede seguir con primitivos
 **EN.** Same flow: manifest row + `ITEMS_CATALOG` + `validate-content`; small room plugin modeled on `createFrameworkDemoCubePlugin`; wire client to send the message.
 
 **Referencia / Reference:** `DemoMessages`, `server/room/frameworkDemoCubePlugin.ts`, `FrameworkDemoGround.tsx`.
+
+### Comandos de verificación (§6) / Verification commands
+
+```bash
+npm install
+npm run validate-content
+npm run check:framework
+npx tsc --noEmit
+npm run dev:demo   # o npm run dev — probar en mapa exterior con NEXT_PUBLIC_FRAMEWORK_DEMO
+```
+
+**ES.** Si todo pasa y el flujo en juego funciona, el criterio §6 del roadmap queda **validado** para tu entorno.
+
+**EN.** If these pass and the in-game flow works, you have **verified** the §6 criterion for your setup.

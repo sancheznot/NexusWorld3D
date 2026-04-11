@@ -31,8 +31,5 @@ jobs:
       - name: Validate build assets (warnings OK)
         run: npm run validate-build-assets
 
-      - name: OSS package boundaries
-        run: npm run check:packages
-
-      - name: Engine packages import boundaries
-        run: npm run check:engine-imports
+      - name: Framework boundaries + ESLint (packages/*)
+        run: npm run check:framework

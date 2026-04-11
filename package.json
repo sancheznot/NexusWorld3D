@@ -30,11 +30,12 @@
     "docker:down": "bash scripts/compose-with-env.sh -f docker-compose.yml down",
     "db:migrate": "tsx scripts/migrate.ts",
     "lint": "eslint",
+    "lint:packages": "eslint \"packages/**/*.{ts,tsx}\"",
     "validate-content": "tsx scripts/validate-content.ts",
     "validate-build-assets": "tsx scripts/validate-build-assets.ts",
     "check:packages": "tsx scripts/check-package-boundaries.ts",
     "check:engine-imports": "tsx scripts/check-engine-imports.ts",
-    "check:framework": "npm run check:packages && npm run check:engine-imports"
+    "check:framework": "npm run check:packages && npm run check:engine-imports && npm run lint:packages"
   },
   "dependencies": {
     "@nexusworld3d/content-schema": "workspace:*",
