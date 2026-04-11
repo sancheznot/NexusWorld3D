@@ -23,6 +23,8 @@ npm run dev
 
 **Content validation / Validación de contenido:** `npm run validate-content` (manifest + catálogo).
 
+**Publishing workspace packages / Publicar paquetes `@nexusworld3d/*`:** [`PUBLISHING_PACKAGES.md`](./PUBLISHING_PACKAGES.md).
+
 ---
 
 ## Unified production process / Producción unificada (un puerto)

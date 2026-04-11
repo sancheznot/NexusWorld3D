@@ -36,6 +36,8 @@ Server grants items via `InventoryEvents.addItemFromWorld` only for ids listed i
 
 **Contributors / Contribuidores:** `npm run check:framework` before a PR (package string + import boundaries). See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
+**Publishing packages / Publicar paquetes:** [`docs/PUBLISHING_PACKAGES.md`](./docs/PUBLISHING_PACKAGES.md) — npm / GitHub Packages + juego privado por semver.
+
 ---
 
 ## ✨ Features / Características

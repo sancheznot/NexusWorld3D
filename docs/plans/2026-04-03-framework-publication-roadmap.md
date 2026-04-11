@@ -1,7 +1,7 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 3.2  
+**Versión:** 3.3  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
 
@@ -38,7 +38,8 @@
 - [x] **`registerResourceNode`** en `engine-server` + fusión en `worldResourceNodes.ts`; subpath `resource-node-registry` para cliente; `server/bootstrap/gameResourceNodes.ts`.
 - [x] **`registerItemEffect`** — hooks síncronos en uso de consumibles (`InventoryEvents`); `server/bootstrap/gameItemEffects.ts`; subpath `item-effect-registry`.
 - [x] **`registerWorldTool`** + `WorldMessages.GenericTool` / `GenericToolResult` + `attachGenericWorldToolRouter` + demo esfera en `FrameworkDemoGround`.
-- [ ] Pendiente: ejercicio real §6 (alguien ejecuta la receta); repaso manual docs históricos con marca del juego; repo público + consumidor privado semver.
+- [x] **Guía publicación paquetes:** [`docs/PUBLISHING_PACKAGES.md`](../../docs/PUBLISHING_PACKAGES.md) (npm / GitHub Packages, semver, `private: false`).
+- [ ] Pendiente: ejercicio real §6 (alguien ejecuta la receta); repaso manual docs históricos con marca del juego; **ejecutar** publicación + consumidor privado semver.
 
 ---
 
