@@ -1,11 +1,17 @@
 'use client';
 
+import {
+  findResourceNodeOverrideInDocument,
+  type SceneDocumentV0_1,
+} from '@nexusworld3d/content-schema';
+import { useMemo } from 'react';
 import TriggerZone from '@/components/world/TriggerZone';
 import {
   getWorldResourceNodesForMap,
   type WorldResourceNodeDef,
 } from '@/constants/worldResourceNodes';
 import { harvestWorldResourceNode } from '@/lib/world/worldResourceClient';
+import { useSceneAuthoringStore } from '@/store/sceneAuthoringStore';
 import type { TriggerZoneData } from '@/types/trigger.types';
 
 function nodeToZone(node: WorldResourceNodeDef): TriggerZoneData {
@@ -51,8 +57,28 @@ function NodeVisuals({ node }: { node: WorldResourceNodeDef }) {
  * ES: Nodos de recurso Fase 6 — zona [E] + malla simple.
  * EN: Phase 6 resource nodes — [E] zone + simple mesh.
  */
+function applySceneOverrides(
+  nodes: WorldResourceNodeDef[],
+  sceneDoc: SceneDocumentV0_1 | null
+): WorldResourceNodeDef[] {
+  if (!sceneDoc) return nodes;
+  return nodes.map((node) => {
+    const o = findResourceNodeOverrideInDocument(sceneDoc, node.id);
+    if (!o) return node;
+    return {
+      ...node,
+      position: o.position,
+      radius: o.interactionRadius ?? node.radius,
+    };
+  });
+}
+
 export default function WorldResourceNodesLayer({ mapId }: { mapId: string }) {
-  const nodes = getWorldResourceNodesForMap(mapId);
+  const sceneDoc = useSceneAuthoringStore((s) => s.document);
+  const nodes = useMemo(
+    () => applySceneOverrides(getWorldResourceNodesForMap(mapId), sceneDoc),
+    [mapId, sceneDoc]
+  );
   if (nodes.length === 0) return null;
 
   return (

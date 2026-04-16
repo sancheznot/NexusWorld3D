@@ -93,14 +93,26 @@ Sin `--strict`, faltan GLB → **warning** (el juego puede seguir con primitivos
 
 ### Comandos de verificación (§6) / Verification commands
 
+**Un solo comando (recomendado / recommended):**
+
+```bash
+npm install
+npm run check:phase1
+```
+
+Equivale a: `validate-content` + **`validate-scene`** (`content/scenes/*.json`, formato v0.1) + `check:framework` (incluye `lint:packages`, `lint:server`, **sin `hotel`/`humboldt` en `packages/*`**) + `tsc --noEmit`.
+
+**Paso a paso / Step by step:**
+
 ```bash
 npm install
 npm run validate-content
+npm run validate-scene
 npm run check:framework
 npx tsc --noEmit
-npm run dev:demo   # o npm run dev — probar en mapa exterior con NEXT_PUBLIC_FRAMEWORK_DEMO
+npm run dev:demo   # o npm run dev — probar en juego con NEXT_PUBLIC_FRAMEWORK_DEMO=1 si usas demo
 ```
 
-**ES.** Si todo pasa y el flujo en juego funciona, el criterio §6 del roadmap queda **validado** para tu entorno.
+**ES.** Si `check:phase1` pasa y el flujo en juego funciona (recoger/activar tu ítem + interactuable), el criterio técnico §6 del roadmap queda **validado** en tu máquina. Falta aún **publicar paquetes + consumidor semver** para cerrar §6 del todo (ver [`PUBLISHING_PACKAGES.md`](./PUBLISHING_PACKAGES.md)).
 
-**EN.** If these pass and the in-game flow works, you have **verified** the §6 criterion for your setup.
+**EN.** If `check:phase1` passes and the in-game flow works (pick up / trigger your item + interactable), the **technical** §6 criterion is **verified** on your machine. You still need **published packages + a semver consumer** to fully close §6 (see [`PUBLISHING_PACKAGES.md`](./PUBLISHING_PACKAGES.md)).

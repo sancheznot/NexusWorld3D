@@ -91,6 +91,7 @@ import { HousingMessages } from '@nexusworld3d/protocol';
 import { frameworkColyseusRoomName, frameworkDefaultWorldId } from '@/lib/frameworkBranding';
 import type { PublicPortalRoom } from '@/types/gamePortal.types';
 import FrameworkDemoGround from '@/components/world/FrameworkDemoGround';
+import SceneAuthoringPreviewLayer from '@/components/world/SceneAuthoringPreviewLayer';
 
 /** ES: `NEXT_PUBLIC_FRAMEWORK_DEMO=1` — exterior ligero sin ciudad ni capas de juego. EN: Lightweight exterior. */
 const FRAMEWORK_DEMO =
@@ -762,6 +763,8 @@ export default function GameCanvas() {
                   rotation={[0, 0, 0]}
                 />
               ))}
+
+            <SceneAuthoringPreviewLayer />
             
             {currentMap === 'hotel-interior' && (
               <HotelInterior {...hotelInteriorProps} />

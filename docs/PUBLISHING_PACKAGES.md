@@ -63,3 +63,4 @@
 
 - [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md) — runtime
 - [Roadmap §6 — exit criteria](../plans/2026-04-03-framework-publication-roadmap.md)
+- Antes de publicar: **`npm run check:phase1`** (contenido + framework + TypeScript + sin `hotel`/`humboldt` en `packages/*`).

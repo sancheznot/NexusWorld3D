@@ -1,9 +1,20 @@
 # Framework web 3D multijugador — publicación y extensibilidad  
 # Web 3D multiplayer framework — open-source readiness & extensibility
 
-**Versión:** 3.3  
+**Versión:** 3.9  
 **Fecha:** 2026-04-03  
 **Propósito / Purpose:** Definir **qué falta montar** para que el repo pueda considerarse un **framework** en el que un **tercero** añada contenido (modelos, reglas, interacciones) **sin forkar medio motor**, y poder **publicar el núcleo en GitHub** mientras el juego concreto (Hotel Humboldt) vive en un repo **privado** que solo consume el framework.
+
+### Estrategia en dos fases / Two-phase strategy
+
+| Fase | Objetivo / Goal | Este documento |
+|------|-----------------|----------------|
+| **1 — Framework OSS (ahora / now)** | Cerrar **publicación + extensibilidad + demo + paquetes** (`@nexusworld3d/*`). Criterio: **§6** abajo. | **Sí** — es el alcance principal. |
+| **2 — Motor “tipo Unity” en navegador (después / later)** | Editor/autoría, sistema de componentes unificado, pipeline de assets, tooling de debug — **producto distinto**, construido **sobre** el framework publicado. | **No** — solo **§8** como puerta de entrada; el detalle irá en un **plan aparte** cuando la Fase 1 esté cerrada. |
+
+**ES.** Primero se **cierra el plan framework** (lo que queda en §6 y pendientes operativos). Luego, en otro ciclo, se **define y ejecuta** el roadmap del motor estilo Unity **sin mezclar** criterios de cierre.
+
+**EN.** **Phase 1** = finish this publication/extensibility plan. **Phase 2** = Unity-like browser engine vision — **separate** roadmap once Phase 1 exit criteria are met.
 
 ### Progreso reciente / Recent progress (implementado en repo)
 
@@ -39,7 +50,12 @@
 - [x] **`registerItemEffect`** — hooks síncronos en uso de consumibles (`InventoryEvents`); `server/bootstrap/gameItemEffects.ts`; subpath `item-effect-registry`.
 - [x] **`registerWorldTool`** + `WorldMessages.GenericTool` / `GenericToolResult` + `attachGenericWorldToolRouter` + demo esfera en `FrameworkDemoGround`.
 - [x] **Guía publicación paquetes:** [`docs/PUBLISHING_PACKAGES.md`](../../docs/PUBLISHING_PACKAGES.md) (npm / GitHub Packages, semver, `private: false`).
-- [ ] Pendiente: ejercicio real §6 (alguien ejecuta la receta); repaso manual docs históricos con marca del juego; **ejecutar** publicación + consumidor privado semver.
+- [x] **Deuda ESLint (incremental):** `npm run lint:server` en `check:framework` — carpeta `server/**` limpia de errores; el `src/` completo sigue como deuda opcional (ampliar con `lint:app` cuando toque).
+- [x] **Gate OSS + fase 1:** `npm run check:oss-packages` (sin `hotel`/`humboldt` en `packages/*`) + **`npm run check:phase1`**; integrado en `check:framework` y **GitHub Actions** `.github/workflows/ci.yml`. Ver `docs/ADDING_CONTENT.md` §7.
+- [x] **Plan Fase 2 (admin / Unity-web):** [`docs/plans/2026-04-04-admin-unity-style-web-engine-roadmap.md`](./2026-04-04-admin-unity-style-web-engine-roadmap.md) — motor de autoría en navegador; §8 enlaza aquí.
+- [x] **Fase A (inicio):** [ADR 0001](../adr/0001-scene-format-v0-1.md) + `sceneDocumentV0_1Schema` + `content/scenes/` + `npm run validate-scene` (en `check:phase1`); `SECURITY.md` § admin authoring.
+- [x] **Fase B (inicio):** pestaña **Escenas v0.1** en `/admin/panel` + `GET /api/admin/scenes` (inspector solo lectura de JSON en disco); tabla `nexus:*` en ADR 0001.
+- [ ] **Cierre Fase 1:** ejercicio real §6 (alguien ejecuta la receta); repaso manual docs históricos con marca del juego; **ejecutar** publicación + consumidor privado semver. *(Después → Fase 2 motor estilo Unity, §8.)*
 
 ---
 
@@ -276,9 +292,9 @@ Eso permanece en el **repo privado** como consumidor del motor.
 
 ---
 
-## 6. Criterio de cierre / Exit criteria (checklist final)
+## 6. Criterio de cierre (Fase 1 — framework OSS) / Exit criteria (Phase 1)
 
-Marcar el framework como **“v1 listo para público”** cuando:
+Marcar **este plan de framework** como **“v1 listo para público”** cuando:
 
 - [x] `apps/demo` + README raíz: clon → `npm install` en raíz → `cd apps/demo && npm run dev:demo` (o equivalente desde raíz); ver [`apps/demo/README.md`](../../apps/demo/README.md).
 - [ ] Un colaborador externo (o tú con cuenta secundaria) añade **un ítem y un interactuable** usando solo docs + manifest + un plugin pequeño (guía: `docs/ADDING_CONTENT.md` §7).
@@ -295,4 +311,21 @@ Marcar el framework como **“v1 listo para público”** cuando:
 
 ---
 
-*Fin del documento / End of document.*
+## 8. Fase 2 — Visión motor “tipo Unity” en el navegador / Phase 2 — Unity-like browser engine
+
+**ES.** Cuando el **§6** esté cumplido y los paquetes publicados, el siguiente producto es **otro roadmap** (no sustituye la definición de “framework” de este doc). Pilares típicos a priorizar allí:
+
+- **Editor / autoría:** escena serializada, inspector, prefabs mínimos, flujo arrastrar-soltar o equivalente web.
+- **Runtime unificado:** contrato componente/entidad (aunque sea delgado) + ciclo de vida claro cliente/servidor.
+- **Pipeline:** import GLB, validación, LOD/materials opcionales; alineado con `content/manifest.json` y CI.
+- **Tooling:** depuración (red, estado, gizmos básicos).
+
+**EN.** This **does not** block Phase 1. The dedicated Phase 2 plan is now **[`2026-04-04-admin-unity-style-web-engine-roadmap.md`](./2026-04-04-admin-unity-style-web-engine-roadmap.md)** (admin-facing Unity-like authoring in the browser). Keep **framework v1** stable as the **foundation**.
+
+**Próximo paso / Next step:** ejecutar hitos **Fase A** de ese documento (ADR + schema escena v0.1) en paralelo al cierre operativo §6 si el equipo tiene capacidad.
+
+**Relación / Relationship:** el framework actual = **multijugador 3D + plugins + datos**; la Fase 2 añade **experiencia de motor con editor**, comparable en ambición a Unity **solo** en esos frentes — es trabajo de **varios ciclos**, no un patch único.
+
+---
+
+*Fin del documento (Fase 1) / End of document (Phase 1).*

@@ -6,6 +6,7 @@ export type AdminTabId =
   | "worlds"
   | "editor"
   | "assets"
+  | "scenes"
   | "landing"
   | "monitor"
   | "audit"
@@ -23,6 +24,7 @@ const TABS: TabDef[] = [
   { id: "worlds", label: "Mundos" },
   { id: "editor", label: "Editor" },
   { id: "assets", label: "Assets" },
+  { id: "scenes", label: "Escenas v0.1" },
   { id: "landing", label: "Portal" },
   { id: "monitor", label: "Monitor juego" },
   { id: "audit", label: "Auditoría" },

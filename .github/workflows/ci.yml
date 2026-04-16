@@ -1,3 +1,5 @@
+# ES: CI mínimo — mismo gate que `npm run check:phase1`.
+# EN: Minimal CI — same gate as `npm run check:phase1`.
 name: CI
 
 on:
@@ -7,29 +9,16 @@ on:
     branches: [main, master]
 
 jobs:
-  verify:
+  phase1:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: npm
-
+          cache: "npm"
       - name: Install
         run: npm ci
-
-      - name: Typecheck
-        run: npx tsc --noEmit
-
-      - name: Validate content manifest
-        run: npm run validate-content
-
-      - name: Validate build assets (warnings OK)
-        run: npm run validate-build-assets
-
-      - name: Framework boundaries + ESLint (packages/*)
-        run: npm run check:framework
+      - name: check:phase1
+        run: npm run check:phase1

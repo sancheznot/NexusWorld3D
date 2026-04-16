@@ -1,7 +1,7 @@
 import { Room, Client } from 'colyseus';
 import { SHOPS, ShopId } from '@/constants/shops';
 import { ITEMS_CATALOG } from '@/constants/items';
-import { InventoryItem } from '@/types/inventory.types';
+import type { InventoryItem, ItemRarity, ItemType } from '@/types/inventory.types';
 
 export class ShopEvents {
   private room: Room;
@@ -74,10 +74,10 @@ export class ShopEvents {
         itemId: entry.itemId,
         name: cat?.name ?? entry.itemId,
         description: cat?.name ?? entry.itemId,
-        type: (cat?.type ?? 'misc') as any,
-        rarity: (cat?.rarity ?? 'common') as any,
+        type: (cat?.type ?? "misc") as ItemType,
+        rarity: (cat?.rarity ?? "common") as ItemRarity,
         quantity: qty,
-        maxStack: Math.max(1, (cat as any)?.maxStack ?? 99),
+        maxStack: Math.max(1, cat?.maxStack ?? 99),
         weight: cat?.weight ?? 0,
         level: 1,
         icon: cat?.icon ?? '📦',

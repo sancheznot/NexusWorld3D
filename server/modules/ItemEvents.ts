@@ -96,12 +96,19 @@ export class ItemEvents {
       const map = new Map<string, WorldItemState>();
       spawns.forEach((s: ItemSpawnConfig) => {
         const cat = ITEMS_CATALOG[s.item.itemId];
+        const spawnItem = s.item as {
+          icon?: string;
+          thumb?: string;
+          visual?: ItemSpawnConfig["item"]["visual"];
+        };
         const mergedItem = {
           ...s.item,
-          icon: (s.item as any).icon || cat?.icon || '📦',
-          thumb: (s.item as any).thumb || cat?.thumb,
-          visual: (s.item as any).visual || cat?.visual,
-        } as Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'> & { visual?: { path: string; type: 'glb' | 'gltf' | 'fbx' | 'obj'; scale?: number; rotation?: [number, number, number] } };
+          icon: spawnItem.icon || cat?.icon || "📦",
+          thumb: spawnItem.thumb || cat?.thumb,
+          visual: spawnItem.visual || cat?.visual,
+        } as Omit<InventoryItem, "id" | "isEquipped" | "slot"> & {
+          visual?: ItemSpawnConfig["item"]["visual"];
+        };
         // Elegir posición libre
         const pos = this.chooseFreePosition(s, mapId, map) || s.position || (s.points && s.points[0]) || { x: 0, y: 1, z: 0 };
         map.set(s.id, {
@@ -125,7 +132,7 @@ export class ItemEvents {
     });
 
     this.room.onMessage('items:collect', (client: Client, data: { spawnId: string; mapId: string }) => {
-      const result = this.collectItem(data.mapId, data.spawnId, client.sessionId);
+      const result = this.collectItem(data.mapId, data.spawnId);
       const ok = result.ok;
       if (!ok) {
         client.send(InventoryMessages.Error, { message: 'Item no disponible' });
@@ -153,11 +160,19 @@ export class ItemEvents {
           const current = map.get(data.spawnId);
           if (!current) return;
           // elegir nueva posición libre; si no hay, reintentar en 3s
-          const pos = this.chooseFreePosition({ id: current.id, mapId: current.mapId, points: current.points, position: current.position, item: current.item, respawnSec: current.respawnSec } as any, data.mapId, map);
+          const respawnCfg: ItemSpawnConfig = {
+            id: current.id,
+            mapId: current.mapId,
+            points: current.points,
+            position: current.position,
+            item: current.item,
+            respawnSec: current.respawnSec,
+          };
+          const pos = this.chooseFreePosition(respawnCfg, data.mapId, map);
           if (!pos) {
             setTimeout(() => {
               // reintento simple
-              const retryPos = this.chooseFreePosition({ id: current.id, mapId: current.mapId, points: current.points, position: current.position, item: current.item, respawnSec: current.respawnSec } as any, data.mapId, map);
+              const retryPos = this.chooseFreePosition(respawnCfg, data.mapId, map);
               if (!retryPos) return; // si sigue ocupado, dejamos sin respawn hasta próximo ciclo
               current.isCollected = false;
               current.position = retryPos;
@@ -240,7 +255,7 @@ export class ItemEvents {
     return Array.from(map.values());
   }
 
-  private collectItem(mapId: string, spawnId: string, playerId: string): { ok: boolean; item?: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'> } {
+  private collectItem(mapId: string, spawnId: string): { ok: boolean; item?: Omit<InventoryItem, 'id' | 'isEquipped' | 'slot'> } {
     const map = this.worldItems.get(mapId);
     if (!map) return { ok: false };
     const item = map.get(spawnId);
@@ -267,7 +282,11 @@ export class ItemEvents {
     });
   }
 
-  private broadcastToMap(mapId: string, type: string, payload: any) {
+  private broadcastToMap(
+    mapId: string,
+    type: string,
+    payload: Record<string, unknown>
+  ) {
     this.room.clients.forEach((c) => {
       const pMap = this.getPlayerMapId(c.sessionId);
       if (pMap === mapId) {

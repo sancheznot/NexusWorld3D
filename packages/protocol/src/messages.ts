@@ -140,6 +140,26 @@ export const SystemMessages = {
   Maintenance: "system:maintenance",
 } as const;
 
+/**
+ * ES: Autoría de escena v0.1 (servidor autoritativo + HTTP interno monitor).
+ * EN: Scene v0.1 authoring (server-authoritative + internal monitor HTTP).
+ */
+export const SceneMessages = {
+  /** ES: Reemplazar documento completo validado con Zod v0.1. EN: Replace full document (Zod v0.1). */
+  ApplyDocumentV0_1: "world:scene-apply-document-v0_1",
+  /** ES: Broadcast tras aplicación OK. EN: Broadcast after successful apply. */
+  AppliedDocumentV0_1: "world:scene-applied-document-v0_1",
+  /** ES: Error de validación o permiso (solo al emisor). EN: Validation or permission (to sender only). */
+  ApplyErrorV0_1: "world:scene-apply-error-v0_1",
+  /** ES: Confirmación al emisor tras `AppliedDocumentV0_1` broadcast. EN: Sender ack after broadcast. */
+  ApplyAckV0_1: "world:scene-apply-ack-v0_1",
+  /**
+   * ES: Fusionar entidades por `id` en la escena en memoria (requiere escena previa vía apply).
+   * EN: Merge entities by id into in-memory scene (requires prior full apply). Success → mismo broadcast que apply.
+   */
+  PatchEntitiesV0_1: "world:scene-patch-entities-v0_1",
+} as const;
+
 /** ES: Demo del framework (`NEXT_PUBLIC_FRAMEWORK_DEMO`). EN: Framework demo room messages. */
 export const DemoMessages = {
   /** ES: Pedir recompensa del cubo dorado (servidor valida distancia + cooldown). */

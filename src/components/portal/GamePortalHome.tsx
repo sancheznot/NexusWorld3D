@@ -145,7 +145,7 @@ export default function GamePortalHome() {
       </div>
 
       <main className={`relative z-10 max-w-6xl w-full mx-auto ${safeMain}`}>
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 landscape:max-md:grid-cols-2 landscape:max-md:gap-3 [@media(orientation:landscape)and(max-height:480px)]:grid-cols-2">
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4 landscape:max-md:grid-cols-2 landscape:max-md:gap-3 portal-landscape-short-main">
           <div className="md:col-span-2 rounded-2xl bg-black/35 border border-white/10 p-4 sm:p-6 backdrop-blur-md min-h-0">
             <h2 className="text-base sm:text-lg font-bold text-cyan-200 mb-3 flex items-center gap-2">
               <span aria-hidden>🌐</span> Salas disponibles
@@ -234,7 +234,7 @@ export default function GamePortalHome() {
           <p className="text-[11px] sm:text-xs text-slate-500 mb-3 sm:mb-4">
             Consejos · Player tips
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 landscape:max-md:grid-cols-3 [@media(orientation:landscape)and(max-height:480px)]:grid-cols-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 landscape:max-md:grid-cols-3 portal-landscape-short-tips">
             <div className="rounded-xl bg-white/5 border border-white/10 p-3 sm:p-4">
               <div className="text-xl sm:text-2xl mb-2" aria-hidden>
                 ⌨️

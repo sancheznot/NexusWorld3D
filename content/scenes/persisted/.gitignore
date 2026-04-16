@@ -1,0 +1,4 @@
+# ES: Escenas escritas en runtime por el servidor (NEXUS_SCENE_PERSIST_ENABLE).
+# EN: Runtime-written scenes from the server (NEXUS_SCENE_PERSIST_ENABLE).
+*.json
+!.gitignore

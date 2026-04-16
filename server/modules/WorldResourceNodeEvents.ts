@@ -1,9 +1,13 @@
 import { Room, Client } from "colyseus";
+import { findResourceNodeOverrideInDocument } from "@nexusworld3d/content-schema";
 import { WorldMessages } from "@nexusworld3d/protocol";
 import type { InventoryEvents } from "@resources/inventory/server/InventoryEvents";
 import { ITEMS_CATALOG } from "@/constants/items";
 import { RPG_XP_RESOURCE_NODE_HARVEST } from "@/constants/rpgProgression";
-import { getWorldResourceNodeById } from "@/constants/worldResourceNodes";
+import {
+  getWorldResourceNodeById,
+  type WorldResourceNodeDef,
+} from "@/constants/worldResourceNodes";
 import type {
   InventoryItem,
   ItemRarity,
@@ -41,6 +45,8 @@ export type WorldResourceNodeDeps = {
     clientId: string
   ) => { x: number; y: number; z: number } | null;
   awardExperience?: (playerId: string, baseXp: number) => void;
+  /** ES: Escena v0.1 en sala (override de posición/radio para `nexus:resourceNode`). EN: In-room v0.1 scene (position/radius overrides). */
+  getSceneDocument?: () => import("@nexusworld3d/content-schema").SceneDocumentV0_1 | null;
 };
 
 export class WorldResourceNodeEvents {
@@ -76,8 +82,8 @@ export class WorldResourceNodeEvents {
           return;
         }
 
-        const node = getWorldResourceNodeById(nodeId);
-        if (!node || node.mapId !== mapId) {
+        const baseNode = getWorldResourceNodeById(nodeId);
+        if (!baseNode || baseNode.mapId !== mapId) {
           client.send(WorldMessages.HarvestNodeResult, {
             ok: false,
             nodeId,
@@ -85,6 +91,16 @@ export class WorldResourceNodeEvents {
           });
           return;
         }
+
+        const doc = this.deps.getSceneDocument?.() ?? null;
+        const override = findResourceNodeOverrideInDocument(doc, nodeId);
+        const node: WorldResourceNodeDef = override
+          ? {
+              ...baseNode,
+              position: override.position,
+              radius: override.interactionRadius ?? baseNode.radius,
+            }
+          : baseNode;
 
         if (!pos) {
           client.send(WorldMessages.HarvestNodeResult, {

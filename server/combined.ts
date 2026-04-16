@@ -11,6 +11,8 @@ import { registerNexusWorldRooms } from "@server/colyseus/registerRooms";
 import { printUnifiedServerBanner } from "@server/banners/nexusColyseusBanner";
 import { runPendingMigrations } from "@/lib/db/runMigrations";
 import { tryHandleGameMonitorRequest } from "@server/metrics/gameMonitorHttp";
+import "@server/persistence/gameRedis";
+import { describeRedisBackend } from "@server/persistence/redisClient";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT) || 3000; // Single public port
@@ -53,6 +55,7 @@ async function bootstrap() {
   // Explicitly bind to 0.0.0.0 to ensure Docker/Railway accessibility
   httpServer.listen(port, "0.0.0.0", () => {
     printUnifiedServerBanner({ port, dev });
+    console.log(`🗄️  ${describeRedisBackend()}\n`);
   });
 }
 

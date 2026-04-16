@@ -9,6 +9,7 @@ import {
   ChatMessages,
   MonsterMessages,
   SystemMessages,
+  SceneMessages,
 } from "@nexusworld3d/protocol";
 import { withWorldProtocolJoinOptions } from "@nexusworld3d/engine-client";
 import { frameworkColyseusRoomName } from "@/lib/frameworkBranding";
@@ -205,6 +206,10 @@ class ColyseusClient {
 
     this.room.onMessage(WorldMessages.GenericToolResult, (data: unknown) => {
       this.emit(WorldMessages.GenericToolResult, data);
+    });
+
+    this.room.onMessage(SceneMessages.AppliedDocumentV0_1, (data: unknown) => {
+      this.emit(SceneMessages.AppliedDocumentV0_1, data);
     });
 
     this.room.onMessage(RpgMessages.Sync, (data: unknown) => {

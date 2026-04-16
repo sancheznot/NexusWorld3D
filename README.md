@@ -17,7 +17,7 @@
 - 🇺🇸 **[English Documentation](./docs/en/README.md)** - Complete documentation in English
 - 🇪🇸 **[Documentación en Español](./docs/es/README.md)** - Documentación completa en español
 
-**Framework split (motor vs juego) / Framework vs game:** [Getting started](./docs/GETTING_STARTED.md) · [Minimal demo (no DB)](./docs/DEMO_MINIMAL.md) · [Architecture](./docs/ARCHITECTURE.md) · [Adding content / plugins](./docs/ADDING_CONTENT.md) · [Extension APIs](./docs/EXTENSION_APIS.md) · [Public asset licenses](./docs/ASSETS_PUBLIC_REPO.md) · [Auth](./docs/AUTH_OVERVIEW.md) · [Persistence](./docs/PERSISTENCE.md) · [Deployment](./docs/DEPLOYMENT.md) · [Security](./docs/SECURITY.md) · [Contributing](./CONTRIBUTING.md) · [Publication roadmap](./docs/plans/2026-04-03-framework-publication-roadmap.md).
+**Framework split (motor vs juego) / Framework vs game:** [Getting started](./docs/GETTING_STARTED.md) · [Minimal demo (no DB)](./docs/DEMO_MINIMAL.md) · [Architecture](./docs/ARCHITECTURE.md) · [Adding content / plugins](./docs/ADDING_CONTENT.md) · [Extension APIs](./docs/EXTENSION_APIS.md) · [Public asset licenses](./docs/ASSETS_PUBLIC_REPO.md) · [Auth](./docs/AUTH_OVERVIEW.md) · [Persistence](./docs/PERSISTENCE.md) · [Deployment](./docs/DEPLOYMENT.md) · [Security](./docs/SECURITY.md) · [Contributing](./CONTRIBUTING.md) · [Publication roadmap](./docs/plans/2026-04-03-framework-publication-roadmap.md) · [Admin Unity-style engine (Phase 2 plan)](./docs/plans/2026-04-04-admin-unity-style-web-engine-roadmap.md).
 
 **Quick start (demo) / Arranque rápido (demo):** `git clone` → **repo root** `npm install` → `npm run dev:demo` **or** `cd apps/demo && npm run dev:demo` — see [`apps/demo/README.md`](./apps/demo/README.md).
 
@@ -34,7 +34,7 @@
 
 Server grants items via `InventoryEvents.addItemFromWorld` only for ids listed in the manifest when it is loaded.
 
-**Contributors / Contribuidores:** `npm run check:framework` before a PR (package string + import boundaries). See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+**Contributors / Contribuidores:** `npm run check:phase1` before a PR (content + framework + TypeScript + OSS package strings). See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
 **Publishing packages / Publicar paquetes:** [`docs/PUBLISHING_PACKAGES.md`](./docs/PUBLISHING_PACKAGES.md) — npm / GitHub Packages + juego privado por semver.
 

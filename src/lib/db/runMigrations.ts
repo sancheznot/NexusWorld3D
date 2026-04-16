@@ -98,7 +98,25 @@ async function executeMigrations(options?: {
     };
   }
 
-  const conn = await pool.getConnection();
+  let conn: mysql.PoolConnection | undefined;
+  try {
+    conn = await pool.getConnection();
+  } catch (e) {
+    await pool.end().catch(() => {});
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(
+      "❌ migrations: cannot connect to MariaDB (check MARIADB_* / DATABASE_URL and that the server is running):",
+      e
+    );
+    return {
+      ok: false,
+      applied: [],
+      skippedNoConfig: false,
+      skippedByEnv: false,
+      error: msg,
+    };
+  }
+
   const lockName = "nexusworld_migrations";
   try {
     const [lockRows] = await conn.query<RowDataPacket[]>(
@@ -116,32 +134,32 @@ async function executeMigrations(options?: {
     }
 
     try {
-    let migrationsTable = await hasSchemaMigrationsTable(conn);
+      let migrationsTable = await hasSchemaMigrationsTable(conn);
 
-    for (const file of files) {
-      const version = file.replace(/\.sql$/i, "");
+      for (const file of files) {
+        const version = file.replace(/\.sql$/i, "");
 
-      if (migrationsTable) {
-        const [done] = await conn.query<RowDataPacket[]>(
-          "SELECT 1 AS ok FROM schema_migrations WHERE version = ? LIMIT 1",
-          [version]
-        );
-        if (done.length > 0) {
-          log(`⏭️  migrations: skip ${file} (already applied)`);
-          continue;
+        if (migrationsTable) {
+          const [done] = await conn.query<RowDataPacket[]>(
+            "SELECT 1 AS ok FROM schema_migrations WHERE version = ? LIMIT 1",
+            [version]
+          );
+          if (done.length > 0) {
+            log(`⏭️  migrations: skip ${file} (already applied)`);
+            continue;
+          }
         }
-      }
 
-      const sql = fs.readFileSync(path.join(dir, file), "utf8");
-      log(`▶️  migrations: applying ${file}…`);
-      await conn.query(sql);
-      await conn.query("INSERT INTO schema_migrations (version) VALUES (?)", [
-        version,
-      ]);
-      migrationsTable = true;
-      applied.push(file);
-      log(`✅ migrations: ${file}`);
-    }
+        const sql = fs.readFileSync(path.join(dir, file), "utf8");
+        log(`▶️  migrations: applying ${file}…`);
+        await conn.query(sql);
+        await conn.query("INSERT INTO schema_migrations (version) VALUES (?)", [
+          version,
+        ]);
+        migrationsTable = true;
+        applied.push(file);
+        log(`✅ migrations: ${file}`);
+      }
     } finally {
       await conn.query("SELECT RELEASE_LOCK(?)", [lockName]).catch(() => {});
     }
@@ -156,7 +174,11 @@ async function executeMigrations(options?: {
       error: msg,
     };
   } finally {
-    conn.release();
+    try {
+      conn.release();
+    } catch {
+      /* ignore */
+    }
     await pool.end();
   }
 

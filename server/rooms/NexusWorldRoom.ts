@@ -4,9 +4,18 @@ import {
   PlayerMessages,
   PROTOCOL_VERSION,
   readJoinProtocolVersion,
+  SceneMessages,
 } from "@nexusworld3d/protocol";
+import {
+  safeParseSceneDocumentV0_1,
+  sceneEntityV0_1Schema,
+  type SceneDocumentV0_1,
+} from "@nexusworld3d/content-schema";
 import { nexusWorld3DConfig } from "@repo/nexusworld3d.config";
-import { gameRedis } from "@/lib/services/redis";
+import {
+  gameRedis,
+  reportRedisUnreachableAndFallback,
+} from "@server/persistence/gameRedis";
 import type { FrameworkServices } from "@resources/types";
 import type { EconomyEvents } from "@resources/economy/server/EconomyEvents";
 import type { InventoryEvents } from "@resources/inventory/server/InventoryEvents";
@@ -17,13 +26,11 @@ import { RockMineEvents } from "@server/modules/RockMineEvents";
 import {
   attachContextRoomPlugins,
   attachGenericWorldToolRouter,
-  createInMemoryPlayerStore,
-  createInMemorySessionStore,
-  createInMemoryWorldStateStore,
   type PlayerStore,
   type SessionStore,
   type WorldStateStore,
 } from "@nexusworld3d/engine-server";
+import { createRoomPersistenceStores } from "@server/persistence/createRoomPersistence";
 import {
   attachNexusRoomPlugins,
   createFrameworkDemoCubePlugin,
@@ -37,6 +44,29 @@ import {
   attachLateFrameworkResources,
 } from "@server/bootstrap/attachFrameworkResources";
 import { pushGameMonitorLog } from "@server/metrics/gameMonitor";
+import {
+  registerNexusWorldRoomInspect,
+  unregisterNexusWorldRoomInspect,
+  type NexusWorldRoomInspectPayload,
+} from "@server/metrics/nexusWorldRoomInspectRegistry";
+import {
+  getStagingWorldRoomTypeName,
+  isSceneAuthoringStagingOnlyMode,
+  registerNexusWorldRoomSceneAuthoring,
+  unregisterNexusWorldRoomSceneAuthoring,
+  type SceneAuthoringHandlerResult,
+} from "@server/metrics/nexusWorldRoomSceneAuthoringRegistry";
+import {
+  isSceneLoadPersistedEnabled,
+  scenePersistAllowedForRoomTemplate,
+  scenePersistConsistentWithStagingGuard,
+} from "@server/scene/scenePersistencePolicy";
+import {
+  persistedSceneFilePath,
+  tryLoadSceneDocumentV0_1FromDisk,
+  writeSceneDocumentV0_1ToDisk,
+} from "@server/scene/persistSceneDocumentV0_1";
+import { validateSceneDocumentSemanticsV0_1 } from "@server/scene/validateSceneDocumentSemanticsV0_1";
 import type { ExtendedJobId } from "@/constants/jobs";
 import {
   fetchPlayerProfileByNorm,
@@ -79,13 +109,14 @@ interface ChatMessage {
   type: string;
 }
 
-/** ES: Clave SessionStore para historial de chat de esta sala. EN: SessionStore key for this room's chat log. */
-const SESSION_CHAT_KEY = "framework:room:chat:v1";
-
 export class NexusWorldRoom extends Room {
   private players = new Map<string, PlayerData>();
   private chatMessages: ChatMessage[] = [];
   private redis = gameRedis;
+  /** ES: Escena v0.1 aplicada en memoria (autoría / monitor HTTP). EN: In-memory applied v0.1 scene. */
+  private sceneDocumentV0_1: SceneDocumentV0_1 | null = null;
+  /** ES: Clientes con `sceneAuthoringToken` válido en join. EN: Clients that joined with valid authoring token. */
+  private sceneAuthoringClients = new Set<string>();
 
   /**
    * ES: Contratos de persistencia. Por defecto memoria (`createPersistenceStores`).
@@ -104,11 +135,12 @@ export class NexusWorldRoom extends Room {
     sessionStore: SessionStore;
     worldStateStore: WorldStateStore;
   } {
-    return {
-      playerStore: createInMemoryPlayerStore(),
-      sessionStore: createInMemorySessionStore(),
-      worldStateStore: createInMemoryWorldStateStore(),
-    };
+    return createRoomPersistenceStores();
+  }
+
+  /** ES: Aislar historial por instancia de sala (multi-room). EN: Per-room chat history key. */
+  private getChatStorageKey(): string {
+    return `framework:room:chat:v1:${this.roomId}`;
   }
   /** ES: Throttle guardado MariaDB/Redis en movimiento. EN: Throttle DB save on move. */
   private lastMoveProfileSaveAt = new Map<string, number>();
@@ -144,7 +176,8 @@ export class NexusWorldRoom extends Room {
     this.resourceDisposables.push(dispose);
   }
 
-  onCreate(_options: { [key: string]: string }) {
+  onCreate(options: { [key: string]: string }) {
+    void options;
     const persistence = this.createPersistenceStores();
     this.playerStore = persistence.playerStore;
     this.sessionStore = persistence.sessionStore;
@@ -259,6 +292,7 @@ export class NexusWorldRoom extends Room {
         getPlayerPosition: roomPluginCtx.getPlayerPosition,
         awardExperience: (pid, amount) =>
           this.rpgProgression.addXp(pid, amount),
+        getSceneDocument: () => this.sceneDocumentV0_1,
       }),
     ]);
 
@@ -323,6 +357,16 @@ export class NexusWorldRoom extends Room {
 
     // ES: Tiempo, jobs, ejemplo — tras ítems/tienda. EN: Time, jobs, example after items/shop.
     attachLateFrameworkResources(this);
+
+    this.tryLoadPersistedSceneOnCreate();
+
+    registerNexusWorldRoomInspect(this.roomId, () => this.buildAdminInspectSnapshot());
+    registerNexusWorldRoomSceneAuthoring(this.roomId, {
+      colyseusRoomTypeName: this.roomName,
+      apply: (raw) => this.applySceneAuthoringFromRegistry(raw),
+      getDocument: () => this.sceneDocumentV0_1,
+      mergeEntities: (raw) => this.mergeSceneEntitiesFromRegistry(raw),
+    });
   }
 
   async onJoin(
@@ -431,6 +475,7 @@ export class NexusWorldRoom extends Room {
         if (stored && Object.keys(stored).length > 0)
           storedData = stored as Record<string, unknown>;
       } catch (error) {
+        reportRedisUnreachableAndFallback(error);
         console.warn("⚠️ Error recuperando jugador desde Redis:", error);
       }
     }
@@ -475,7 +520,7 @@ export class NexusWorldRoom extends Room {
       worldId,
       isOnline: true,
       lastSeen: new Date(),
-      lastUpdate: now,
+      lastUpdate,
       animation,
       isMoving,
       isRunning,
@@ -596,18 +641,22 @@ export class NexusWorldRoom extends Room {
         }
       }
     } else {
-      const invSnap = gameRedis.getPlayerInventorySnapshot(
-        normalizePlayerUsername(player.username)
-      );
-      if (invSnap) {
-        this.inventoryEvents.loadPersistedInventory(client.sessionId, invSnap);
+      try {
+        const invSnap = await gameRedis.getPlayerInventorySnapshot(
+          normalizePlayerUsername(player.username)
+        );
+        if (invSnap) {
+          this.inventoryEvents.loadPersistedInventory(client.sessionId, invSnap);
+        }
+      } catch (e) {
+        reportRedisUnreachableAndFallback(e);
+        console.warn("⚠️ Error leyendo inventario desde Redis:", e);
       }
     }
 
     this.rpgProgression.hydrate(
       client.sessionId,
-      profileRow?.stats_json ?? null,
-      player
+      profileRow?.stats_json ?? null
     );
 
     this.housingEvents.hydrateFromProfile(
@@ -643,10 +692,31 @@ export class NexusWorldRoom extends Room {
       roomId: this.roomId,
       total: this.players.size,
     });
+
+    const authoringSecret = process.env.NEXUS_SCENE_AUTHORING_SECRET?.trim();
+    const token = (options as { sceneAuthoringToken?: string } | undefined)
+      ?.sceneAuthoringToken?.trim();
+    if (authoringSecret && token === authoringSecret) {
+      this.sceneAuthoringClients.add(client.sessionId);
+      pushGameMonitorLog("info", "room", "scene authoring client joined", {
+        sessionId: client.sessionId,
+        roomId: this.roomId,
+      });
+    }
+
+    const scene = this.sceneDocumentV0_1;
+    if (scene) {
+      client.send(SceneMessages.AppliedDocumentV0_1, {
+        appliedAt: Date.now(),
+        roomId: this.roomId,
+        document: scene,
+      });
+    }
   }
 
   async onLeave(client: Client, consented: boolean) {
     console.log(`👋 Cliente ${client.sessionId} salió de la sala`);
+    this.sceneAuthoringClients.delete(client.sessionId);
 
     const player = this.players.get(client.sessionId);
     if (player) {
@@ -667,10 +737,15 @@ export class NexusWorldRoom extends Room {
 
       const inv = this.inventoryEvents.getPlayerInventory(client.sessionId);
       if (inv) {
-        gameRedis.savePlayerInventorySnapshot(
-          normalizePlayerUsername(player.username),
-          inv
-        );
+        try {
+          await gameRedis.savePlayerInventorySnapshot(
+            normalizePlayerUsername(player.username),
+            inv
+          );
+        } catch (e) {
+          reportRedisUnreachableAndFallback(e);
+          console.warn("⚠️ Error guardando inventario en Redis:", e);
+        }
       }
 
       this.rpgProgression.clearSession(client.sessionId);
@@ -709,6 +784,8 @@ export class NexusWorldRoom extends Room {
   }
 
   onDispose() {
+    unregisterNexusWorldRoomSceneAuthoring(this.roomId);
+    unregisterNexusWorldRoomInspect(this.roomId);
     for (const dispose of this.resourceDisposables) {
       try {
         dispose();
@@ -721,6 +798,162 @@ export class NexusWorldRoom extends Room {
     pushGameMonitorLog("info", "room", "NexusWorldRoom disposed", {
       roomId: this.roomId,
     });
+  }
+
+  /**
+   * ES: Snapshot para monitor admin HTTP — sin PII extra ni secretos.
+   * EN: Snapshot for admin HTTP monitor — no extra PII or secrets.
+   */
+  private tryLoadPersistedSceneOnCreate(): void {
+    if (!isSceneLoadPersistedEnabled()) return;
+    const worldId =
+      process.env.NEXUS_SCENE_PERSIST_WORLD_ID?.trim() ||
+      nexusWorld3DConfig.worlds.default;
+    const doc = tryLoadSceneDocumentV0_1FromDisk(worldId);
+    if (!doc) return;
+    this.sceneDocumentV0_1 = doc;
+    pushGameMonitorLog("info", "room", "scene v0.1 loaded from disk", {
+      roomId: this.roomId,
+      worldId: doc.worldId,
+      path: persistedSceneFilePath(doc.worldId),
+    });
+  }
+
+  private maybePersistSceneDocument(doc: SceneDocumentV0_1): void {
+    if (!scenePersistAllowedForRoomTemplate(this.roomName)) return;
+    if (!scenePersistConsistentWithStagingGuard(this.roomName)) return;
+    try {
+      writeSceneDocumentV0_1ToDisk(doc);
+      pushGameMonitorLog("info", "room", "scene v0.1 persisted to disk", {
+        roomId: this.roomId,
+        worldId: doc.worldId,
+        path: persistedSceneFilePath(doc.worldId),
+      });
+    } catch (e) {
+      pushGameMonitorLog("warn", "room", "scene persist to disk failed", {
+        roomId: this.roomId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  buildAdminInspectSnapshot(): NexusWorldRoomInspectPayload {
+    const s = this.sceneDocumentV0_1;
+    return {
+      roomName: this.roomName,
+      clientCount: this.clients.length,
+      players: Array.from(this.players.values()).map((p) => ({
+        sessionId: p.id,
+        username: p.username,
+        mapId: p.mapId,
+        position: { x: p.position.x, y: p.position.y, z: p.position.z },
+      })),
+      sceneAuthoringV0_1: s
+        ? {
+            schemaVersion: s.schemaVersion,
+            worldId: s.worldId,
+            entityCount: s.entities.length,
+          }
+        : null,
+    };
+  }
+
+  private checkSceneAuthoringStagingGate(): SceneAuthoringHandlerResult | null {
+    if (
+      !isSceneAuthoringStagingOnlyMode() ||
+      this.roomName === getStagingWorldRoomTypeName()
+    ) {
+      return null;
+    }
+    return { ok: false, error: "scene_authoring_staging_only" };
+  }
+
+  private applySceneAuthoringFromRegistry(raw: unknown): SceneAuthoringHandlerResult {
+    const gate = this.checkSceneAuthoringStagingGate();
+    if (gate) return gate;
+    const parsed = safeParseSceneDocumentV0_1(raw);
+    if (!parsed.success) {
+      const msg = parsed.error.errors.map((e) => e.message).join("; ");
+      return { ok: false, error: msg || "scene_parse_failed" };
+    }
+    const doc = parsed.data;
+    const sem = validateSceneDocumentSemanticsV0_1(doc);
+    if (!sem.ok) {
+      pushGameMonitorLog("warn", "room", "scene authoring rejected (semantics)", {
+        roomId: this.roomId,
+        error: sem.error,
+      });
+      return { ok: false, error: sem.error };
+    }
+    this.sceneDocumentV0_1 = doc;
+    pushGameMonitorLog("info", "room", "scene authoring v0.1 applied", {
+      roomId: this.roomId,
+      worldId: doc.worldId,
+      entityCount: doc.entities.length,
+    });
+    this.broadcast(SceneMessages.AppliedDocumentV0_1, {
+      appliedAt: Date.now(),
+      roomId: this.roomId,
+      document: doc,
+    });
+    this.maybePersistSceneDocument(doc);
+    return { ok: true, worldId: doc.worldId, entityCount: doc.entities.length };
+  }
+
+  private mergeSceneEntitiesFromRegistry(raw: unknown): SceneAuthoringHandlerResult {
+    const gate = this.checkSceneAuthoringStagingGate();
+    if (gate) return gate;
+    const body = raw as { entities?: unknown[] };
+    if (!Array.isArray(body.entities) || body.entities.length === 0) {
+      return { ok: false, error: "entities_required" };
+    }
+    const base = this.sceneDocumentV0_1;
+    if (!base) {
+      return { ok: false, error: "no_scene_to_patch" };
+    }
+    const merged = [...base.entities];
+    for (const rawEnt of body.entities) {
+      const ep = sceneEntityV0_1Schema.safeParse(rawEnt);
+      if (!ep.success) {
+        const msg = ep.error.errors.map((e) => e.message).join("; ");
+        return { ok: false, error: msg || "entity_parse_failed" };
+      }
+      const ent = ep.data;
+      const idx = merged.findIndex((e) => e.id === ent.id);
+      if (idx >= 0) merged[idx] = ent;
+      else merged.push(ent);
+    }
+    const next: SceneDocumentV0_1 = {
+      ...base,
+      entities: merged,
+    };
+    const parsed = safeParseSceneDocumentV0_1(next);
+    if (!parsed.success) {
+      const msg = parsed.error.errors.map((e) => e.message).join("; ");
+      return { ok: false, error: msg || "scene_merge_invalid" };
+    }
+    const doc = parsed.data;
+    const sem = validateSceneDocumentSemanticsV0_1(doc);
+    if (!sem.ok) {
+      pushGameMonitorLog("warn", "room", "scene merge rejected (semantics)", {
+        roomId: this.roomId,
+        error: sem.error,
+      });
+      return { ok: false, error: sem.error };
+    }
+    this.sceneDocumentV0_1 = doc;
+    pushGameMonitorLog("info", "room", "scene entities merged v0.1", {
+      roomId: this.roomId,
+      worldId: doc.worldId,
+      entityCount: doc.entities.length,
+    });
+    this.broadcast(SceneMessages.AppliedDocumentV0_1, {
+      appliedAt: Date.now(),
+      roomId: this.roomId,
+      document: doc,
+    });
+    this.maybePersistSceneDocument(doc);
+    return { ok: true, worldId: doc.worldId, entityCount: doc.entities.length };
   }
 
   private setupMessageHandlers() {
@@ -884,7 +1117,7 @@ export class NexusWorldRoom extends Room {
     });
 
     // Heartbeat del jugador para refrescar lastUpdate sin necesidad de movimiento
-    this.onMessage(PlayerMessages.Heartbeat, (client: Client, _data?: unknown) => {
+    this.onMessage(PlayerMessages.Heartbeat, (client: Client) => {
       const player = this.players.get(client.sessionId);
       if (player) {
         player.lastUpdate = Date.now();
@@ -963,11 +1196,49 @@ export class NexusWorldRoom extends Room {
         }
       }
     );
+
+    this.onMessage(
+      SceneMessages.ApplyDocumentV0_1,
+      (client: Client, data: { document?: unknown }) => {
+        if (!this.sceneAuthoringClients.has(client.sessionId)) {
+          client.send(SceneMessages.ApplyErrorV0_1, { error: "scene_authoring_forbidden" });
+          return;
+        }
+        const result = this.applySceneAuthoringFromRegistry(data?.document);
+        if (!result.ok) {
+          client.send(SceneMessages.ApplyErrorV0_1, { error: result.error });
+          return;
+        }
+        client.send(SceneMessages.ApplyAckV0_1, {
+          worldId: result.worldId,
+          entityCount: result.entityCount,
+        });
+      }
+    );
+
+    this.onMessage(
+      SceneMessages.PatchEntitiesV0_1,
+      (client: Client, data: { entities?: unknown[] }) => {
+        if (!this.sceneAuthoringClients.has(client.sessionId)) {
+          client.send(SceneMessages.ApplyErrorV0_1, { error: "scene_authoring_forbidden" });
+          return;
+        }
+        const result = this.mergeSceneEntitiesFromRegistry(data);
+        if (!result.ok) {
+          client.send(SceneMessages.ApplyErrorV0_1, { error: result.error });
+          return;
+        }
+        client.send(SceneMessages.ApplyAckV0_1, {
+          worldId: result.worldId,
+          entityCount: result.entityCount,
+        });
+      }
+    );
   }
 
   private async loadRecentChatMessages() {
     try {
-      const raw = await this.sessionStore.get(SESSION_CHAT_KEY);
+      const raw = await this.sessionStore.get(this.getChatStorageKey());
       if (!raw || !Array.isArray(raw)) return;
       const typed = raw as {
         id: string;
@@ -1019,6 +1290,7 @@ export class NexusWorldRoom extends Room {
       await this.redis.addPlayer(player.id, playerData);
       await this.playerStore.saveSnapshot(player.id, playerData);
     } catch (error) {
+      reportRedisUnreachableAndFallback(error);
       console.warn("⚠️ Error guardando jugador (Redis / PlayerStore):", error);
     }
 
@@ -1108,7 +1380,7 @@ export class NexusWorldRoom extends Room {
         timestamp: m.timestamp.toISOString(),
         type: m.type,
       }));
-      await this.sessionStore.set(SESSION_CHAT_KEY, payload);
+      await this.sessionStore.set(this.getChatStorageKey(), payload);
     } catch (error) {
       console.warn("⚠️ Error guardando historial de chat (SessionStore):", error);
     }
@@ -1159,6 +1431,7 @@ export class NexusWorldRoom extends Room {
         await this.redis.cleanupExpiredData();
         console.log("🧹 Limpieza de datos expirados completada");
       } catch (error) {
+        reportRedisUnreachableAndFallback(error);
         console.error("❌ Error en limpieza de datos:", error);
       }
     }, 5 * 60 * 1000);

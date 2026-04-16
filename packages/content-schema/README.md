@@ -1,8 +1,8 @@
 # @nexusworld3d/content-schema
 
-**EN.** Zod schemas for **`content/manifest.json`**. Primary export: `parseContentManifestV1`, `contentManifestV1Schema`, type `ContentManifestV1`.
+**EN.** Zod schemas for **`content/manifest.json`** and **scene documents v0.1** (`content/scenes/*.json`). Exports: `parseContentManifestV1`, `parseSceneDocumentV0_1`, matching schemas and types.
 
-**ES.** El CLI raíz **`npm run validate-content`** y el loader en runtime (`server/content/loadContentManifest.ts`) usan este paquete para no duplicar reglas.
+**ES.** El CLI **`npm run validate-content`** y **`npm run validate-scene`**, más el loader de manifest en runtime, usan este paquete.
 
 ## Usage / Uso
 
@@ -13,3 +13,13 @@ const manifest = parseContentManifestV1(JSON.parse(raw));
 ```
 
 Add optional sections to the manifest as needed; unknown top-level keys are allowed (`.passthrough()`).
+
+### Scene v0.1 / Escena v0.1
+
+```ts
+import { parseSceneDocumentV0_1 } from "@nexusworld3d/content-schema";
+
+const scene = parseSceneDocumentV0_1(JSON.parse(raw));
+```
+
+See [`docs/adr/0001-scene-format-v0-1.md`](../../docs/adr/0001-scene-format-v0-1.md) and example `content/scenes/starter.v0_1.json`.

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "worldId": "framework-demo",
+  "entities": [
+    {
+      "id": "ent_spawn_zone_01",
+      "parentId": null,
+      "transform": {
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0, 1],
+        "scale": [1, 1, 1]
+      },
+      "components": [
+        {
+          "type": "nexus:resourceNode",
+          "props": { "nodeId": "exterior_node_quarry_north" }
+        },
+        {
+          "type": "nexus:triggerSphere",
+          "props": { "radius": 2.5 }
+        }
+      ]
+    }
+  ]
+}

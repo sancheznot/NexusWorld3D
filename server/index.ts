@@ -8,7 +8,8 @@ import { registerNexusWorldRooms } from "@server/colyseus/registerRooms";
 import { printGameServerDevBanner } from "@server/banners/nexusColyseusBanner";
 import { runPendingMigrations } from "@/lib/db/runMigrations";
 import { startDedicatedGameMonitorServer } from "@server/metrics/gameMonitorHttp";
-import "@/lib/services/redis";
+import "@server/persistence/gameRedis";
+import { describeRedisBackend } from "@server/persistence/redisClient";
 
 // ES: Puerto del servidor Colyseus (dev). No uses PORT aquí si Next corre en el mismo .env — usa COLYSEUS_PORT o SOCKET_PORT.
 // EN: Colyseus listen port (dev). Avoid PORT here when Next shares .env — use COLYSEUS_PORT or SOCKET_PORT.
@@ -32,28 +33,36 @@ void (async () => {
       console.error("❌ migrations failed:", m.error);
       process.exit(1);
     }
+  } catch (e) {
+    console.error("❌ migrations threw (unexpected):", e);
+    process.exit(1);
+  }
+
+  try {
     await gameServer.listen(PORT);
     const monPort = Number(process.env.NEXUS_GAME_MONITOR_PORT || 3020);
     startDedicatedGameMonitorServer(monPort);
     printGameServerDevBanner({ port: PORT, clientUrl: CLIENT_URL });
-    const redisNote = process.env.UPSTASH_REDIS_REST_TOKEN?.trim()
-      ? "Upstash Redis (REST)"
-      : "Mock Redis (in-memory)";
-    console.log(`🗄️  ${redisNote}\n`);
+    console.log(`🗄️  ${describeRedisBackend()}\n`);
   } catch (e) {
-    console.error("❌ Colyseus listen failed:", e);
+    console.error("❌ Colyseus listen failed (WebSocket port " + PORT + "):", e);
     process.exit(1);
   }
 })();
 
-process.on("SIGINT", () => {
+let colyseusShuttingDown = false;
+function shutdownColyseus(): void {
+  if (colyseusShuttingDown) return;
+  colyseusShuttingDown = true;
   console.log("🛑 Shutting down Colyseus…");
-  gameServer.gracefullyShutdown();
-});
+  try {
+    void gameServer.gracefullyShutdown();
+  } catch {
+    /* ignore duplicate shutdown */
+  }
+}
 
-process.on("SIGTERM", () => {
-  console.log("🛑 Shutting down Colyseus…");
-  gameServer.gracefullyShutdown();
-});
+process.on("SIGINT", () => shutdownColyseus());
+process.on("SIGTERM", () => shutdownColyseus());
 
 export { gameServer };

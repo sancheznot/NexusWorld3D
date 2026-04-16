@@ -11,6 +11,30 @@ import {
   pushGameMonitorLog,
   subscribeGameMonitorSse,
 } from "@server/metrics/gameMonitor";
+import { collectNexusWorldRoomInspectSnapshots } from "@server/metrics/nexusWorldRoomInspectRegistry";
+import {
+  applySceneDocumentToNexusWorldRoom,
+  getSceneDocumentFromNexusWorldRoom,
+  mergeSceneEntitiesToNexusWorldRoom,
+} from "@server/metrics/nexusWorldRoomSceneAuthoringRegistry";
+
+const MAX_SCENE_POST_BYTES = 512 * 1024;
+
+async function readJsonBody(req: IncomingMessage, maxBytes: number): Promise<unknown> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of req) {
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buf.length;
+    if (total > maxBytes) {
+      throw new Error("payload_too_large");
+    }
+    chunks.push(buf);
+  }
+  const raw = Buffer.concat(chunks).toString("utf8").trim();
+  if (!raw) return {};
+  return JSON.parse(raw) as unknown;
+}
 
 const PREFIX = "/__nexus-internal/v1";
 
@@ -68,6 +92,7 @@ async function buildSnapshot(): Promise<Record<string, unknown>> {
       ccu: local.ccu,
     },
     rooms,
+    nexusWorldRooms: collectNexusWorldRoomInspectSnapshots(),
     logs: getGameMonitorLogs(),
   };
 }
@@ -155,6 +180,79 @@ export async function tryHandleGameMonitorRequest(
 
   if (req.method === "GET" && url === `${PREFIX}/stream`) {
     handleStream(req, res);
+    return true;
+  }
+
+  if (req.method === "GET" && url === `${PREFIX}/scene-state-v0_1`) {
+    try {
+      const q = req.url?.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+      const roomId = new URLSearchParams(q).get("roomId") || undefined;
+      const result = getSceneDocumentFromNexusWorldRoom(roomId);
+      if (!result.ok) {
+        sendJson(res, 400, { ok: false, error: result.error });
+        return true;
+      }
+      sendJson(res, 200, {
+        ok: true,
+        roomId: result.roomId,
+        document: result.document,
+      });
+    } catch (e) {
+      sendJson(res, 500, {
+        ok: false,
+        error: e instanceof Error ? e.message : "scene_state_failed",
+      });
+    }
+    return true;
+  }
+
+  if (req.method === "POST" && url === `${PREFIX}/scene-merge-entities-v0_1`) {
+    try {
+      const body = (await readJsonBody(req, MAX_SCENE_POST_BYTES)) as {
+        roomId?: string;
+        entities?: unknown[];
+      };
+      const result = mergeSceneEntitiesToNexusWorldRoom(body.roomId, body);
+      if (!result.ok) {
+        sendJson(res, 400, { ok: false, error: result.error });
+        return true;
+      }
+      sendJson(res, 200, {
+        ok: true,
+        roomId: result.roomId,
+        worldId: result.worldId,
+        entityCount: result.entityCount,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "scene_merge_failed";
+      const status = msg === "payload_too_large" ? 413 : 400;
+      sendJson(res, status, { ok: false, error: msg });
+    }
+    return true;
+  }
+
+  if (req.method === "POST" && url === `${PREFIX}/scene-apply-v0_1`) {
+    try {
+      const body = (await readJsonBody(req, MAX_SCENE_POST_BYTES)) as {
+        roomId?: string;
+        document?: unknown;
+      };
+      const result = applySceneDocumentToNexusWorldRoom(body.roomId, body.document);
+      if (!result.ok) {
+        sendJson(res, 400, { ok: false, error: result.error });
+        return true;
+      }
+      sendJson(res, 200, {
+        ok: true,
+        roomId: result.roomId,
+        worldId: result.worldId,
+        entityCount: result.entityCount,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "scene_apply_failed";
+      const status = msg === "payload_too_large" ? 413 : 400;
+      sendJson(res, status, { ok: false, error: msg });
+    }
     return true;
   }
 

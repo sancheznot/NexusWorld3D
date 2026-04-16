@@ -23,4 +23,20 @@ export function registerNexusWorldRooms(gameServer: Server): void {
   for (const roomName of legacy) {
     gameServer.define(roomName, NexusWorldRoom);
   }
+
+  const enableStagingEnv = process.env.NEXUS_ENABLE_STAGING_WORLD_ROOM?.trim().toLowerCase();
+  const enableStaging =
+    enableStagingEnv === "1" || enableStagingEnv === "true" || enableStagingEnv === "yes";
+  const stagingName =
+    process.env.NEXUS_STAGING_WORLD_ROOM_NAME?.trim() || "nexus-world-staging";
+  if (enableStaging && stagingName && stagingName !== primary && !legacy.includes(stagingName)) {
+    gameServer.define(stagingName, NexusWorldRoom);
+    console.log(
+      `[Colyseus] Staging world room registered: ${stagingName} (set NEXUS_SCENE_AUTHORING_STAGING_ONLY=1 to restrict scene apply/merge to this template)`
+    );
+  } else if (enableStaging && (stagingName === primary || legacy.includes(stagingName))) {
+    console.warn(
+      "[Colyseus] NEXUS_ENABLE_STAGING_WORLD_ROOM set but NEXUS_STAGING_WORLD_ROOM_NAME matches primary/legacy; staging define skipped."
+    );
+  }
 }

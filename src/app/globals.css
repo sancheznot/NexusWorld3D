@@ -78,3 +78,16 @@ body {
 .scrollbar-hidden::-webkit-scrollbar {
   display: none;
 }
+
+/* ES: Landscape + viewport bajo (móvil horizontal). Tailwind [@media(...)] sin espacios en `and` rompe el parser. */
+@layer utilities {
+  @media (orientation: landscape) and (max-height: 480px) {
+    .portal-landscape-short-main {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .portal-landscape-short-tips {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+}

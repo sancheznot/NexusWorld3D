@@ -11,6 +11,7 @@ import GameServerMonitorPanel from "@/components/admin/GameServerMonitorPanel";
 import AdminTabNav, { type AdminTabId } from "@/components/admin/AdminTabNav";
 import AdminAuditPanel from "@/components/admin/AdminAuditPanel";
 import AdminAuthUsersPanel from "@/components/admin/AdminAuthUsersPanel";
+import AdminSceneInspectorPanel from "@/components/admin/AdminSceneInspectorPanel";
 import {
   adminBtnDanger,
   adminBtnPrimary,
@@ -28,6 +29,7 @@ const VALID_TABS: AdminTabId[] = [
   "worlds",
   "editor",
   "assets",
+  "scenes",
   "landing",
   "monitor",
   "audit",
@@ -285,6 +287,8 @@ function AdminPanelContent() {
             </div>
           </div>
         )}
+
+        {activeTab === "scenes" && <AdminSceneInspectorPanel />}
 
         {activeTab === "landing" && <LandingBrandingPanel />}
 

@@ -12,7 +12,13 @@ import {
 } from "@/lib/frameworkBranding";
 import type { RpgSyncPayload } from "@/constants/rpgProgression";
 import { getPhysicsInstance } from "@/hooks/useCannonPhysics";
-import { InventoryMessages, RpgMessages } from "@nexusworld3d/protocol";
+import {
+  InventoryMessages,
+  RpgMessages,
+  SceneMessages,
+} from "@nexusworld3d/protocol";
+import { safeParseSceneDocumentV0_1 } from "@nexusworld3d/content-schema";
+import { useSceneAuthoringStore } from "@/store/sceneAuthoringStore";
 
 interface Player {
   id: string;
@@ -506,6 +512,33 @@ export const useSocket = () => {
     colyseusClient.on(RpgMessages.Sync, onRpgSync);
     colyseusClient.on(RpgMessages.Error, onRpgError);
 
+    const onSceneAuthoringApplied = (raw: unknown) => {
+      const p = raw as {
+        appliedAt?: unknown;
+        roomId?: unknown;
+        document?: unknown;
+      };
+      const parsed = safeParseSceneDocumentV0_1(p.document);
+      if (!parsed.success) {
+        console.warn("[scene-authoring] Ignored invalid broadcast from server");
+        return;
+      }
+      useSceneAuthoringStore.getState().setApplied({
+        document: parsed.data,
+        appliedAt: typeof p.appliedAt === "number" ? p.appliedAt : Date.now(),
+        roomId: typeof p.roomId === "string" ? p.roomId : "",
+      });
+      addNotification({
+        id: `scene-applied-${Date.now()}`,
+        type: "info",
+        title: "Escena v0.1 / Scene v0.1",
+        message: `Aplicada en sala (${parsed.data.entities.length} entidades). Preview en mundo.`,
+        duration: 5000,
+        timestamp: new Date(),
+      });
+    };
+    colyseusClient.on(SceneMessages.AppliedDocumentV0_1, onSceneAuthoringApplied);
+
     // ES: `connect()` retrasa `setIsConnected` 500ms; antes no hay listeners y se pierde rpg:sync.
     // EN: connect() delays isConnected — request RPG again once handlers are attached.
     queueMicrotask(() => {
@@ -525,6 +558,7 @@ export const useSocket = () => {
     return () => {
       colyseusClient.off(RpgMessages.Sync, onRpgSync);
       colyseusClient.off(RpgMessages.Error, onRpgError);
+      colyseusClient.off(SceneMessages.AppliedDocumentV0_1, onSceneAuthoringApplied);
       colyseusClient.removeAllListeners();
       worldClient.off("map:changed", handleMapChanged);
       worldClient.off("map:update", handleMapUpdate);

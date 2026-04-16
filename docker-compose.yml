@@ -55,6 +55,21 @@ services:
     # ports:
     #   - "127.0.0.1:3306:3306"
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - nexus_internal
+
   app:
     build:
       context: .
@@ -66,6 +81,8 @@ services:
     restart: unless-stopped
     depends_on:
       mariadb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     ports:
       - "${APP_PORT:-3000}:3000"
@@ -82,11 +99,15 @@ services:
       MARIADB_USER: ${MARIADB_USER:-nexus}
       MARIADB_PASSWORD: ${MARIADB_PASSWORD:?Set MARIADB_PASSWORD in .env.local or .env}
       MARIADB_DATABASE: ${MARIADB_DATABASE:-nexusworld3d}
+      # ES: Caché compartida (inventario fallback, snapshots, chat por sala). EN: Shared cache layer.
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-nw3d}
     networks:
       - nexus_internal
 
 volumes:
   mariadb_data:
+  redis_data:
 
 networks:
   nexus_internal:

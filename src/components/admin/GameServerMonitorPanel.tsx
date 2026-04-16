@@ -20,6 +20,22 @@ type SnapshotPayload = {
     maxClients: number;
     locked?: boolean;
   }>;
+  nexusWorldRooms?: Array<{
+    roomId: string;
+    roomName: string;
+    clientCount: number;
+    players: Array<{
+      sessionId: string;
+      username: string;
+      mapId: string;
+      position: { x: number; y: number; z: number };
+    }>;
+    sceneAuthoringV0_1: {
+      schemaVersion: number;
+      worldId: string;
+      entityCount: number;
+    } | null;
+  }>;
   logs?: Array<{
     id: number;
     ts: number;
@@ -239,6 +255,52 @@ export default function GameServerMonitorPanel() {
               )}
             </div>
           </div>
+
+          {(snapshot.nexusWorldRooms?.length ?? 0) > 0 && (
+            <div>
+              <h3 className="mb-2 text-lg font-semibold text-white">
+                NexusWorldRoom (jugadores en vivo)
+              </h3>
+              <div className="space-y-4">
+                {(snapshot.nexusWorldRooms ?? []).map((nw) => (
+                  <div key={nw.roomId} className={`${adminCard} overflow-x-auto p-4`}>
+                    <p className="font-mono text-xs text-slate-500">
+                      {nw.roomName} · roomId={nw.roomId} · clients={nw.clientCount} ·
+                      players={nw.players.length}
+                      {nw.sceneAuthoringV0_1
+                        ? ` · scene v0.1: ${nw.sceneAuthoringV0_1.worldId} (${nw.sceneAuthoringV0_1.entityCount} ent.)`
+                        : " · scene v0.1: —"}
+                    </p>
+                    <table className="mt-3 w-full min-w-[520px] text-left text-sm">
+                      <thead className="border-b border-white/10 text-xs uppercase text-slate-500">
+                        <tr>
+                          <th className="py-2 pr-2">sessionId</th>
+                          <th className="py-2 pr-2">username</th>
+                          <th className="py-2 pr-2">mapId</th>
+                          <th className="py-2 pr-2">position</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {nw.players.map((p) => (
+                          <tr key={p.sessionId} className="border-t border-white/5">
+                            <td className="py-2 pr-2 font-mono text-[11px] text-slate-400">
+                              {p.sessionId.slice(0, 12)}…
+                            </td>
+                            <td className="py-2 pr-2 text-slate-200">{p.username}</td>
+                            <td className="py-2 pr-2 text-slate-400">{p.mapId}</td>
+                            <td className="py-2 pr-2 font-mono text-xs text-cyan-200/80">
+                              {p.position.x.toFixed(1)}, {p.position.y.toFixed(1)},{" "}
+                              {p.position.z.toFixed(1)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <h3 className="mb-2 text-lg font-semibold text-white">

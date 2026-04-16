@@ -10,12 +10,10 @@ Thanks for helping improve the framework and sample stack.
 ## Before you open a PR
 
 1. Install dependencies: `npm install`
-2. Typecheck: `npx tsc --noEmit`
-3. Validate content: `npm run validate-content`
-4. Framework boundaries: `npm run check:framework` — `check:packages`, `check:engine-imports`, and **`lint:packages`** (ESLint on `packages/*` only; full-app `npm run lint` still has known debt).
-5. Match existing code style (imports, naming, no drive-by refactors unrelated to the fix).
+2. Run **`npm run check:phase1`** — runs `validate-content`, **`validate-scene`** (`content/scenes/*.json`), `check:framework` (`check:packages`, `check:engine-imports`, `lint:packages`, `lint:server`, **`check:oss-packages`**), and `tsc --noEmit`.
+3. Match existing code style (imports, naming, no drive-by refactors unrelated to the fix).
 
-CI runs `tsc`, validators, and `check:framework` on push/PR (see `.github/workflows/ci.yml`).
+Full-app `npm run lint` on all of `src/` may still report historical issues; Phase 1 CI focuses on **`check:phase1`**. Add or extend `.github/workflows/` to run it on push/PR when you enable GitHub Actions.
 
 ## Commits
 

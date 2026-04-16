@@ -119,11 +119,7 @@ export class RpgProgression {
   }
 
   /** ES: Cargar desde stats_json de MariaDB + nivel/exp del jugador. EN: Hydrate from DB. */
-  hydrate(
-    sessionId: string,
-    statsJson: unknown,
-    _player: RpgProgressionPlayer
-  ): void {
+  hydrate(sessionId: string, statsJson: unknown): void {
     const { base, alloc, unspent: parsedUnspent } = this.parseStatsJson(statsJson);
     let unspent = Math.max(0, Math.floor(parsedUnspent));
     if (this.isNewRpgProfile(statsJson)) {
@@ -163,7 +159,8 @@ export class RpgProgression {
       obj = { ...(raw as object) } as Record<string, unknown>;
     }
     const rpgRaw = obj.rpg as { alloc?: Partial<RpgAlloc>; unspent?: number } | undefined;
-    const { rpg: _drop, ...base } = obj;
+    const base: Record<string, unknown> = { ...obj };
+    delete base.rpg;
     return {
       base,
       alloc: clampAlloc(rpgRaw?.alloc),
