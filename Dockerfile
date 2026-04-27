@@ -11,10 +11,12 @@ RUN apt-get update && apt-get install -y curl && \
 FROM base AS deps
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# ES: `npm ci` resuelve `workspace:*` — hace falta el árbol de workspaces, no solo package.json.
+# EN: workspace protocol requires monorepo package roots on disk before npm ci.
+COPY package.json package-lock.json ./
+COPY packages ./packages
+COPY apps ./apps
 
-# Install dependencies
 RUN npm ci
 
 # Build stage
