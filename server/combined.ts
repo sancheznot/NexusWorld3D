@@ -36,7 +36,8 @@ async function bootstrap() {
   const httpServer = createServer((req, res) => {
     void tryHandleGameMonitorRequest(req, res).then((handled) => {
       if (handled) return;
-      if (req.url === "/health") {
+      const pathOnly = req.url?.split("?")[0] ?? "";
+      if (pathOnly === "/health") {
         res.writeHead(200, { "Content-Type": "text/plain" });
         res.end("OK");
         return;

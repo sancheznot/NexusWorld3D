@@ -57,6 +57,7 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/resources ./resources
 COPY --from=builder /app/worlds ./worlds
 COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/content ./content
 COPY --from=builder /app/nexusworld3d.config.ts ./
 COPY --from=builder /app/next.config.ts ./
 COPY --from=builder /app/postcss.config.mjs ./
