@@ -22,6 +22,7 @@ import {
 } from '@/lib/gameplay/inventoryHotbar';
 import { isChopAxeItemId } from '@/constants/choppableTrees';
 import { isMinePickaxeItemId } from '@/constants/mineableRocks';
+import { getActiveGatherAnimation } from '@/lib/gameplay/gatherAnimationBridge';
 
 interface PlayerProps {
   position?: [number, number, number];
@@ -493,9 +494,14 @@ export default function PlayerV2({
   // Resolver animación final
   let desiredAnim = currentAnimation;
   const nowAnim = performance.now();
-  
+  const gatherAnim = isCurrentPlayer ? getActiveGatherAnimation() : null;
+
+  // Prioridad: talar / minar (click con hacha o pico)
+  if (gatherAnim) {
+    desiredAnim = gatherAnim as AnimationState;
+  }
   // MODO 1: Usar State Machine si está habilitado
-  if (GAME_CONFIG.player.stateMachine.enabled && stateMachine && isCurrentPlayer) {
+  else if (GAME_CONFIG.player.stateMachine.enabled && stateMachine && isCurrentPlayer) {
     const velocity = physicsRef.current?.getPlayerVelocity() || { x: 0, y: 0, z: 0 };
     const isGrounded = physicsRef.current?.isGrounded() || true;
     const stamina = usePlayerStore.getState().stamina;

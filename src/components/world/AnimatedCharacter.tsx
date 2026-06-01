@@ -31,7 +31,9 @@ import { isMinePickaxeItemId } from '@/constants/mineableRocks';
       'walk_backward': ['Walk Backward', 'Walk_Backward', 'walk_backward', 'Walking_Backward', 'WalkBackward'], 
       'jump': ['Regular Jump', 'jump', 'Jump', 'JUMP', 'Regular_Jump'],
       'jump_run': ['Jump Run', 'jump_run', 'JumpRun', 'JUMP_RUN', 'jumpRun'],
-      'backflip': ['Backflip Jump', 'backflip', 'Backflip', 'BACKFLIP', 'Backflip_Jump']
+      'backflip': ['Backflip Jump', 'backflip', 'Backflip', 'BACKFLIP', 'Backflip_Jump'],
+      'chop': ['Chop_Loop', 'chop', 'Chop', 'chopping', 'Chopping', 'Axe', 'axe_chop'],
+      'mine': ['Mine_Loop', 'mine', 'Mining', 'mining', 'Pickaxe', 'Chop_Loop'],
     };
     
     const possibleNames = animationMap[animationState] || [animationState];

@@ -8,6 +8,7 @@ import { useUIStore } from '@/store/uiStore';
 import { inventoryService } from '@/lib/services/inventory';
 import { getWorldGatherMode } from '@/lib/gameplay/inventoryHotbar';
 import { registerMeleeClickHandler } from '@/lib/gameplay/meleeActionBridge';
+import { triggerGatherSwing } from '@/lib/gameplay/gatherAnimationBridge';
 import { sendTreeChopAttempt } from '@/lib/gameplay/treeChopActions';
 import { sendRockMineAttempt } from '@/lib/gameplay/rockMineActions';
 import { colyseusClient } from '@/lib/colyseus/client';
@@ -111,6 +112,7 @@ export default function ChopRaycastBridge() {
           const rockId = resolveMineableRockId(h.object);
           if (!rockId) continue;
           lastSwingRef.current = now;
+          triggerGatherSwing('mine');
           const p = usePlayerStore.getState().position;
           sendRockMineAttempt(rockId, { x: p.x, y: p.y, z: p.z });
           break;
@@ -118,6 +120,7 @@ export default function ChopRaycastBridge() {
         const treeId = resolveChoppableTreeId(h.object);
         if (!treeId) continue;
         lastSwingRef.current = now;
+        triggerGatherSwing('chop');
         const p = usePlayerStore.getState().position;
         const clientPlayerPos = { x: p.x, y: p.y, z: p.z };
         sendTreeChopAttempt(treeId, undefined, clientPlayerPos);
