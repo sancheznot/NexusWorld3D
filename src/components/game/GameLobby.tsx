@@ -61,7 +61,7 @@ type PortalPayload = {
 };
 
 type Props = {
-  onEnterRoom: (room: PublicPortalRoom) => void;
+  onEnterRoom: (room: PublicPortalRoom, displayName: string) => void;
   onOpenAuth: () => void;
   isAuthenticated: boolean;
   accountUserId: string | null;
@@ -730,7 +730,7 @@ export default function GameLobby({
                         type="button"
                         variant="start"
                         className="mt-3 w-full !min-h-[48px] !text-base"
-                        onClick={() => onEnterRoom(room)}
+                        onClick={() => onEnterRoom(room, resolvedDisplayName)}
                       >
                         <Play className="fill-current" size={20} />
                         Entrar

@@ -14,27 +14,13 @@ import type { RpgSyncPayload } from "@/constants/rpgProgression";
 import { getPhysicsInstance } from "@/hooks/useCannonPhysics";
 import {
   InventoryMessages,
+  PlayerMessages,
   RpgMessages,
   SceneMessages,
 } from "@nexusworld3d/protocol";
 import { safeParseSceneDocumentV0_1 } from "@nexusworld3d/content-schema";
 import { useSceneAuthoringStore } from "@/store/sceneAuthoringStore";
-
-interface Player {
-  id: string;
-  username: string;
-  position: { x: number; y: number; z: number };
-  rotation: { x: number; y: number; z: number };
-  health: number;
-  maxHealth: number;
-  stamina: number;
-  maxStamina: number;
-  level: number;
-  experience: number;
-  worldId: string;
-  isOnline: boolean;
-  lastSeen: Date;
-}
+import type { Player } from "@/types/player.types";
 
 export const useSocket = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -72,7 +58,6 @@ export const useSocket = () => {
     try {
       setConnectionError(null);
       await colyseusClient.connect(roomName, joinOptions);
-      await new Promise((resolve) => setTimeout(resolve, 500));
       setIsConnected(true);
       setRoomEpoch((n) => n + 1);
       console.log("✅ Conectado al servidor Colyseus — sala:", roomName);
@@ -138,19 +123,25 @@ export const useSocket = () => {
       }
     };
 
-    const tryHydrateLocalPoseFromServerList = (players: unknown) => {
-      if (hydratedServerPoseRef.current || !Array.isArray(players)) return;
+    const syncSelfFromServerList = (players: unknown) => {
+      if (!Array.isArray(players)) return;
       const myId = colyseusClient.getSessionId();
       if (!myId) return;
       const self = players.find(
         (p: { id?: string }) => p && p.id === myId
-      ) as
-        | {
-            position?: { x: number; y: number; z: number };
-            rotation?: { x: number; y: number; z: number };
-          }
-        | undefined;
-      if (!self?.position) return;
+      ) as Player | undefined;
+      if (!self) return;
+
+      updateLocalPlayer({
+        id: myId,
+        username: self.username || usePlayerStore.getState().player?.username,
+        mapId: self.mapId,
+      });
+      if (self.mapId) {
+        colyseusClient.emit("local:map-sync", { mapId: self.mapId });
+      }
+
+      if (hydratedServerPoseRef.current || !self.position) return;
       const { x, y, z } = self.position;
       if (
         typeof x !== "number" ||
@@ -172,38 +163,29 @@ export const useSocket = () => {
         updateRotation(rot);
       }
       updatePosition(pos);
-      /**
-       * ES: Sin esto, el siguiente useFrame de PlayerV2 pone en el store la posición del
-       * cuerpo Cannon (spawn fijo) y borra la posición persistida en MariaDB.
-       * EN: Otherwise PlayerV2's useFrame overwrites store with Cannon body at fixed spawn.
-       */
+      updateLocalPlayer({ position: pos, rotation: rot ?? usePlayerStore.getState().rotation });
       if (!snapPhysicsToServerPose(pos, rot)) {
         requestAnimationFrame(() => {
           snapPhysicsToServerPose(pos, rot);
         });
       }
       hydratedServerPoseRef.current = true;
-      console.log("📍 Pose local ← servidor:", self.position);
+      console.log("📍 Pose local ← servidor:", self.position, "map:", self.mapId);
+    };
+
+    const applyPlayersSnapshot = (data: { players?: unknown }) => {
+      if (!data?.players || !Array.isArray(data.players)) return;
+      syncSelfFromServerList(data.players);
+      setPlayers(data.players as Player[]);
+    };
+
+    const onPlayerJoinedHandler = (data: { players?: unknown }) => {
+      console.log("🔥 EVENTO player:joined RECIBIDO EN COLYSEUS CLIENT:", data);
+      applyPlayersSnapshot(data);
     };
 
     // Player events
-    colyseusClient.onPlayerJoined((data) => {
-      console.log("🔥 EVENTO player:joined RECIBIDO EN COLYSEUS CLIENT:", data);
-      console.log("🔥 data.player:", data.player);
-      console.log("🔥 data.players:", data.players);
-
-      // Solo usar setPlayers para establecer la lista completa de jugadores
-      if (data.players) {
-        console.log(
-          "🔥 Estableciendo lista completa de jugadores:",
-          data.players.length,
-          "jugadores:",
-          data.players.map((p: any) => ({ id: p.id, username: p.username }))
-        );
-        tryHydrateLocalPoseFromServerList(data.players);
-        setPlayers(data.players);
-      }
-    });
+    colyseusClient.onPlayerJoined(onPlayerJoinedHandler);
 
     colyseusClient.onPlayerLeft((data) => {
       console.log("👤 Jugador salió:", data);
@@ -347,9 +329,7 @@ export const useSocket = () => {
     // World events
     colyseusClient.onWorldUpdate((data) => {
       console.log("🌍 Actualización del mundo:", data);
-      if (data.players) {
-        setPlayers(data.players);
-      }
+      applyPlayersSnapshot(data as { players?: unknown });
     });
 
     colyseusClient.onWorldChanged((data) => {
@@ -402,7 +382,11 @@ export const useSocket = () => {
     // WorldClient events (map sync)
     const handleMapChanged = (data: any) => {
       console.log("🗺️ map:changed recibido", data);
-      // Actualizar mapId y posición del jugador que cambió
+      const myId = colyseusClient.getSessionId();
+      if (myId && data.playerId === myId && data.mapId) {
+        updateLocalPlayer({ mapId: data.mapId as Player["mapId"] });
+        colyseusClient.emit("local:map-sync", { mapId: data.mapId });
+      }
       updateWorldPlayer(data.playerId, {
         position: data.position,
         rotation: data.rotation,
@@ -468,19 +452,12 @@ export const useSocket = () => {
     });
 
     // Sincronización de jugadores desde el servidor
-    colyseusClient.onPlayersUpdated((data) => {
+    const onPlayersUpdatedHandler = (data: { players?: unknown }) => {
       console.log("🔥 EVENTO players:updated RECIBIDO DEL SERVIDOR:", data);
-      console.log("🔥 data.players:", data.players);
-      if (data.players) {
-        console.log(
-          "🔥 Estableciendo jugadores desde servidor:",
-          data.players.length,
-          "jugadores"
-        );
-        tryHydrateLocalPoseFromServerList(data.players);
-        setPlayers(data.players);
-      }
-    });
+      applyPlayersSnapshot(data);
+    };
+
+    colyseusClient.onPlayersUpdated(onPlayersUpdatedHandler);
 
     const onRpgSync = (raw: unknown) => {
       const p = raw as RpgSyncPayload;
@@ -539,8 +516,9 @@ export const useSocket = () => {
     };
     colyseusClient.on(SceneMessages.AppliedDocumentV0_1, onSceneAuthoringApplied);
 
-    // ES: `connect()` retrasa `setIsConnected` 500ms; antes no hay listeners y se pierde rpg:sync.
-    // EN: connect() delays isConnected — request RPG again once handlers are attached.
+    // ES: Re-aplicar snapshot si llegó antes de registrar handlers (sin delay artificial).
+    // EN: Replay join snapshot if it arrived before useSocket handlers attached.
+    colyseusClient.replayPendingSnapshots();
     queueMicrotask(() => {
       try {
         const r = colyseusClient.getSocket();
@@ -556,10 +534,11 @@ export const useSocket = () => {
 
     // Cleanup function
     return () => {
+      colyseusClient.off(PlayerMessages.Joined, onPlayerJoinedHandler);
+      colyseusClient.off("players:updated", onPlayersUpdatedHandler);
       colyseusClient.off(RpgMessages.Sync, onRpgSync);
       colyseusClient.off(RpgMessages.Error, onRpgError);
       colyseusClient.off(SceneMessages.AppliedDocumentV0_1, onSceneAuthoringApplied);
-      colyseusClient.removeAllListeners();
       worldClient.off("map:changed", handleMapChanged);
       worldClient.off("map:update", handleMapUpdate);
     };
@@ -569,6 +548,7 @@ export const useSocket = () => {
     updatePosition,
     updateRotation,
     setPlayers,
+    updateLocalPlayer,
     setRpgSync,
     addNotification,
   ]);

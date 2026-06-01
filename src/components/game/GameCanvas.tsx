@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect, useCallback, useMemo } from 'react';
+import { Suspense, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { Canvas } from '@react-three/fiber';
 import { useSocket } from '@/hooks/useSocket';
@@ -104,7 +104,7 @@ export default function GameCanvas() {
   const { data: session, status } = useSession();
   const isAuthenticated = status === 'authenticated';
   const { isConnected, connectionError, connect, joinGame } = useSocket();
-  const { player, setPlayer } = usePlayerStore();
+  const { player, setPlayer, updatePlayer } = usePlayerStore();
   const { players } = useWorldStore();
   const {
     isInventoryOpen,
@@ -142,12 +142,37 @@ export default function GameCanvas() {
   const [contrast, setContrast] = useState(100);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentMap, setCurrentMap] = useState('exterior');
+  const worldJoinSentRef = useRef(false);
   const setActiveMapId = useGameWorldStore((s) => s.setActiveMapId);
   const richExterior = currentMap === 'exterior' && !FRAMEWORK_DEMO;
 
   useEffect(() => {
     setActiveMapId(currentMap);
   }, [currentMap, setActiveMapId]);
+
+  useEffect(() => {
+    const onMapSync = (raw: unknown) => {
+      const mapId = (raw as { mapId?: string })?.mapId;
+      if (typeof mapId === 'string' && mapId.length > 0 && mapId !== currentMap) {
+        setCurrentMap(mapId);
+      }
+    };
+    colyseusClient.on('local:map-sync', onMapSync);
+    return () => {
+      colyseusClient.off('local:map-sync', onMapSync);
+    };
+  }, [currentMap]);
+
+  useEffect(() => {
+    if (!isGameStarted || !isConnected || worldJoinSentRef.current) return;
+    const sessionId = colyseusClient.getSessionId();
+    const p = usePlayerStore.getState().player;
+    if (!sessionId || !p?.username?.trim()) return;
+
+    updatePlayer({ id: sessionId });
+    joinGame(sessionId, p.username.trim(), p.worldId);
+    worldJoinSentRef.current = true;
+  }, [isGameStarted, isConnected, joinGame, updatePlayer]);
 
   useEffect(() => {
     if (requiredModelsLoading || !requiredModelsCheck) return;
@@ -613,7 +638,7 @@ export default function GameCanvas() {
   };
 
   const handleLobbyEnterRoom = useCallback(
-    (room: PublicPortalRoom) => {
+    (room: PublicPortalRoom, displayName: string) => {
       if (room.requiresAuth && !isAuthenticated) {
         setShowLogin(true);
         return;
@@ -641,10 +666,13 @@ export default function GameCanvas() {
         });
       }
       if (!room.requiresAuth) {
-        const gid = `guest-${crypto.randomUUID().slice(0, 10)}`;
+        const guestSuffix = crypto.randomUUID().slice(0, 8);
+        const name =
+          displayName.trim().slice(0, 48) ||
+          `Invitado-${guestSuffix.slice(0, 4)}`;
         setPlayer({
-          id: gid,
-          username: 'Invitado',
+          id: `guest-${guestSuffix}`,
+          username: name,
           position: { x: 0, y: 0, z: 0 },
           rotation: { x: 0, y: 0, z: 0 },
           health: 100,
@@ -658,6 +686,7 @@ export default function GameCanvas() {
           lastSeen: new Date(),
         });
       }
+      worldJoinSentRef.current = false;
       setPendingRoom(room);
       setShowLobby(false);
       setShowCharacterCreator(true);
@@ -679,14 +708,6 @@ export default function GameCanvas() {
       await connect(roomName, joinOpts);
     } catch {
       /* connectionError en useSocket */
-    }
-    const p = usePlayerStore.getState().player;
-    if (p) {
-      setTimeout(() => {
-        joinGame(p.id, p.username, p.worldId);
-      }, 800);
-    } else {
-      console.warn('⚠️ No hay jugador tras crear personaje');
     }
   };
 

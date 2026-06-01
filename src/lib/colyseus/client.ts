@@ -26,6 +26,9 @@ class ColyseusClient {
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
   private reconnectDelay: number = 1000;
+  /** ES: Snapshot recibido antes de que useSocket registre handlers. EN: Early join snapshot buffer. */
+  private lastPlayersUpdated: { players: unknown[] } | null = null;
+  private lastRpgSyncPayload: unknown | null = null;
 
   private constructor() {}
 
@@ -152,6 +155,8 @@ class ColyseusClient {
       this.room = null;
       this.isConnected = false;
       this.currentJoinedRoom = null;
+      this.lastPlayersUpdated = null;
+      this.lastRpgSyncPayload = null;
     }
   }
 
@@ -167,8 +172,37 @@ class ColyseusClient {
     return this.room?.sessionId || null;
   }
 
+  private rememberPlayersSnapshot(data: unknown): void {
+    if (
+      data &&
+      typeof data === "object" &&
+      "players" in data &&
+      Array.isArray((data as { players: unknown }).players)
+    ) {
+      this.lastPlayersUpdated = data as { players: unknown[] };
+    }
+  }
+
+  /** ES: Re-aplica snapshots si llegaron durante la carrera de conexión. EN: Replay buffered join snapshots. */
+  public replayPendingSnapshots(): void {
+    if (this.lastPlayersUpdated) {
+      this.emit("players:updated", this.lastPlayersUpdated);
+      this.emit(PlayerMessages.Joined, this.lastPlayersUpdated);
+    }
+    if (this.lastRpgSyncPayload != null) {
+      this.emit(RpgMessages.Sync, this.lastRpgSyncPayload);
+    }
+  }
+
+  public getLastPlayersSnapshot(): { players: unknown[] } | null {
+    return this.lastPlayersUpdated;
+  }
+
   private setupRoomListeners() {
     if (!this.room) return;
+
+    this.lastPlayersUpdated = null;
+    this.lastRpgSyncPayload = null;
 
     // Room events
     this.room.onLeave((code) => {
@@ -213,6 +247,7 @@ class ColyseusClient {
     });
 
     this.room.onMessage(RpgMessages.Sync, (data: unknown) => {
+      this.lastRpgSyncPayload = data;
       this.emit(RpgMessages.Sync, data);
     });
 
@@ -259,6 +294,69 @@ class ColyseusClient {
 
     this.room.onMessage(StallMessages.Result, (data: unknown) => {
       this.emit(StallMessages.Result, data);
+    });
+
+    const playerMessageTypes = [
+      PlayerMessages.Joined,
+      PlayerMessages.Left,
+      PlayerMessages.Moved,
+      PlayerMessages.Attacked,
+      PlayerMessages.Damaged,
+      PlayerMessages.Died,
+      PlayerMessages.Respawned,
+      PlayerMessages.LevelUp,
+      PlayerMessages.Role,
+    ] as const;
+
+    for (const type of playerMessageTypes) {
+      this.room.onMessage(type, (data: unknown) => {
+        if (type === PlayerMessages.Joined) {
+          this.rememberPlayersSnapshot(data);
+        }
+        this.emit(type, data);
+      });
+    }
+
+    this.room.onMessage("players:updated", (data: unknown) => {
+      this.rememberPlayersSnapshot(data);
+      this.emit("players:updated", data);
+    });
+
+    this.room.onMessage(WorldMessages.Update, (data: unknown) => {
+      this.rememberPlayersSnapshot(data);
+      this.emit(WorldMessages.Update, data);
+    });
+
+    this.room.onMessage(WorldMessages.Changed, (data: unknown) => {
+      this.emit(WorldMessages.Changed, data);
+    });
+
+    this.room.onMessage(ChatMessages.Message, (data: unknown) => {
+      this.emit(ChatMessages.Message, data);
+    });
+
+    this.room.onMessage(ChatMessages.System, (data: unknown) => {
+      this.emit(ChatMessages.System, data);
+    });
+
+    this.room.onMessage(MonsterMessages.Spawned, (data: unknown) => {
+      this.emit(MonsterMessages.Spawned, data);
+    });
+
+    this.room.onMessage(MonsterMessages.Died, (data: unknown) => {
+      this.emit(MonsterMessages.Died, data);
+    });
+
+    this.room.onMessage(MonsterMessages.Moved, (data: unknown) => {
+      this.emit(MonsterMessages.Moved, data);
+    });
+
+    this.room.onMessage(SystemMessages.Error, (data: unknown) => {
+      this.emit(SystemMessages.Error, data);
+    });
+
+    this.room.onMessage(SystemMessages.Maintenance, (data: unknown) => {
+      this.emit(SystemMessages.Maintenance, data);
     });
 
     // ES: El servidor manda `rpg:sync` en onJoin antes de que exista este handler (carrera).
@@ -370,96 +468,83 @@ class ColyseusClient {
     return false;
   }
 
-  // Event listeners - manteniendo la misma interfaz
+  // Event listeners — subscribe via emit bus (handlers registered once in setupRoomListeners)
   public onPlayerJoined(callback: (data: any) => void): void {
-    console.log("🔧 Registrando listener para player:joined");
-    this.room?.onMessage(PlayerMessages.Joined, (data) => {
-      console.log("🔥 EVENTO player:joined RECIBIDO EN COLYSEUS:", data);
-      callback(data);
-    });
+    this.on(PlayerMessages.Joined, callback as (data: unknown) => void);
   }
 
   public onPlayerLeft(callback: (data: any) => void): void {
-    this.room?.onMessage(PlayerMessages.Left, callback);
+    this.on(PlayerMessages.Left, callback as (data: unknown) => void);
   }
 
   public onPlayerMoved(callback: (data: any) => void): void {
-    this.room?.onMessage(PlayerMessages.Moved, callback);
+    this.on(PlayerMessages.Moved, callback as (data: unknown) => void);
   }
 
   public onPlayerAttacked(callback: (data: any) => void): void {
-    this.room?.onMessage(PlayerMessages.Attacked, callback);
+    this.on(PlayerMessages.Attacked, callback as (data: unknown) => void);
   }
 
   public onPlayerDamaged(callback: (data: any) => void): void {
-    this.room?.onMessage(PlayerMessages.Damaged, callback);
+    this.on(PlayerMessages.Damaged, callback as (data: unknown) => void);
   }
 
   public onPlayerDied(callback: (data: any) => void): void {
-    this.room?.onMessage(PlayerMessages.Died, callback);
+    this.on(PlayerMessages.Died, callback as (data: unknown) => void);
   }
 
   public onPlayerRespawned(callback: (data: any) => void): void {
-    this.room?.onMessage(PlayerMessages.Respawned, callback);
+    this.on(PlayerMessages.Respawned, callback as (data: unknown) => void);
   }
 
   public onPlayerLevelUp(callback: (data: any) => void): void {
-    this.room?.onMessage(PlayerMessages.LevelUp, callback);
+    this.on(PlayerMessages.LevelUp, callback as (data: unknown) => void);
   }
 
   public onPlayerRole(
     callback: (data: { playerId: string; roleId: string | null }) => void
   ): void {
-    this.room?.onMessage(PlayerMessages.Role, callback);
+    this.on(PlayerMessages.Role, callback as (data: unknown) => void);
   }
 
   public onChatMessage(callback: (data: any) => void): void {
-    this.room?.onMessage(ChatMessages.Message, callback);
+    this.on(ChatMessages.Message, callback as (data: unknown) => void);
   }
 
   public onChatSystem(callback: (data: any) => void): void {
-    this.room?.onMessage(ChatMessages.System, callback);
+    this.on(ChatMessages.System, callback as (data: unknown) => void);
   }
 
   public onWorldUpdate(callback: (data: any) => void): void {
-    this.room?.onMessage(WorldMessages.Update, callback);
+    this.on(WorldMessages.Update, callback as (data: unknown) => void);
   }
 
   public onWorldChanged(callback: (data: any) => void): void {
-    this.room?.onMessage(WorldMessages.Changed, callback);
+    this.on(WorldMessages.Changed, callback as (data: unknown) => void);
   }
 
   public onMonsterSpawned(callback: (data: any) => void): void {
-    this.room?.onMessage(MonsterMessages.Spawned, callback);
+    this.on(MonsterMessages.Spawned, callback as (data: unknown) => void);
   }
 
   public onMonsterDied(callback: (data: any) => void): void {
-    this.room?.onMessage(MonsterMessages.Died, callback);
+    this.on(MonsterMessages.Died, callback as (data: unknown) => void);
   }
 
   public onMonsterMoved(callback: (data: any) => void): void {
-    this.room?.onMessage(MonsterMessages.Moved, callback);
+    this.on(MonsterMessages.Moved, callback as (data: unknown) => void);
   }
 
   public onSystemError(callback: (data: any) => void): void {
-    this.room?.onMessage(SystemMessages.Error, callback);
+    this.on(SystemMessages.Error, callback as (data: unknown) => void);
   }
 
   public onSystemMaintenance(callback: (data: any) => void): void {
-    this.room?.onMessage(SystemMessages.Maintenance, callback);
+    this.on(SystemMessages.Maintenance, callback as (data: unknown) => void);
   }
 
   public onPlayersUpdated(callback: (data: any) => void): void {
-    console.log(
-      "🔧 Registrando listener para players:updated en ColyseusClient"
-    );
-    this.room?.onMessage("players:updated", (data) => {
-      console.log(
-        "🔥 EVENTO players:updated RECIBIDO EN COLYSEUS CLIENT:",
-        data
-      );
-      callback(data);
-    });
+    this.on("players:updated", callback as (data: unknown) => void);
   }
 
   // Event system methods
@@ -489,10 +574,9 @@ class ColyseusClient {
     if (i !== -1) list.splice(i, 1);
   }
 
-  // Remove all event listeners
+  // Remove app-level listeners registered via .on() (does not touch Colyseus room handlers)
   public removeAllListeners(): void {
-    // Colyseus maneja esto automáticamente
-    console.log("🔧 Removiendo todos los listeners");
+    this.eventListeners.clear();
   }
 }
 
