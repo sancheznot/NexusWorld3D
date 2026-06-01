@@ -11,7 +11,12 @@ Desde la **raíz del repositorio** / From the **repository root**:
 
 ```bash
 npm install
+npm run validate-required-models -- --strict
 ```
+
+**ES.** Tras clonar, comprueba que existan los modelos de personaje (`men-all.glb`, `women-all.glb`). Si falta alguno verás 404 en el creador de personaje — detalle en [`REQUIRED_MODELS.md`](./REQUIRED_MODELS.md).
+
+**EN.** After clone, run validation so boot character GLBs exist before opening `/game`. See [`REQUIRED_MODELS.md`](./REQUIRED_MODELS.md).
 
 **ES.** El workspace incluye `apps/demo`: puedes ejecutar `npm run dev:demo` allí (`cd apps/demo`) — delega a la raíz. Ver [`apps/demo/README.md`](../apps/demo/README.md).
 

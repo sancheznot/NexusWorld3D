@@ -40,6 +40,7 @@
     "validate-content": "tsx scripts/validate-content.ts",
     "validate-scene": "tsx scripts/validate-scene.ts",
     "validate-build-assets": "tsx scripts/validate-build-assets.ts",
+    "validate-required-models": "tsx scripts/validate-required-models.ts",
     "check:packages": "tsx scripts/check-package-boundaries.ts",
     "check:engine-imports": "tsx scripts/check-engine-imports.ts",
     "check:oss-packages": "node scripts/check-oss-packages.mjs",

@@ -54,5 +54,7 @@
 
 ## Related / Ver también
 
+- [`docs/REQUIRED_MODELS.md`](./REQUIRED_MODELS.md) — qué modelos incluye el template y cómo validarlos tras `git clone`.
 - `docs/ADDING_CONTENT.md` §5 — convención `pieceId` ↔ GLB.
+- `npm run validate-required-models` — boot/demo/full tiers desde `content/required-models.json`.
 - `npm run validate-build-assets` — comprobar que existan GLBs referenciados (no valida licencia).

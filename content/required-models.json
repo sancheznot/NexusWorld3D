@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "description": "Manifest of 3D assets referenced by the framework. Run: npm run validate-required-models",
+  "tiers": {
+    "boot": {
+      "label": "Boot / Arranque",
+      "description": "Required to pass character creator and load the player. Shipped in this repo.",
+      "assets": [
+        {
+          "path": "public/models/characters/men/men-all.glb",
+          "url": "/models/characters/men/men-all.glb",
+          "shippedInRepo": true,
+          "usedBy": ["CharacterCreatorV2", "PlayerV2", "nexusworld3d.config.ts"]
+        },
+        {
+          "path": "public/models/characters/women/women-all.glb",
+          "url": "/models/characters/women/women-all.glb",
+          "shippedInRepo": true,
+          "usedBy": ["CharacterCreatorV2", "PlayerV2", "nexusworld3d.config.ts"]
+        },
+        {
+          "path": "public/models/characters/men/men_shape.png",
+          "url": "/models/characters/men/men_shape.png",
+          "shippedInRepo": true,
+          "optional": true,
+          "usedBy": ["InventoryUI"]
+        },
+        {
+          "path": "public/models/characters/women/women-shape.png",
+          "url": "/models/characters/women/women-shape.png",
+          "shippedInRepo": true,
+          "optional": true,
+          "usedBy": ["InventoryUI"]
+        }
+      ]
+    },
+    "demo": {
+      "label": "Framework demo / Demo del framework",
+      "description": "Used when NEXT_PUBLIC_FRAMEWORK_DEMO=1 (light exterior, no full city).",
+      "assets": [
+        {
+          "path": "public/models/sky/sky_43_2k.png",
+          "url": "/models/sky/sky_43_2k.png",
+          "shippedInRepo": false,
+          "usedBy": ["Skybox"]
+        },
+        {
+          "path": "public/models/sky/sky_17_2k.png",
+          "url": "/models/sky/sky_17_2k.png",
+          "shippedInRepo": false,
+          "usedBy": ["Skybox"]
+        },
+        {
+          "path": "public/models/sky/sun-realistic.glb",
+          "url": "/models/sky/sun-realistic.glb",
+          "shippedInRepo": false,
+          "usedBy": ["SunMoon"]
+        },
+        {
+          "path": "public/models/sky/moon-realistic.glb",
+          "url": "/models/sky/moon-realistic.glb",
+          "shippedInRepo": false,
+          "usedBy": ["SunMoon"]
+        }
+      ]
+    },
+    "full": {
+      "label": "Full game exterior / Juego completo exterior",
+      "description": "Required for the default exterior map (not FRAMEWORK_DEMO). Copy from your game asset pack or S3.",
+      "assets": [
+        {
+          "path": "public/models/city.glb",
+          "url": "/models/city.glb",
+          "shippedInRepo": false,
+          "usedBy": ["CityModel", "GameCanvas", "LiveCameraPreview"]
+        },
+        {
+          "path": "public/models/car-wash.glb",
+          "url": "/models/car-wash.glb",
+          "shippedInRepo": false,
+          "usedBy": ["GameCanvas", "MapManager"]
+        },
+        {
+          "path": "public/models/maps/main_map/main_building/interior-hotel.glb",
+          "url": "/models/maps/main_map/main_building/interior-hotel.glb",
+          "shippedInRepo": false,
+          "usedBy": ["HotelInterior", "GameCanvas"]
+        },
+        {
+          "path": "public/models/vehicles/cars/City_Car_07.glb",
+          "url": "/models/vehicles/cars/City_Car_07.glb",
+          "shippedInRepo": false,
+          "usedBy": ["CannonCar", "GameCanvas"]
+        },
+        {
+          "path": "public/models/vehicles/cars/Wheel_01.glb",
+          "url": "/models/vehicles/cars/Wheel_01.glb",
+          "shippedInRepo": false,
+          "usedBy": ["CannonCar"]
+        },
+        {
+          "path": "public/models/tools/farm/axe_1.glb",
+          "url": "/models/tools/farm/axe_1.glb",
+          "shippedInRepo": false,
+          "usedBy": ["HeldAxe", "items.ts"]
+        }
+      ]
+    }
+  }
+}

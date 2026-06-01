@@ -19,6 +19,7 @@ import SideScrollCamera from '@/components/world/SideScrollCamera';
 import TestingCamera from '@/components/world/TestingCamera';
 import { useTestingCamera } from '@/hooks/useTestingCamera';
 import { useKeyboard } from '@/hooks/useKeyboard';
+import { useRequiredModelsCheck } from '@/hooks/useRequiredModelsCheck';
 import { useServerMovementSync } from '@/hooks/useServerMovementSync';
 import { getPhysicsInstance } from '@/hooks/useCannonPhysics';
 import LoginModal from '@/components/game/LoginModal';
@@ -27,6 +28,7 @@ import GameLobby, {
   type GameLobbyMeProfile,
 } from '@/components/game/GameLobby';
 import CharacterCreatorV2 from '@/components/game/CharacterCreatorV2';
+import MissingModelsGuideModal from '@/components/game/MissingModelsGuideModal';
 import GameSettings from '@/components/game/GameSettings';
 import ModelInfo from '@/components/ui/ModelInfo';
 import FPSCounter from '@/components/ui/FPSCounter';
@@ -120,6 +122,15 @@ export default function GameCanvas() {
   
   // Game settings state
   const [showSettings, setShowSettings] = useState(false);
+  const [showMissingModelsGuide, setShowMissingModelsGuide] = useState(false);
+  const [missingModelsGuideDismissed, setMissingModelsGuideDismissed] = useState(false);
+  const {
+    data: requiredModelsCheck,
+    loading: requiredModelsLoading,
+    error: requiredModelsError,
+    refresh: refreshRequiredModels,
+    hasBlockingMissing,
+  } = useRequiredModelsCheck(true);
   const { isActive: isTestingCameraActive, height: testingHeight, distance: testingDistance } = useTestingCamera();
   
   // Game flow state — lobby primero; login solo si la sala exige cuenta
@@ -137,6 +148,21 @@ export default function GameCanvas() {
   useEffect(() => {
     setActiveMapId(currentMap);
   }, [currentMap, setActiveMapId]);
+
+  useEffect(() => {
+    if (requiredModelsLoading || !requiredModelsCheck) return;
+    if (!hasBlockingMissing) {
+      setShowMissingModelsGuide(false);
+      return;
+    }
+    if (missingModelsGuideDismissed) return;
+    setShowMissingModelsGuide(true);
+  }, [
+    requiredModelsLoading,
+    requiredModelsCheck,
+    hasBlockingMissing,
+    missingModelsGuideDismissed,
+  ]);
 
   useEffect(() => {
     useBuildPreviewStore.getState().setBuildPreviewPieceId(null);
@@ -1143,6 +1169,21 @@ export default function GameCanvas() {
           onContrastChange={setContrast}
         />
       )}
+
+      <MissingModelsGuideModal
+        isOpen={showMissingModelsGuide}
+        loading={requiredModelsLoading}
+        data={requiredModelsCheck}
+        error={requiredModelsError}
+        onRefresh={() => {
+          setMissingModelsGuideDismissed(false);
+          void refreshRequiredModels();
+        }}
+        onDismiss={() => {
+          setMissingModelsGuideDismissed(true);
+          setShowMissingModelsGuide(false);
+        }}
+      />
 
       <LoginModal
         isOpen={showLogin}

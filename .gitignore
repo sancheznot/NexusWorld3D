@@ -10,8 +10,21 @@ out/
 build/
 dist/
 
-# Large model files / Private models
-public/models/
+# Large model files / Private models (game-specific GLBs stay local or on CDN)
+public/models/**
+# ES: Personajes base incluidos en el template — sin estos, el creador de personaje falla con 404.
+# EN: Boot character models shipped with the template (see docs/REQUIRED_MODELS.md).
+!public/models/characters/
+public/models/characters/**
+!public/models/characters/men/
+!public/models/characters/women/
+public/models/characters/men/**
+!public/models/characters/men/men-all.glb
+!public/models/characters/men/men_shape.png
+public/models/characters/women/**
+!public/models/characters/women/women-all.glb
+!public/models/characters/women/women-shape.png
+!public/models/characters/README.md
 
 # Documentation exclusions
 docs/Sketchbook/
