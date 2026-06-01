@@ -133,7 +133,11 @@ export default function GameLobby({
   const [chatMessages, setChatMessages] = useState<LobbyChatRow[]>([]);
   const [chatStatus, setChatStatus] = useState<string | null>(null);
   const [chatDraft, setChatDraft] = useState("");
-  const [guestDisplayName, setGuestDisplayName] = useState("");
+  const [guestDisplayName, setGuestDisplayName] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const stored = localStorage.getItem(LS_GUEST_LOBBY_NAME)?.trim();
+    return stored && stored.length >= 2 ? stored : "";
+  });
   const [showProfile, setShowProfile] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileForm, setProfileForm] = useState({ displayName: "", bio: "" });
@@ -235,12 +239,11 @@ export default function GameLobby({
     void load();
   }, [load]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+  useLayoutEffect(() => {
     if (isAuthenticated) return;
-    const stored = localStorage.getItem(LS_GUEST_LOBBY_NAME)?.trim();
-    setGuestDisplayName(stored && stored.length >= 2 ? stored : randomGuestTag());
-  }, [isAuthenticated]);
+    if (guestDisplayName.trim().length >= 2) return;
+    setGuestDisplayName(randomGuestTag());
+  }, [isAuthenticated, guestDisplayName]);
 
   /**
    * ES: Sin `Math.random` aquí: SSR y primer paint del cliente deben coincidir (hydration).

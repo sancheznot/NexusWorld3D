@@ -94,6 +94,7 @@ import { frameworkColyseusRoomName, frameworkDefaultWorldId } from '@/lib/framew
 import type { PublicPortalRoom } from '@/types/gamePortal.types';
 import FrameworkDemoGround from '@/components/world/FrameworkDemoGround';
 import SceneAuthoringPreviewLayer from '@/components/world/SceneAuthoringPreviewLayer';
+import { resolveRemoteAnimation } from '@/lib/gameplay/resolveRemoteAnimation';
 
 /** ES: `NEXT_PUBLIC_FRAMEWORK_DEMO=1` — exterior ligero sin ciudad ni capas de juego. EN: Lightweight exterior. */
 const FRAMEWORK_DEMO =
@@ -929,7 +930,12 @@ export default function GameCanvas() {
                   keyboardEnabled={false}
                   customization={otherPlayer.customization}
                   username={otherPlayer.username}
-                  remoteAnimation={otherPlayer.animation}
+                  remoteAnimation={resolveRemoteAnimation({
+                    animation: otherPlayer.animation,
+                    isMoving: otherPlayer.isMoving,
+                    isRunning: otherPlayer.isRunning,
+                    lastUpdate: otherPlayer.lastUpdate,
+                  })}
                 />
               ));
           })()}

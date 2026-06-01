@@ -74,6 +74,7 @@ interface UIState {
   pushItemGainToast: (t: Omit<ItemGainToast, 'id' | 'timestamp'> & { id?: string }) => void;
   removeItemGainToast: (id: string) => void;
   addChatMessage: (message: ChatMessage) => void;
+  setChatMessages: (messages: ChatMessage[]) => void;
   setChatInput: (input: string) => void;
   setChatChannel: (channel: string) => void;
   clearChat: () => void;
@@ -464,6 +465,10 @@ export const useUIStore = create<UIState>()(
         set((state) => ({
           chatMessages: [...state.chatMessages, message].slice(-100) // Keep last 100 messages
         }));
+      },
+
+      setChatMessages: (messages) => {
+        set({ chatMessages: messages.slice(-100) });
       },
 
       setChatInput: (input) => {

@@ -15,6 +15,7 @@ import { getPhysicsInstance } from "@/hooks/useCannonPhysics";
 import {
   InventoryMessages,
   PlayerMessages,
+  ChatMessages,
   RpgMessages,
   SceneMessages,
 } from "@nexusworld3d/protocol";
@@ -49,7 +50,7 @@ export const useSocket = () => {
     setPlayers,
     players,
   } = useWorldStore();
-  const { addChatMessage, addNotification } = useUIStore();
+  const { addChatMessage, addNotification, setChatMessages } = useUIStore();
 
   const connect = async (
     roomName: string = frameworkColyseusRoomName,
@@ -316,15 +317,45 @@ export const useSocket = () => {
     colyseusClient.onChatSystem((data) => {
       console.log("🔧 Mensaje del sistema:", data);
       addChatMessage({
-        id: `system-${Date.now()}`,
+        id: data.id || `system-${Date.now()}`,
         playerId: "system",
         username: "Sistema",
         message: data.message,
         channel: "system",
-        timestamp: new Date(),
+        timestamp: new Date(data.timestamp || Date.now()),
         type: "system",
       });
     });
+
+    const onChatHistory = (raw: unknown) => {
+      const messages = (raw as { messages?: unknown[] })?.messages;
+      if (!Array.isArray(messages) || messages.length === 0) return;
+      const parsed = messages
+        .map((msg) => {
+          const m = msg as {
+            id?: string;
+            playerId?: string;
+            username?: string;
+            message?: string;
+            channel?: string;
+            timestamp?: string | Date;
+            type?: string;
+          };
+          if (!m.message) return null;
+          return {
+            id: m.id || `hist-${Math.random().toString(36).slice(2, 9)}`,
+            playerId: m.playerId || "unknown",
+            username: m.username || "Jugador",
+            message: m.message,
+            channel: m.channel || "global",
+            timestamp: new Date(m.timestamp || Date.now()),
+            type: (m.type as "player" | "system" | "admin") || "player",
+          };
+        })
+        .filter(Boolean) as Parameters<typeof setChatMessages>[0];
+      setChatMessages(parsed);
+    };
+    colyseusClient.on(ChatMessages.History, onChatHistory);
 
     // World events
     colyseusClient.onWorldUpdate((data) => {
@@ -536,6 +567,7 @@ export const useSocket = () => {
     return () => {
       colyseusClient.off(PlayerMessages.Joined, onPlayerJoinedHandler);
       colyseusClient.off("players:updated", onPlayersUpdatedHandler);
+      colyseusClient.off(ChatMessages.History, onChatHistory);
       colyseusClient.off(RpgMessages.Sync, onRpgSync);
       colyseusClient.off(RpgMessages.Error, onRpgError);
       colyseusClient.off(SceneMessages.AppliedDocumentV0_1, onSceneAuthoringApplied);
@@ -551,6 +583,7 @@ export const useSocket = () => {
     updateLocalPlayer,
     setRpgSync,
     addNotification,
+    setChatMessages,
   ]);
 
   // Cleanup on unmount

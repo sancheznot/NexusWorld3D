@@ -564,6 +564,10 @@ export class NexusWorldRoom extends Room {
     }
 
     // Agregar jugador
+    player.isMoving = false;
+    player.isRunning = false;
+    player.animation = "idle";
+
     this.players.set(client.sessionId, player);
 
     // Actualizar estado de Colyseus
@@ -683,6 +687,12 @@ export class NexusWorldRoom extends Room {
       client,
       `¡Bienvenido a ${nexusWorld3DConfig.branding.appName}, ${player.username}!`
     );
+
+    if (this.chatMessages.length > 0) {
+      client.send(ChatMessages.History, {
+        messages: this.chatMessages.slice(-50),
+      });
+    }
 
     console.log(
       `✅ Jugador ${player.username} agregado. Total: ${this.players.size}`
@@ -1007,11 +1017,14 @@ export class NexusWorldRoom extends Room {
         if (player) {
           player.position = data.position;
           player.rotation = data.rotation;
+          player.isMoving = Boolean(data.isMoving);
+          player.isRunning = Boolean(data.isRunning);
           player.animation =
-            data.animation ||
-            (data.isRunning ? "running" : data.isMoving ? "walking" : "idle");
-          player.isMoving = data.isMoving || false;
-          player.isRunning = data.isRunning || false;
+            player.isRunning && player.isMoving
+              ? "running"
+              : player.isMoving
+                ? "walking"
+                : "idle";
           player.lastUpdate = Date.now();
           // Reflejar movimiento también en el estado sincronizado
           const statePlayer = this.state.players.get(client.sessionId);

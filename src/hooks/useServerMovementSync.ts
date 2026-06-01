@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { colyseusClient } from '@/lib/colyseus/client';
 import { usePlayerStore } from '@/store/playerStore';
+import { deriveMovementAnimation } from '@/lib/gameplay/resolveRemoteAnimation';
 
 const SYNC_MS = 100;
 
@@ -33,7 +34,11 @@ export function useServerMovementSync(enabled: boolean) {
         isMoving: s.isMoving,
         isRunning: s.isRunning,
         isJumping: s.isJumping,
-        animation: s.currentAnimation || 'idle',
+        animation: deriveMovementAnimation({
+          isMoving: s.isMoving,
+          isRunning: s.isRunning,
+          isJumping: s.isJumping,
+        }),
         timestamp: now,
       });
     };
@@ -53,7 +58,11 @@ export function useServerMovementSync(enabled: boolean) {
         isMoving: s.isMoving,
         isRunning: s.isRunning,
         isJumping: s.isJumping,
-        animation: s.currentAnimation || 'idle',
+        animation: deriveMovementAnimation({
+          isMoving: s.isMoving,
+          isRunning: s.isRunning,
+          isJumping: s.isJumping,
+        }),
         timestamp: Date.now(),
       });
     };

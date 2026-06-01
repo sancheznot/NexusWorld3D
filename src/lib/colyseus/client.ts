@@ -29,6 +29,7 @@ class ColyseusClient {
   /** ES: Snapshot recibido antes de que useSocket registre handlers. EN: Early join snapshot buffer. */
   private lastPlayersUpdated: { players: unknown[] } | null = null;
   private lastRpgSyncPayload: unknown | null = null;
+  private lastChatHistory: unknown[] | null = null;
 
   private constructor() {}
 
@@ -157,6 +158,7 @@ class ColyseusClient {
       this.currentJoinedRoom = null;
       this.lastPlayersUpdated = null;
       this.lastRpgSyncPayload = null;
+      this.lastChatHistory = null;
     }
   }
 
@@ -192,6 +194,9 @@ class ColyseusClient {
     if (this.lastRpgSyncPayload != null) {
       this.emit(RpgMessages.Sync, this.lastRpgSyncPayload);
     }
+    if (this.lastChatHistory) {
+      this.emit(ChatMessages.History, { messages: this.lastChatHistory });
+    }
   }
 
   public getLastPlayersSnapshot(): { players: unknown[] } | null {
@@ -203,6 +208,7 @@ class ColyseusClient {
 
     this.lastPlayersUpdated = null;
     this.lastRpgSyncPayload = null;
+    this.lastChatHistory = null;
 
     // Room events
     this.room.onLeave((code) => {
@@ -335,6 +341,18 @@ class ColyseusClient {
       this.emit(ChatMessages.Message, data);
     });
 
+    this.room.onMessage(ChatMessages.History, (data: unknown) => {
+      if (
+        data &&
+        typeof data === "object" &&
+        "messages" in data &&
+        Array.isArray((data as { messages: unknown }).messages)
+      ) {
+        this.lastChatHistory = (data as { messages: unknown[] }).messages;
+      }
+      this.emit(ChatMessages.History, data);
+    });
+
     this.room.onMessage(ChatMessages.System, (data: unknown) => {
       this.emit(ChatMessages.System, data);
     });
@@ -416,10 +434,12 @@ class ColyseusClient {
   }
 
   // Chat events
-  public sendMessage(data: { message: string; channel: string }): void {
+  public sendMessage(data: { message: string; channel: string }): boolean {
     if (this.room?.connection.isOpen) {
       this.room.send(ChatMessages.Message, data);
+      return true;
     }
+    return false;
   }
 
   public joinChannel(data: { channel: string }): void {

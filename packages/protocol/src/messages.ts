@@ -124,6 +124,7 @@ export const PlayerMessages = {
 
 export const ChatMessages = {
   Message: "chat:message",
+  History: "chat:history",
   JoinChannel: "chat:join-channel",
   LeaveChannel: "chat:leave-channel",
   System: "chat:system",
