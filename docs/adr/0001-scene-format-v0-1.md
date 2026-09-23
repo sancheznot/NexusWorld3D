@@ -42,9 +42,18 @@ El plan [Motor admin estilo Unity](../plans/2026-04-04-admin-unity-style-web-eng
 |--------|---------------------------|----------|---------|
 | `nexus:resourceNode` | `{ "nodeId": string }` — id conocido en registro de nodos / `WORLD_RESOURCE_NODES` | **Sí** (autoritativo) | Opcional (preview UI) |
 | `nexus:triggerSphere` | `{ "radius": number > 0 }` | **Sí** | Opcional |
+| `nexus:box` | `size: [x,y,z]`, `color: #rrggbb`, `solid: boolean`, `mapId: string`; defaults `[1,1,1]`, `#a78bfa`, `true`, `exterior` | Schema compartido | Mesh + collider estático Cannon si `solid` |
 | `game:*` | Definido por el juego privado | **Sí** (plugins del juego) | Según el juego |
 
 **Nota / Note:** nuevos tipos `nexus:*` deben añadirse aquí y en tests/`validate-scene` fixtures cuando cambien reglas.
+
+### Incremento de cajas jugables (2026-09-22)
+
+`nexus:box` solo admite entidades raíz, un componente box por entidad y no se combina con `nexus:resourceNode`. Tamaños locales entre 0.01 y 1000; escala entre 0.01 y 1000; dimensiones finales ≤1000; posición absoluta ≤1e6. El schema rechaza propiedades desconocidas del box, números no finitos, rotaciones no unitarias y ciclos de parentesco. Las restricciones de box se comprueban antes de aplicar o cargar una escena. Los demás componentes mantienen sus validadores específicos.
+
+El cliente usa posición, quaternion, tamaño y escala del documento tanto para geometría como para colisión, y filtra por mapa. No hay cuerpos dinámicos, colliders compuestos ni jerarquías físicas en este incremento. No introduce simulación física en servidor.
+
+Con persistencia habilitada y permitida para la plantilla de sala, un error de escritura ahora rechaza apply/merge antes de mutar el estado o emitir el broadcast. Con persistencia deshabilitada sigue siendo una aplicación solo en memoria, no una publicación durable.
 
 ## Referencias / References
 

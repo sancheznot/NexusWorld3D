@@ -15,7 +15,7 @@ import {
 
 export class InventoryClient {
   private static instance: InventoryClient;
-  private eventListeners: Map<string, ((data: any) => void)[]> = new Map();
+  private eventListeners: Map<string, ((data: unknown) => void)[]> = new Map();
 
   private constructor() {
     this.bindToRoomLifecycle();
@@ -102,7 +102,7 @@ export class InventoryClient {
   /**
    * Dropear item
    */
-  public dropItem(itemId: string, position: any): void {
+  public dropItem(itemId: string, position: { x: number; y: number; z: number }): void {
     if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     room?.send('inventory:drop-item', { itemId, position });
@@ -133,24 +133,24 @@ export class InventoryClient {
   /**
    * Event system genérico
    */
-  public on(event: string, callback: InventoryEventCallback): void {
+  public on<T>(event: string, callback: InventoryEventCallback<T>): void {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, []);
     }
-    this.eventListeners.get(event)!.push(callback);
+    this.eventListeners.get(event)!.push(callback as InventoryEventCallback);
   }
 
-  public off(event: string, callback?: InventoryEventCallback): void {
+  public off<T>(event: string, callback?: InventoryEventCallback<T>): void {
     const listeners = this.eventListeners.get(event);
     if (listeners && callback) {
-      const index = listeners.indexOf(callback);
+      const index = listeners.indexOf(callback as InventoryEventCallback);
       if (index > -1) {
         listeners.splice(index, 1);
       }
     }
   }
 
-  public emit(event: string, data: any): void {
+  public emit(event: string, data: unknown): void {
     const listeners = this.eventListeners.get(event);
     if (listeners) {
       listeners.forEach(callback => callback(data));

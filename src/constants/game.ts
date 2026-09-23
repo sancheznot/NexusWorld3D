@@ -71,7 +71,9 @@ export const GAME_CONFIG = {
     deceleration: 50, // Frenado lateral
     gravity: -30, // ES: Unidades/s² (más negativo = caída más rápida). EN: Units/s².
     targetFPS: 120, // FPS objetivo por defecto
-    maxDeltaTime: 1 / 90, // Paso fijo
+    fixedTimeStep: 1 / 90,
+    maxDeltaTime: 0.1, // Cap long pauses; normal frames must retain their elapsed time.
+    maxSubSteps: 10,
     /**
      * ES: Personaje a pie — salto coherente con v = √(2·|g|·h) (misma idea que un Rigidbody en Unity).
      * EN: On-foot character — jump velocity from apex height h: v = √(2·|g|·h).

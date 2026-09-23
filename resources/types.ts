@@ -6,6 +6,7 @@
 import type { NexusWorldRoom } from "@server/rooms/NexusWorldRoom";
 import type { EconomyEvents } from "@resources/economy/server/EconomyEvents";
 import type { InventoryEvents } from "@resources/inventory/server/InventoryEvents";
+import type { JobsEvents } from '@resources/jobs/server/JobsEvents';
 
 /**
  * ES: Servicios registrados por recursos (orden: economía → inventario → …).
@@ -14,6 +15,7 @@ import type { InventoryEvents } from "@resources/inventory/server/InventoryEvent
 export interface FrameworkServices {
   economy?: EconomyEvents;
   inventory?: InventoryEvents;
+  jobs?: JobsEvents;
 }
 
 /**

@@ -183,10 +183,13 @@ export function mariaAuthAdapter(): Adapter {
       );
       const row = rows[0];
       if (!row) return null;
-      await pool.execute(
+      const [deleted] = await pool.execute<ResultSetHeader>(
         `DELETE FROM auth_verification_token WHERE identifier = ? AND token = ?`,
         [identifier, token]
       );
+      // Several requests can read the same row, but only the atomic DELETE
+      // winner may authenticate. A stale reader must not reuse the token.
+      if (deleted.affectedRows !== 1) return null;
       return {
         identifier: row.identifier,
         token: row.token,

@@ -46,7 +46,7 @@ export function useAnimationDurations(
         if (action) {
           const clip = action.getClip();
           const duration = clip.duration;
-          (animationDurations as any)[key] = duration;
+          animationDurations[key as keyof typeof animationDurations] = duration;
           console.log(`✅ Duración de ${key}: ${duration.toFixed(2)}s (${name})`);
           break;
         }
@@ -63,4 +63,3 @@ export function useAnimationDurations(
 export function getAnimationDuration(animationKey: keyof typeof animationDurations): number {
   return animationDurations[animationKey] || 1.0;
 }
-

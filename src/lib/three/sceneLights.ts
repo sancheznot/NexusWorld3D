@@ -55,7 +55,7 @@ export function generateSceneLights(root: THREE.Object3D, options: SceneLightsOp
       light.castShadow = true;
       light.shadow.mapSize.set(shadowMapSize, shadowMapSize);
       light.shadow.bias = -0.0005;
-      (light.shadow as any).normalBias = 0.02;
+      light.shadow.normalBias = 0.02;
     }
 
     if (debugHelpers) {

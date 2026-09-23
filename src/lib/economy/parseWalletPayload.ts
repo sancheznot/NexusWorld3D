@@ -1,6 +1,6 @@
 /**
- * ES: Normaliza el payload de `economy:wallet` (número o `{ amount }`, minor units).
- * EN: Normalize economy:wallet payload (number or `{ amount }`, minor units).
+ * ES: Los saldos de red siempre se expresan en unidades mayores, sin inferir por magnitud.
+ * EN: Network balances are always major units; never infer units from magnitude.
  */
 export function parseEconomyWalletAmount(data: unknown): number {
   const payload = data as { amount?: number } | number | undefined;
@@ -9,6 +9,5 @@ export function parseEconomyWalletAmount(data: unknown): number {
   else if (payload && typeof (payload as { amount?: number }).amount === 'number') {
     amount = (payload as { amount?: number }).amount as number;
   }
-  if (amount >= 10000) amount = amount / 100;
-  return Math.round(amount);
+  return Number.isFinite(amount) ? amount : 0;
 }

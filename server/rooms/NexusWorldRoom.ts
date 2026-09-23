@@ -1,6 +1,9 @@
 import { Room, Client } from "colyseus";
+import { SerialWrites } from '@server/persistence/SerialWrites';
+import { MovementBudget, resolvePortalTransition } from '@server/validation/worldMovement';
 import {
   ChatMessages,
+  SystemMessages,
   PlayerMessages,
   PROTOCOL_VERSION,
   readJoinProtocolVersion,
@@ -69,11 +72,12 @@ import {
 import { validateSceneDocumentSemanticsV0_1 } from "@server/scene/validateSceneDocumentSemanticsV0_1";
 import type { ExtendedJobId } from "@/constants/jobs";
 import {
-  fetchPlayerProfileByNorm,
-  normalizePlayerUsername,
+  fetchPlayerProfileByIdentity,
   upsertPlayerProfile,
   type PlayerProfileRow,
 } from "@/lib/db/playerProfile";
+import { authenticateWorldJoin, identityStorageKey, type WorldIdentity } from '@/lib/auth/worldIdentity';
+import { parsePlayerMovement } from '@server/validation/playerMovement';
 
 interface PlayerData {
   id: string;
@@ -112,6 +116,7 @@ interface ChatMessage {
 export class NexusWorldRoom extends Room {
   private players = new Map<string, PlayerData>();
   private chatMessages: ChatMessage[] = [];
+  private lastChatAt = new Map<string, number>();
   private redis = gameRedis;
   /** ES: Escena v0.1 aplicada en memoria (autoría / monitor HTTP). EN: In-memory applied v0.1 scene. */
   private sceneDocumentV0_1: SceneDocumentV0_1 | null = null;
@@ -144,6 +149,35 @@ export class NexusWorldRoom extends Room {
   }
   /** ES: Throttle guardado MariaDB/Redis en movimiento. EN: Throttle DB save on move. */
   private lastMoveProfileSaveAt = new Map<string, number>();
+  private movementBudgets = new Map<string, MovementBudget>();
+  private identities = new Map<string, WorldIdentity>();
+  private roomWorldId: string | null = null;
+  private static activeOwners = new Map<string, string>();
+  private profileWrites = new SerialWrites();
+
+  private releaseIdentity(sessionId: string): void {
+    const key = this.ownerKey(sessionId);
+    if (key && NexusWorldRoom.activeOwners.get(key) === sessionId) {
+      NexusWorldRoom.activeOwners.delete(key);
+    }
+    this.identities.delete(sessionId);
+  }
+
+  private ownerKey(sessionId: string): string | null {
+    const identity = this.identities.get(sessionId);
+    return identity ? identityStorageKey(identity) : null;
+  }
+
+  onAuth(client: Client, options: Record<string, unknown> = {}): WorldIdentity {
+    const identity = authenticateWorldJoin(options, this.roomName, nexusWorld3DConfig.worlds.default);
+    if ((options.worldId !== undefined && options.worldId !== identity.worldId) ||
+        (this.roomWorldId !== null && this.roomWorldId !== identity.worldId)) {
+      throw new Error('World identity does not match this room');
+    }
+    this.roomWorldId = identity.worldId;
+    this.identities.set(client.sessionId, identity);
+    return identity;
+  }
 
   /** ES: Rellenado por recursos core (economía, inventario). EN: Filled by core resources. */
   frameworkServices: FrameworkServices = {};
@@ -311,7 +345,7 @@ export class NexusWorldRoom extends Room {
         const p = this.players.get(id);
         return p ? { ...p.position } : null;
       },
-      normalizeUsername: normalizePlayerUsername,
+      getOwnerKey: (id) => this.ownerKey(id),
       awardExperience: (pid, amount) =>
         this.rpgProgression.addXp(pid, amount),
     });
@@ -334,7 +368,7 @@ export class NexusWorldRoom extends Room {
     this.setupCleanup();
 
     // Limpieza periódica: solo elimina jugadores marcados offline y antiguos (cada 30s)
-    setInterval(() => {
+    this.clock.setInterval(() => {
       const now = Date.now();
       const removed: string[] = [];
       for (const [id, player] of this.players.entries()) {
@@ -376,6 +410,9 @@ export class NexusWorldRoom extends Room {
     console.log(
       `👤 Cliente ${client.sessionId} se unió a ${nexusWorld3DConfig.networking.colyseusRoomName}`
     );
+    const identity = this.identities.get(client.sessionId);
+    if (!identity) throw new Error('Game authentication required');
+    const persistenceKey = identityStorageKey(identity);
 
     const clientPv = readJoinProtocolVersion(options as unknown);
     if (clientPv !== PROTOCOL_VERSION) {
@@ -392,15 +429,17 @@ export class NexusWorldRoom extends Room {
       throw new Error(msg);
     }
 
+    const activeSession = NexusWorldRoom.activeOwners.get(persistenceKey);
+    if (activeSession && activeSession !== client.sessionId) {
+      throw new Error('Esta cuenta ya tiene una sesión activa en este mundo');
+    }
+    NexusWorldRoom.activeOwners.set(persistenceKey, client.sessionId);
+
     const now = Date.now();
     const defaultPosition = { x: 0, y: 0, z: 0 };
     const defaultRotation = { x: 0, y: 0, z: 0 };
     const defaultMapId = "exterior";
-    const defaultWorldId =
-      options?.worldId || nexusWorld3DConfig.worlds.default;
-    const sessionFallback = `Jugador_${client.id.substring(0, 6)}`;
-    /** ES: Nombre de cuenta en joinOptions gana a Redis para que MariaDB coincida en la 1ª conexión. EN: Join options username wins over Redis for DB profile key. */
-    const fallbackUsername = options?.username || sessionFallback;
+    const defaultWorldId = identity.worldId;
 
     const parseVector = (
       value: unknown,
@@ -458,7 +497,7 @@ export class NexusWorldRoom extends Room {
 
     let storedData: Record<string, unknown> | null = null;
     try {
-      const snap = await this.playerStore.loadSnapshot(client.sessionId);
+      const snap = identity.kind === 'account' ? await this.playerStore.loadSnapshot(persistenceKey) : null;
       if (
         snap &&
         typeof snap === "object" &&
@@ -471,7 +510,7 @@ export class NexusWorldRoom extends Room {
     }
     if (!storedData) {
       try {
-        const stored = await this.redis.getPlayer(client.sessionId);
+        const stored = identity.kind === 'account' ? await this.redis.getPlayer(persistenceKey) : null;
         if (stored && Object.keys(stored).length > 0)
           storedData = stored as Record<string, unknown>;
       } catch (error) {
@@ -491,15 +530,12 @@ export class NexusWorldRoom extends Room {
     const maxHunger = parseNumber(storedData?.maxHunger, 100);
     const level = parseNumber(storedData?.level, 1);
     const experience = parseNumber(storedData?.experience, 0);
-    const worldId = parseString(storedData?.worldId, defaultWorldId);
+    const worldId = defaultWorldId;
     const animation = parseString(storedData?.animation, "idle");
     const isMoving = parseBoolean(storedData?.isMoving, false);
     const isRunning = parseBoolean(storedData?.isRunning, false);
     const roleId = parseRole(storedData?.roleId);
-    const username = parseString(
-      options?.username,
-      parseString(storedData?.username, fallbackUsername)
-    );
+    const username = identity.displayName;
     const lastUpdate = parseNumber(storedData?.lastUpdate, now);
 
     const player: PlayerData = {
@@ -530,12 +566,8 @@ export class NexusWorldRoom extends Room {
     // EN: MariaDB profile (source of truth across sessions).
     let profileRow: PlayerProfileRow | null = null;
     try {
-      profileRow = await fetchPlayerProfileByNorm(
-        normalizePlayerUsername(player.username)
-      );
+      profileRow = identity.kind === 'account' ? await fetchPlayerProfileByIdentity(persistenceKey) : null;
       if (profileRow) {
-        player.username = profileRow.username || player.username;
-        player.worldId = profileRow.world_id || player.worldId;
         player.health = profileRow.health;
         player.maxHealth = profileRow.max_health;
         player.stamina = profileRow.stamina;
@@ -561,7 +593,10 @@ export class NexusWorldRoom extends Room {
       }
     } catch (e) {
       console.warn("⚠️ MariaDB player_profile (join):", e);
+      throw new Error('No se pudo cargar el perfil de juego');
     }
+
+    this.economyEvents.hydrate(client.sessionId, profileRow?.stats_json);
 
     // Agregar jugador
     player.isMoving = false;
@@ -569,6 +604,7 @@ export class NexusWorldRoom extends Room {
     player.animation = "idle";
 
     this.players.set(client.sessionId, player);
+    this.movementBudgets.set(client.sessionId, new MovementBudget(Date.now()));
 
     // Actualizar estado de Colyseus
     this.state.players.set(client.sessionId, {
@@ -646,9 +682,7 @@ export class NexusWorldRoom extends Room {
       }
     } else {
       try {
-        const invSnap = await gameRedis.getPlayerInventorySnapshot(
-          normalizePlayerUsername(player.username)
-        );
+        const invSnap = identity.kind === 'account' ? await gameRedis.getPlayerInventorySnapshot(persistenceKey) : null;
         if (invSnap) {
           this.inventoryEvents.loadPersistedInventory(client.sessionId, invSnap);
         }
@@ -664,7 +698,7 @@ export class NexusWorldRoom extends Room {
     );
 
     this.housingEvents.hydrateFromProfile(
-      normalizePlayerUsername(player.username),
+      persistenceKey,
       player.username,
       profileRow?.housing_json ?? null
     );
@@ -725,18 +759,23 @@ export class NexusWorldRoom extends Room {
   }
 
   async onLeave(client: Client, consented: boolean) {
+    this.lastChatAt.delete(client.sessionId);
     console.log(`👋 Cliente ${client.sessionId} salió de la sala`);
     this.sceneAuthoringClients.delete(client.sessionId);
+    this.frameworkServices.jobs?.clearSession(client.sessionId);
 
     const player = this.players.get(client.sessionId);
     if (player) {
       this.lastMoveProfileSaveAt.delete(client.sessionId);
+      this.movementBudgets.delete(client.sessionId);
       pushGameMonitorLog("info", "player", `Player leaving: ${player.username}`, {
         sessionId: client.sessionId,
         consented,
       });
       // Marcar como offline
       player.isOnline = false;
+      const statePlayer = this.state.players.get(client.sessionId);
+      if (statePlayer) statePlayer.isOnline = false;
       player.lastSeen = new Date();
 
       try {
@@ -746,10 +785,10 @@ export class NexusWorldRoom extends Room {
       }
 
       const inv = this.inventoryEvents.getPlayerInventory(client.sessionId);
-      if (inv) {
+      if (inv && this.identities.get(client.sessionId)?.kind === 'account') {
         try {
           await gameRedis.savePlayerInventorySnapshot(
-            normalizePlayerUsername(player.username),
+            this.ownerKey(client.sessionId)!,
             inv
           );
         } catch (e) {
@@ -762,10 +801,11 @@ export class NexusWorldRoom extends Room {
 
       // Limpiar inventario del jugador
       this.inventoryEvents.cleanupPlayerInventory(client.sessionId);
+      this.economyEvents.clearSession(client.sessionId);
 
       // Remover de la sala: inmediato si cierre consentido, pequeño delay si no
       const delayMs = consented ? 0 : 2000;
-      setTimeout(() => {
+      this.clock.setTimeout(() => {
         this.players.delete(client.sessionId);
         this.state.players.delete(client.sessionId);
 
@@ -791,9 +831,14 @@ export class NexusWorldRoom extends Room {
 
       this.sendSystemMessage(`${player.username} se desconectó`);
     }
+    this.releaseIdentity(client.sessionId);
   }
 
   onDispose() {
+    this.lastChatAt.clear();
+    this.movementBudgets.clear();
+    this.clock.clear();
+    for (const sessionId of this.identities.keys()) this.releaseIdentity(sessionId);
     unregisterNexusWorldRoomSceneAuthoring(this.roomId);
     unregisterNexusWorldRoomInspect(this.roomId);
     for (const dispose of this.resourceDisposables) {
@@ -829,9 +874,9 @@ export class NexusWorldRoom extends Room {
     });
   }
 
-  private maybePersistSceneDocument(doc: SceneDocumentV0_1): void {
-    if (!scenePersistAllowedForRoomTemplate(this.roomName)) return;
-    if (!scenePersistConsistentWithStagingGuard(this.roomName)) return;
+  private maybePersistSceneDocument(doc: SceneDocumentV0_1): boolean {
+    if (!scenePersistAllowedForRoomTemplate(this.roomName)) return true;
+    if (!scenePersistConsistentWithStagingGuard(this.roomName)) return true;
     try {
       writeSceneDocumentV0_1ToDisk(doc);
       pushGameMonitorLog("info", "room", "scene v0.1 persisted to disk", {
@@ -839,11 +884,13 @@ export class NexusWorldRoom extends Room {
         worldId: doc.worldId,
         path: persistedSceneFilePath(doc.worldId),
       });
+      return true;
     } catch (e) {
       pushGameMonitorLog("warn", "room", "scene persist to disk failed", {
         roomId: this.roomId,
         error: e instanceof Error ? e.message : String(e),
       });
+      return false;
     }
   }
 
@@ -895,6 +942,7 @@ export class NexusWorldRoom extends Room {
       });
       return { ok: false, error: sem.error };
     }
+    if (!this.maybePersistSceneDocument(doc)) return { ok: false, error: 'scene_persist_failed' };
     this.sceneDocumentV0_1 = doc;
     pushGameMonitorLog("info", "room", "scene authoring v0.1 applied", {
       roomId: this.roomId,
@@ -906,7 +954,6 @@ export class NexusWorldRoom extends Room {
       roomId: this.roomId,
       document: doc,
     });
-    this.maybePersistSceneDocument(doc);
     return { ok: true, worldId: doc.worldId, entityCount: doc.entities.length };
   }
 
@@ -914,7 +961,7 @@ export class NexusWorldRoom extends Room {
     const gate = this.checkSceneAuthoringStagingGate();
     if (gate) return gate;
     const body = raw as { entities?: unknown[] };
-    if (!Array.isArray(body.entities) || body.entities.length === 0) {
+    if (!Array.isArray(body?.entities) || body.entities.length === 0) {
       return { ok: false, error: "entities_required" };
     }
     const base = this.sceneDocumentV0_1;
@@ -951,6 +998,7 @@ export class NexusWorldRoom extends Room {
       });
       return { ok: false, error: sem.error };
     }
+    if (!this.maybePersistSceneDocument(doc)) return { ok: false, error: 'scene_persist_failed' };
     this.sceneDocumentV0_1 = doc;
     pushGameMonitorLog("info", "room", "scene entities merged v0.1", {
       roomId: this.roomId,
@@ -962,7 +1010,6 @@ export class NexusWorldRoom extends Room {
       roomId: this.roomId,
       document: doc,
     });
-    this.maybePersistSceneDocument(doc);
     return { ok: true, worldId: doc.worldId, entityCount: doc.entities.length };
   }
 
@@ -975,12 +1022,7 @@ export class NexusWorldRoom extends Room {
         // Actualizar datos del jugador con la información enviada por el cliente
         const player = this.players.get(client.sessionId);
         if (player) {
-          if (data?.username && data.username !== player.username) {
-            player.username = data.username;
-          }
-          if (data?.worldId && data.worldId !== player.worldId) {
-            player.worldId = data.worldId;
-          }
+          // Identity and world are immutable for the lifetime of this connection.
           // Reflejar cambios en el estado sincronizado de Colyseus
           const statePlayer = this.state.players.get(client.sessionId);
           if (statePlayer) {
@@ -1005,16 +1047,21 @@ export class NexusWorldRoom extends Room {
       PlayerMessages.Move,
       (
         client: Client,
-        data: {
-          position: { x: number; y: number; z: number };
-          rotation: { x: number; y: number; z: number };
-          isRunning?: boolean;
-          isMoving?: boolean;
-          animation?: string;
-        }
+        rawData: unknown
       ) => {
+        const data = parsePlayerMovement(rawData);
+        if (!data) return;
         const player = this.players.get(client.sessionId);
         if (player) {
+          let budget = this.movementBudgets.get(client.sessionId);
+          if (!budget) {
+            budget = new MovementBudget(Date.now());
+            this.movementBudgets.set(client.sessionId, budget);
+          }
+          if (!budget.accept(player.position, data.position, Date.now())) {
+            client.send('player:correction', { mapId: player.mapId, position: player.position, rotation: player.rotation });
+            return;
+          }
           player.position = data.position;
           player.rotation = data.rotation;
           player.isMoving = Boolean(data.isMoving);
@@ -1068,19 +1115,20 @@ export class NexusWorldRoom extends Room {
       "map:change",
       (
         client: Client,
-        data: {
-          fromMapId: string;
-          toMapId: string;
-          position: { x: number; y: number; z: number };
-          rotation: { x: number; y: number; z: number };
-          reason?: string;
-        }
+        data: unknown
       ) => {
         const player = this.players.get(client.sessionId);
         if (!player) return;
-        player.mapId = data.toMapId;
-        player.position = data.position;
-        player.rotation = data.rotation;
+        const transition = resolvePortalTransition(player.mapId, player.position, data);
+        if (!transition) {
+          client.send('player:correction', { mapId: player.mapId, position: player.position, rotation: player.rotation });
+          client.send('world:error', { code: 'invalid_portal', message: 'Portal inválido o fuera de alcance', timestamp: Date.now() });
+          return;
+        }
+        player.mapId = transition.mapId;
+        player.position = transition.position;
+        player.rotation = transition.rotation;
+        this.movementBudgets.set(client.sessionId, new MovementBudget(Date.now()));
         player.lastUpdate = Date.now();
 
         // Reflejar en estado sincronizado
@@ -1108,14 +1156,17 @@ export class NexusWorldRoom extends Room {
         this.clients.forEach((c) => {
           c.send("map:changed", payload);
         });
+        void this.savePlayerToRedis(player);
       }
     );
 
     // Petición de datos del mapa actual (jugadores presentes, etc.)
     this.onMessage("map:request", (client: Client, data: { mapId: string }) => {
-      const mapId = data?.mapId;
+      const requester = this.players.get(client.sessionId);
+      if (!requester || data?.mapId !== requester.mapId) return;
+      const mapId = requester.mapId;
       const playersInMap = Array.from(this.players.values())
-        .filter((p) => p.mapId === mapId)
+        .filter((p) => p.mapId === mapId && p.isOnline)
         .map((p) => ({
           id: p.id,
           mapId: p.mapId,
@@ -1145,16 +1196,21 @@ export class NexusWorldRoom extends Room {
     this.onMessage(
       ChatMessages.Message,
       (client: Client, data: { message: string; channel?: string }) => {
+        if (typeof data?.message !== 'string' || data.message.length > 1000 ||
+            !data.message.trim() || (data.channel !== undefined && data.channel !== 'global')) return;
         const player = this.players.get(client.sessionId);
-        if (player && data.message) {
+        if (player?.isOnline) {
+          const now = Date.now();
+          if (now - (this.lastChatAt.get(client.sessionId) ?? -Infinity) < 500) return;
+          this.lastChatAt.set(client.sessionId, now);
           const chatMessage: ChatMessage = {
             id: `msg_${Date.now()}_${client.sessionId}_${Math.random()
               .toString(36)
               .substring(2, 9)}`,
             playerId: client.sessionId,
             username: player.username,
-            message: data.message,
-            channel: data.channel || "global",
+            message: data.message.trim(),
+            channel: "global",
             timestamp: new Date(),
             type: "player",
           };
@@ -1177,24 +1233,11 @@ export class NexusWorldRoom extends Room {
       }
     );
 
-    // Ataque (reutilizando tu lógica)
+    // The legacy client-damage relay is not an authoritative combat system.
     this.onMessage(
       PlayerMessages.Attack,
-      (client: Client, data: { targetId: string; damage: number }) => {
-        const player = this.players.get(client.id);
-        if (player) {
-          console.log(`⚔️ ${player.username} atacó a ${data.targetId}`);
-          this.inventoryEvents.applyEquippedMeleeWeaponWear(client.sessionId);
-          this.broadcast(
-            PlayerMessages.Attacked,
-            {
-              attackerId: client.id,
-              targetId: data.targetId,
-              damage: data.damage,
-            },
-            { except: client }
-          );
-        }
+      (client: Client) => {
+        client.send(SystemMessages.Error, { message: 'Combate no disponible: el cliente no puede declarar daño' });
       }
     );
 
@@ -1202,6 +1245,7 @@ export class NexusWorldRoom extends Room {
     this.onMessage(
       PlayerMessages.Interact,
       (client: Client, data: { objectId: string }) => {
+        if (typeof data?.objectId !== 'string' || data.objectId.length > 128) return;
         const player = this.players.get(client.id);
         if (player) {
           console.log(`🤝 ${player.username} interactuó con ${data.objectId}`);
@@ -1278,6 +1322,19 @@ export class NexusWorldRoom extends Room {
   }
 
   private async savePlayerToRedis(player: PlayerData) {
+    const identity = this.identities.get(player.id);
+    if (!identity || identity.kind !== 'account') return;
+    const persistenceKey = identityStorageKey(identity);
+    // Freeze all subsystems before the first await; don't mix different moments.
+    player = structuredClone(player);
+    const invSnapshot = structuredClone(this.inventoryEvents.getPlayerInventory(player.id));
+    if (invSnapshot) invSnapshot.gold = this.economyEvents.getWalletMajor(player.id);
+    const statsPayload = structuredClone({
+      ...this.rpgProgression.buildStatsJsonForSave(player.id),
+      economy: this.economyEvents.snapshot(player.id),
+    });
+    const housingSnapshot = structuredClone(this.housingEvents.getHousingJsonForSave(persistenceKey));
+    return this.profileWrites.run(persistenceKey, async () => {
     try {
       const playerData = {
         id: player.id,
@@ -1300,17 +1357,16 @@ export class NexusWorldRoom extends Room {
         roleId: (player.roleId as string) ?? "",
       };
 
-      await this.redis.addPlayer(player.id, playerData);
-      await this.playerStore.saveSnapshot(player.id, playerData);
+      await this.redis.addPlayer(persistenceKey, playerData);
+      await this.playerStore.saveSnapshot(persistenceKey, playerData);
     } catch (error) {
       reportRedisUnreachableAndFallback(error);
       console.warn("⚠️ Error guardando jugador (Redis / PlayerStore):", error);
     }
 
     try {
-      const invSnapshot = this.inventoryEvents.getPlayerInventory(player.id);
-      const statsPayload = this.rpgProgression.buildStatsJsonForSave(player.id);
       await upsertPlayerProfile({
+        identityKey: persistenceKey,
         username: player.username,
         worldId: player.worldId,
         position: player.position,
@@ -1331,9 +1387,7 @@ export class NexusWorldRoom extends Room {
             : undefined,
         inventoryJson:
           invSnapshot !== undefined ? invSnapshot : undefined,
-        housingJson: this.housingEvents.getHousingJsonForSave(
-          normalizePlayerUsername(player.username)
-        ),
+        housingJson: housingSnapshot,
       });
       console.log(
         `💾 player_profile guardado: ${player.username} @ (${player.position.x.toFixed(2)}, ${player.position.y.toFixed(2)}, ${player.position.z.toFixed(2)}) map=${player.mapId}`
@@ -1341,11 +1395,17 @@ export class NexusWorldRoom extends Room {
     } catch (e) {
       console.warn("⚠️ MariaDB player_profile (save):", e);
     }
+    });
   }
 
   /** ES: Mapa actual del jugador (sessionId Colyseus). EN: Player map by Colyseus session id. */
   getPlayerMapId(clientId: string): string | null {
     return this.players.get(clientId)?.mapId ?? null;
+  }
+
+  getPlayerPosition(clientId: string) {
+    const position = this.players.get(clientId)?.position;
+    return position ? { ...position } : null;
   }
 
   /** ES: Rol de trabajo (jobs) para mensajes/red. EN: Job role for networking. */
@@ -1439,7 +1499,7 @@ export class NexusWorldRoom extends Room {
 
   private setupCleanup() {
     // Limpiar datos expirados cada 5 minutos (reutilizando tu lógica)
-    setInterval(async () => {
+    this.clock.setInterval(async () => {
       try {
         await this.redis.cleanupExpiredData();
         console.log("🧹 Limpieza de datos expirados completada");

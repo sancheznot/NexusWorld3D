@@ -218,7 +218,13 @@ export default function PlayerV2({
     }
   }, [playerPosition.x, playerPosition.y, playerPosition.z, playerRotation.x, playerRotation.y, playerRotation.z, isCurrentPlayer, physicsRef]);
 
-  useFrame((state, delta) => {
+  useEffect(() => {
+    if (!isCurrentPlayer) return;
+    const physics = physicsRef.current;
+    return () => physics?.setMovementInput(null);
+  }, [isCurrentPlayer, physicsRef]);
+
+  useFrame(() => {
     // Solo el jugador local debe ejecutar useFrame
     if (!isCurrentPlayer) return;
     
@@ -228,6 +234,7 @@ export default function PlayerV2({
     }
     
     if (!isTabVisible) {
+      physicsRef.current.setMovementInput(null);
       console.log('⚠️ PlayerV2 useFrame: tab not visible');
       return;
     }
@@ -245,8 +252,6 @@ export default function PlayerV2({
       sprintHeldRef.current = false;
     }
     
-    // Limitar delta con timestep fijo de física
-    const clampedDelta = Math.min(delta, GAME_CONFIG.physics.maxDeltaTime);
     
     // Determinar estado de sprint (inicio/fin) y aplicar movimiento
     if (physicsRef.current) {
@@ -270,13 +275,13 @@ export default function PlayerV2({
           tiredUntilRef.current = Math.max(tiredUntilRef.current, nowMs + lockMs);
         }
       }
-      physicsRef.current.updateMovement({
+      physicsRef.current.setMovementInput({
         x: currentInput.x,
         z: currentInput.z,
         isRunning: sprintActiveRef.current,
         stamina: store.stamina,
         moveSpeedMul: rpgSync?.moveSpeedMul ?? 1,
-      }, clampedDelta);
+      });
     }
     
     // La simulación de Cannon.js ahora se realiza globalmente en CannonStepper

@@ -10,6 +10,7 @@ import {
 export class TimeClient {
   private static instance: TimeClient;
   private eventListeners: Map<string, ((data: unknown) => void)[]> = new Map();
+  private roomSubscriptions: (() => void)[] = [];
 
   private constructor() {
     this.bindToRoomLifecycle();
@@ -22,16 +23,23 @@ export class TimeClient {
 
   private bindToRoomLifecycle() {
     colyseusClient.on('room:connected', () => this.setupEventListeners());
-    colyseusClient.on('room:left', () => this.removeAllListeners());
+    colyseusClient.on('room:left', () => this.detachRoom());
+  }
+
+  private detachRoom() {
+    this.roomSubscriptions.splice(0).forEach(unsubscribe => unsubscribe());
   }
 
   private setupEventListeners() {
+    this.detachRoom();
     if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     if (!room) return;
 
-    room.onMessage('time:state', (data: TimeStateResponse) => this.emit('time:state', data));
-    room.onMessage('time:update', (data: TimeUpdateResponse) => this.emit('time:update', data));
+    this.roomSubscriptions.push(
+      room.onMessage('time:state', (data: TimeStateResponse) => this.emit('time:state', data)),
+      room.onMessage('time:update', (data: TimeUpdateResponse) => this.emit('time:update', data)),
+    );
   }
 
   public requestTime(data?: TimeRequest): void {
@@ -39,19 +47,19 @@ export class TimeClient {
     colyseusClient.getSocket()?.send('time:request', data || {});
   }
 
-  public onTimeState(cb: TimeStateCallback) { this.on('time:state', cb as any); }
-  public onTimeUpdate(cb: TimeUpdateCallback) { this.on('time:update', cb as any); }
+  public onTimeState(cb: TimeStateCallback) { this.on('time:state', cb); }
+  public onTimeUpdate(cb: TimeUpdateCallback) { this.on('time:update', cb); }
 
-  public on(event: string, callback: (data: unknown) => void) {
+  public on<T>(event: string, callback: (data: T) => void) {
     if (!this.eventListeners.has(event)) this.eventListeners.set(event, []);
-    this.eventListeners.get(event)!.push(callback);
+    this.eventListeners.get(event)!.push(callback as (data: unknown) => void);
   }
 
-  public off(event: string, callback?: (data: unknown) => void) {
+  public off<T>(event: string, callback?: (data: T) => void) {
     const listeners = this.eventListeners.get(event);
     if (!listeners) return;
     if (!callback) { this.eventListeners.set(event, []); return; }
-    const idx = listeners.indexOf(callback);
+    const idx = listeners.indexOf(callback as (data: unknown) => void);
     if (idx > -1) listeners.splice(idx, 1);
   }
 

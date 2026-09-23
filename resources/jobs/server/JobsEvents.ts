@@ -23,6 +23,7 @@ export class JobsEvents {
     item: Omit<InventoryItem, "id" | "isEquipped" | "slot">
   ) => number;
   private getPlayerMapId: (playerId: string) => string | null;
+  private getPlayerPosition: (playerId: string) => { x: number; y: number; z: number } | null;
   private getPlayerRole: (playerId: string) => ExtendedJobId | null;
   private setPlayerRole: (
     playerId: string,
@@ -44,6 +45,7 @@ export class JobsEvents {
         item: Omit<InventoryItem, "id" | "isEquipped" | "slot">
       ) => number;
       getPlayerMapId: (playerId: string) => string | null;
+      getPlayerPosition: (playerId: string) => { x: number; y: number; z: number } | null;
       getPlayerRole: (playerId: string) => ExtendedJobId | null;
       setPlayerRole: (playerId: string, roleId: ExtendedJobId | null) => void;
       economy: {
@@ -58,10 +60,34 @@ export class JobsEvents {
     this.room = room;
     this.grantItemToPlayer = opts.grantItemToPlayer;
     this.getPlayerMapId = opts.getPlayerMapId;
+    this.getPlayerPosition = opts.getPlayerPosition;
     this.getPlayerRole = opts.getPlayerRole;
     this.setPlayerRole = opts.setPlayerRole;
     this.economy = opts.economy;
     this.setupHandlers();
+  }
+
+  /** Trusted server resources call this after observing a completed task. */
+  public recordProgress(playerId: string, amount = 1): boolean {
+    const state = this.active.get(playerId);
+    if (!state || !Number.isSafeInteger(amount) || amount <= 0) return false;
+    const cfg = JOBS[state.jobId];
+    if (cfg.route || this.getPlayerMapId(playerId) !== cfg.mapId) return false;
+    state.progress = Math.min(cfg.maxProgress ?? 1, state.progress + amount);
+    this.room.clients.find(c => c.sessionId === playerId)?.send('jobs:progress', {
+      jobId: cfg.id, progress: state.progress, maxProgress: cfg.maxProgress ?? 1,
+    });
+    return true;
+  }
+
+  public clearSession(playerId: string): void { this.active.delete(playerId); }
+  public dispose(): void { this.active.clear(); }
+
+  private atPoint(playerId: string, point: { mapId: string; radius: number; position: { x: number; y: number; z: number } }): boolean {
+    const pos = this.getPlayerPosition(playerId);
+    return !!pos && this.getPlayerMapId(playerId) === point.mapId &&
+      Number.isFinite(pos.x) && Number.isFinite(pos.y) && Number.isFinite(pos.z) &&
+      Math.hypot(pos.x - point.position.x, pos.y - point.position.y, pos.z - point.position.z) <= point.radius + 1;
   }
 
   private setupHandlers() {
@@ -78,7 +104,7 @@ export class JobsEvents {
     this.room.onMessage(
       "jobs:request",
       (client: Client, data: { jobId: ExtendedJobId }) => {
-        const cfg = JOBS[data.jobId];
+        const cfg = data && Object.hasOwn(JOBS, data.jobId) ? JOBS[data.jobId] : undefined;
         if (!cfg) {
           client.send("jobs:error", { message: "Trabajo no encontrado" });
           return;
@@ -105,7 +131,7 @@ export class JobsEvents {
     this.room.onMessage(
       "jobs:role:assign",
       (client: Client, data: { jobId: ExtendedJobId }) => {
-        const cfg = JOBS[data.jobId];
+        const cfg = data && Object.hasOwn(JOBS, data.jobId) ? JOBS[data.jobId] : undefined;
         if (!cfg) {
           client.send("jobs:error", { message: "Trabajo no encontrado" });
           return;
@@ -127,7 +153,7 @@ export class JobsEvents {
     this.room.onMessage(
       "jobs:start",
       (client: Client, data: { jobId: ExtendedJobId }) => {
-        const cfg = JOBS[data.jobId];
+        const cfg = data && Object.hasOwn(JOBS, data.jobId) ? JOBS[data.jobId] : undefined;
         if (!cfg) {
           client.send("jobs:error", { message: "Trabajo no encontrado" });
           return;
@@ -140,6 +166,10 @@ export class JobsEvents {
           return;
         }
         const currentRole = this.getPlayerRole(client.sessionId);
+        if (cfg.start && !this.atPoint(client.sessionId, cfg.start)) {
+          client.send('jobs:error', { message: 'Acércate al punto de inicio del trabajo' });
+          return;
+        }
         if (currentRole !== cfg.id) {
           client.send("jobs:error", {
             message: `Debes tener el rol de ${cfg.name} para iniciar este trabajo`,
@@ -160,8 +190,7 @@ export class JobsEvents {
         if (cfg.route?.waypoints?.length) {
           state.currentWaypointIdx = 0;
           const wp = cfg.route.waypoints[0];
-          if (wp.waitSeconds && wp.waitSeconds > 0)
-            state.waitUntilTs = now + wp.waitSeconds * 1000;
+          void wp; // Waiting begins on arrival, not when the job starts.
         }
         if (cfg.timed) {
           state.lastTickTs = now;
@@ -185,24 +214,11 @@ export class JobsEvents {
       }
     );
 
-    // Update progress (server trusts client minimally; clamps)
+    // Client-reported progress is not proof of work. Plugins call recordProgress.
     this.room.onMessage(
       "jobs:progress",
-      (client: Client, data: { progress: number }) => {
-        const state = this.active.get(client.sessionId);
-        if (!state) {
-          client.send("jobs:error", { message: "No tienes un trabajo activo" });
-          return;
-        }
-        const cfg = JOBS[state.jobId];
-        const max = Math.max(1, cfg.maxProgress ?? 1);
-        const next = Math.min(max, Math.max(0, Math.floor(data.progress)));
-        state.progress = next;
-        client.send("jobs:progress", {
-          jobId: state.jobId,
-          progress: state.progress,
-          maxProgress: max,
-        });
+      (client: Client) => {
+        client.send('jobs:error', { message: 'El progreso del trabajo lo valida el servidor' });
       }
     );
 
@@ -223,11 +239,19 @@ export class JobsEvents {
         }
         const idx = state.currentWaypointIdx ?? 0;
         const nextWp = route.waypoints[idx];
-        if (!nextWp || nextWp.id !== data.waypointId) {
+        if (!nextWp || nextWp.id !== data?.waypointId) {
           client.send("jobs:error", { message: "Punto incorrecto" });
           return;
         }
         const now = Date.now();
+        if (!this.atPoint(client.sessionId, nextWp)) {
+          state.waitUntilTs = undefined;
+          client.send('jobs:error', { message: 'Punto fuera de alcance o de mapa' });
+          return;
+        }
+        if (nextWp.waitSeconds && state.waitUntilTs === undefined) {
+          state.waitUntilTs = now + nextWp.waitSeconds * 1000;
+        }
         // Verificar espera requerida
         if (state.waitUntilTs && now < state.waitUntilTs) {
           const remaining = Math.ceil((state.waitUntilTs - now) / 1000);
@@ -261,9 +285,7 @@ export class JobsEvents {
         }
         state.currentWaypointIdx = nextIdx;
         const wp = route.waypoints[nextIdx];
-        if (wp.waitSeconds && wp.waitSeconds > 0)
-          state.waitUntilTs = now + wp.waitSeconds * 1000;
-        else state.waitUntilTs = undefined;
+        state.waitUntilTs = undefined;
         state.progress = nextIdx;
         client.send("jobs:progress", {
           jobId: state.jobId,
@@ -316,7 +338,9 @@ export class JobsEvents {
         const now = Date.now();
         const tickSec = cfg.timed.tickSeconds ?? 10;
         const ratePerMinute = cfg.timed.ratePerMinute;
-        const elapsedMs = now - (state.lastTickTs ?? now);
+        const end = cfg.timed.maxMinutes
+          ? Math.min(now, state.startedAt + cfg.timed.maxMinutes * 60_000) : now;
+        const elapsedMs = Math.max(0, end - (state.lastTickTs ?? end));
         const elapsedSec = Math.floor(elapsedMs / 1000);
         const periods = Math.floor(elapsedSec / tickSec);
         if (periods > 0) {

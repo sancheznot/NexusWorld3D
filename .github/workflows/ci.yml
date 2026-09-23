@@ -1,5 +1,4 @@
-# ES: CI mínimo — mismo gate que `npm run check:phase1`.
-# EN: Minimal CI — same gate as `npm run check:phase1`.
+# Reproducible checks, build and disposable database integration.
 name: CI
 
 on:
@@ -22,3 +21,18 @@ jobs:
         run: npm ci
       - name: check:phase1
         run: npm run check:phase1
+      - name: Regression tests
+        run: npm test
+      - name: Global lint
+        run: npm run lint
+      - name: Required demo assets
+        run: npm run validate-required-models -- --tier=demo --strict && npm run validate-build-assets
+      - name: Production build
+        run: npm run build
+      - name: Start isolated integration database
+        run: docker compose -p nexus-phase-validation -f compose.validation.yml up -d --wait
+      - name: Identity and persistence integration
+        run: timeout 60s env NEXUS_RUN_ISOLATED_DB_TESTS=1 npm run test:integration
+      - name: Remove disposable integration database
+        if: always()
+        run: docker compose -p nexus-phase-validation -f compose.validation.yml down

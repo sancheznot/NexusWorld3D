@@ -87,7 +87,7 @@ export type InventoryEventType =
   | 'inventory:error';
 
 // Callback types
-export type InventoryEventCallback<T = any> = (data: T) => void;
+export type InventoryEventCallback<T = unknown> = (data: T) => void;
 export type InventoryUpdatedCallback = InventoryEventCallback<InventoryResponse>;
 export type ItemUpdateCallback = InventoryEventCallback<ItemUpdateResponse>;
 export type GoldUpdateCallback = InventoryEventCallback<GoldUpdateResponse>;

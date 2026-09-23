@@ -37,7 +37,7 @@ export default function GameSettings({ isOpen, onClose }: GameSettingsProps) {
 
   if (!isOpen) return null;
 
-  const handleSettingChange = (key: keyof GameSettings, value: any) => {
+  const handleSettingChange = <K extends keyof GameSettings,>(key: K, value: GameSettings[K]) => {
     updateSettings({ [key]: value });
   };
 
@@ -108,7 +108,7 @@ export default function GameSettings({ isOpen, onClose }: GameSettingsProps) {
                 </label>
                 <select
                   value={settings.graphicsQuality}
-                  onChange={(e) => handleSettingChange('graphicsQuality', e.target.value)}
+                  onChange={(e) => handleSettingChange('graphicsQuality', e.target.value as GameSettings['graphicsQuality'])}
                   className="w-full px-3 py-2 bg-gray-600 text-white rounded border border-gray-500 focus:border-blue-500 focus:outline-none"
                 >
                   <option value="low">Baja</option>

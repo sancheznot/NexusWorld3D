@@ -2,7 +2,6 @@ import { Room, Client } from "colyseus";
 import { WorldMessages } from "@nexusworld3d/protocol";
 import type { InventoryEvents } from "@resources/inventory/server/InventoryEvents";
 import { InventoryItem, ItemRarity, ItemType } from "@/types/inventory.types";
-import { CLIENT_POS_TRUST_RADIUS } from "@/constants/choppableTrees";
 import {
   MINEABLE_PROP_ROCKS,
   getMineableRockDef,
@@ -148,7 +147,7 @@ export class RockMineEvents {
         maxHits: cfg.maxHits,
       });
 
-      setTimeout(() => {
+      this.room.clock.setTimeout(() => {
         const r = this.rocks.get(rockId);
         if (!r) return;
         r.rubbleUntil = 0;
@@ -215,33 +214,13 @@ export class RockMineEvents {
         }
 
         const pos = this.deps.getPlayerPosition(pid);
-        if (!pos) {
+        if (!pos || ![pos.x, pos.y, pos.z].every(Number.isFinite)) {
           client.send(WorldMessages.RockMineResult, {
             ok: false,
             rockId,
             message: "Posición desconocida",
           });
           return;
-        }
-
-        const cp = data.clientPlayerPos;
-        let refX = pos.x;
-        let refZ = pos.z;
-        if (
-          cp &&
-          typeof cp.x === "number" &&
-          typeof cp.z === "number" &&
-          Number.isFinite(cp.x) &&
-          Number.isFinite(cp.z)
-        ) {
-          const dSync = Math.hypot(cp.x - pos.x, cp.z - pos.z);
-          if (dSync < CLIENT_POS_TRUST_RADIUS) {
-            refX = cp.x;
-            refZ = cp.z;
-          } else if (dSync > ROCK_MINE_MAX_DISTANCE * 3) {
-            refX = cp.x;
-            refZ = cp.z;
-          }
         }
 
         const mapId = this.deps.getPlayerMapId(pid);
@@ -273,9 +252,7 @@ export class RockMineEvents {
           return;
         }
 
-        const dx = refX - def.position.x;
-        const dz = refZ - def.position.z;
-        const dist = Math.hypot(dx, dz);
+        const dist = Math.hypot(pos.x - def.position.x, pos.y - def.position.y, pos.z - def.position.z);
         if (dist > ROCK_MINE_MAX_DISTANCE) {
           client.send(WorldMessages.RockMineResult, {
             ok: false,

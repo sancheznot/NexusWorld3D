@@ -1,6 +1,5 @@
 /**
- * ES: Lectura/escritura de player_profile (MariaDB) por username normalizado.
- * EN: player_profile read/write (MariaDB) by normalized username.
+ * Profiles keyed by verified account/world identity; legacy name-based rows remain separate.
  */
 
 import type { RowDataPacket } from "mysql2";
@@ -17,7 +16,7 @@ export function normalizePlayerUsername(username: string): string {
 
 export interface PlayerProfileRow {
   username: string;
-  username_norm: string;
+  identity_key: string;
   world_id: string;
   health: number;
   max_health: number;
@@ -43,6 +42,7 @@ export interface PlayerProfileRow {
 }
 
 export interface PlayerProfileUpsertInput {
+  identityKey: string;
   username: string;
   worldId: string;
   position: { x: number; y: number; z: number };
@@ -67,7 +67,7 @@ export interface PlayerProfileUpsertInput {
 function rowToProfile(r: RowDataPacket): PlayerProfileRow {
   return {
     username: String(r.username),
-    username_norm: String(r.username_norm),
+    identity_key: String(r.identity_key),
     world_id: String(r.world_id),
     health: Number(r.health),
     max_health: Number(r.max_health),
@@ -91,8 +91,8 @@ function rowToProfile(r: RowDataPacket): PlayerProfileRow {
   };
 }
 
-export async function fetchPlayerProfileByNorm(
-  usernameNorm: string
+export async function fetchPlayerProfileByIdentity(
+  identityKey: string
 ): Promise<PlayerProfileRow | null> {
   if (!isMariaDbConfigured()) return null;
   const pool = getMariaPool();
@@ -101,17 +101,16 @@ export async function fetchPlayerProfileByNorm(
   let rows: RowDataPacket[];
   try {
     const result = await pool.query<RowDataPacket[]>(
-      `SELECT username, username_norm, world_id, health, max_health, stamina, max_stamina,
+      `SELECT username, identity_key, world_id, health, max_health, stamina, max_stamina,
             hunger, max_hunger, level, experience,
             pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, map_id, role_id, stats_json, inventory_json, housing_json
-     FROM player_profile WHERE username_norm = ? LIMIT 1`,
-      [usernameNorm]
+     FROM player_identity_profile WHERE identity_key = ? LIMIT 1`,
+      [identityKey]
     );
     rows = result[0];
   } catch (e) {
     if (isMariaDbSchemaMissingError(e)) {
-      logMariaSchemaMigrateHint("player_profile");
-      return null;
+      logMariaSchemaMigrateHint("player_identity_profile");
     }
     throw e;
   }
@@ -127,7 +126,7 @@ export async function upsertPlayerProfile(
   const pool = getMariaPool();
   if (!pool) return;
 
-  const norm = normalizePlayerUsername(input.username);
+  const norm = input.identityKey;
   const statsJson =
     input.statsJson === undefined ? null : JSON.stringify(input.statsJson);
   const roleId = input.roleId ?? null;
@@ -146,8 +145,8 @@ export async function upsertPlayerProfile(
 
   try {
     await pool.query(
-      `INSERT INTO player_profile (
-      username, username_norm, world_id, health, max_health, stamina, max_stamina,
+      `INSERT INTO player_identity_profile (
+      username, identity_key, world_id, health, max_health, stamina, max_stamina,
       hunger, max_hunger, level, experience,
       pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, map_id, role_id, stats_json, inventory_json, housing_json
     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
@@ -200,8 +199,7 @@ export async function upsertPlayerProfile(
     );
   } catch (e) {
     if (isMariaDbSchemaMissingError(e)) {
-      logMariaSchemaMigrateHint("player_profile");
-      return;
+      logMariaSchemaMigrateHint("player_identity_profile");
     }
     throw e;
   }

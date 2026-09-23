@@ -44,6 +44,36 @@ export class EconomyEvents {
     return new Date().toISOString().slice(0, 10);
   }
 
+  public getWalletMajor(userId: string): number { return money.toMajor(this.getWalletMinor(userId)); }
+
+  public snapshot(userId: string) {
+    return { v: 1, walletMinor: this.getWalletMinor(userId), bankMinor: this.getBankMinor(userId),
+      day: this.todayKey(), daily: { ...this.getDaily(userId) } };
+  }
+
+  public hydrate(userId: string, stats: unknown): void {
+    if (typeof stats === 'string') { try { stats = JSON.parse(stats); } catch { return; } }
+    const raw = stats && typeof stats === 'object' ? (stats as { economy?: unknown }).economy : null;
+    if (raw == null) return; // Older profiles start from the configured balance once.
+    if (typeof raw !== 'object') throw new Error('Invalid saved economy');
+    const data = raw as ReturnType<EconomyEvents['snapshot']>;
+    const valid = (n: unknown) => typeof n === 'number' && Number.isSafeInteger(n) && n >= 0;
+    if (data.v !== 1 || !valid(data.walletMinor) || !valid(data.bankMinor) ||
+        !data.daily || ![data.daily.depositMinor, data.daily.withdrawMinor, data.daily.transferMinor].every(valid)) {
+      throw new Error('Invalid saved economy');
+    }
+    this.state.walletMinor.set(userId, data.walletMinor);
+    this.state.bankMinor.set(userId, data.bankMinor);
+    if (data.day === this.todayKey()) this.state.dailyUsageMinor.set(`${userId}|${data.day}`, { ...data.daily });
+  }
+
+  public clearSession(userId: string): void {
+    this.state.walletMinor.delete(userId);
+    this.state.bankMinor.delete(userId);
+    this.state.ledger.delete(userId);
+    for (const key of this.state.dailyUsageMinor.keys()) if (key.startsWith(`${userId}|`)) this.state.dailyUsageMinor.delete(key);
+  }
+
   private getDaily(userId: string): DailyUsage {
     const key = `${userId}|${this.todayKey()}`;
     const existing = this.state.dailyUsageMinor.get(key);
@@ -93,6 +123,21 @@ export class EconomyEvents {
     client.send(EconomyMessages.Ledger, { entries });
   }
 
+  private readTransferMinor(client: Client, data: unknown): number | null {
+    const amount = data && typeof data === 'object' ? (data as { amount?: unknown }).amount : undefined;
+    if (typeof amount !== 'number' || !Number.isFinite(amount) ||
+        amount < GAME_CONFIG.currency.minAmount || amount > GAME_CONFIG.currency.maxTransfer) {
+      client.send(EconomyMessages.Error, { message: 'Invalid transfer amount' });
+      return null;
+    }
+    const minor = money.toMinor(amount);
+    if (!Number.isSafeInteger(minor) || minor <= 0) {
+      client.send(EconomyMessages.Error, { message: 'Invalid transfer amount' });
+      return null;
+    }
+    return minor;
+  }
+
   private setupHandlers() {
     this.room.onMessage(EconomyMessages.Request, (client: Client) => {
       const userId = client.sessionId;
@@ -111,7 +156,8 @@ export class EconomyEvents {
     // Depositar: de monedero -> banco
     this.room.onMessage(EconomyMessages.Deposit, (client: Client, data: { amount: number; reason?: string }) => {
       const userId = client.sessionId;
-      const minor = money.clampTransferMinor(money.toMinor(data.amount));
+      const minor = this.readTransferMinor(client, data);
+      if (minor === null) return;
       // Apply deposit fee
       const feeMinor = this.applyRate(minor, GAME_CONFIG.currency.fees.depositRate);
       const netMinor = Math.max(0, minor - feeMinor);
@@ -144,7 +190,8 @@ export class EconomyEvents {
     // Retirar: de banco -> monedero
     this.room.onMessage(EconomyMessages.Withdraw, (client: Client, data: { amount: number; reason?: string }) => {
       const userId = client.sessionId;
-      const minor = money.clampTransferMinor(money.toMinor(data.amount));
+      const minor = this.readTransferMinor(client, data);
+      if (minor === null) return;
       // Apply withdraw fee
       const feeMinor = this.applyRate(minor, GAME_CONFIG.currency.fees.withdrawRate);
       const grossMinor = minor + feeMinor; // user pays fee on top
@@ -176,12 +223,14 @@ export class EconomyEvents {
     // Transferir: banco -> banco
     this.room.onMessage(EconomyMessages.Transfer, (client: Client, data: { toUserId: string; amount: number; reason?: string }) => {
       const fromUserId = client.sessionId;
+      const minor = this.readTransferMinor(client, data);
+      if (minor === null) return;
       const toUserId = data.toUserId;
-      if (!toUserId || toUserId === fromUserId) {
+      if (typeof toUserId !== 'string' || !toUserId || toUserId === fromUserId ||
+          !this.room.clients.some(c => c.sessionId === toUserId)) {
         client.send(EconomyMessages.Error, { message: 'Invalid target user' });
         return;
       }
-      const minor = money.clampTransferMinor(money.toMinor(data.amount));
       // Apply transfer fee (deduct from sender additionally)
       const feeMinor = this.applyRate(minor, GAME_CONFIG.currency.fees.transferRate);
       const totalDebit = minor + feeMinor;
@@ -219,40 +268,12 @@ export class EconomyEvents {
       this.sendLedger(client, fromUserId);
     });
 
-    // Purchase endpoint (for shop integration)
-    // Compra: usa monedero (wallet)
-    this.room.onMessage(EconomyMessages.Purchase, (client: Client, data: { total: number; reason?: string }) => {
-      const userId = client.sessionId;
-      const amountMinor = money.clampTransferMinor(money.toMinor(data.total));
-      const feeMinor = this.applyRate(amountMinor, GAME_CONFIG.currency.fees.purchaseRate);
-      const gross = amountMinor + feeMinor;
-      const current = this.getWalletMinor(userId);
-      if (current < gross) {
-        client.send(EconomyMessages.Error, { message: 'Insufficient funds' });
-        return;
-      }
-      const next = money.subMinor(current, gross);
-      this.state.walletMinor.set(userId, next);
-      this.pushLedger({ userId, type: 'withdraw', amountMinor: -amountMinor, balanceAfterMinor: this.getBankMinor(userId), reason: data.reason ?? 'purchase', timestamp: Date.now() });
-      if (feeMinor > 0) this.creditTreasury(feeMinor, `fee:purchase:${userId}`);
-      this.sendWallet(client, userId);
-      this.sendLedger(client, userId);
-    });
-
-    // Pago de trabajos: acredita monedero (wallet)
-    this.room.onMessage(EconomyMessages.JobPay, (client: Client, data: { amount: number; reason?: string }) => {
-      const userId = client.sessionId;
-      const amountMinor = money.clampTransferMinor(money.toMinor(data.amount));
-      const feeMinor = this.applyRate(amountMinor, GAME_CONFIG.currency.fees.jobRate);
-      const net = Math.max(0, amountMinor - feeMinor);
-      const wallet = this.getWalletMinor(userId);
-      const next = money.addMinor(wallet, net);
-      this.state.walletMinor.set(userId, next);
-      this.pushLedger({ userId, type: 'deposit', amountMinor: net, balanceAfterMinor: this.getBankMinor(userId), reason: data.reason ?? 'job', timestamp: Date.now() });
-      if (feeMinor > 0) this.creditTreasury(feeMinor, `fee:job:${userId}`);
-      this.sendWallet(client, userId);
-      this.sendLedger(client, userId);
-    });
+    // Shops/jobs calculate prices and rewards on the server through the internal API.
+    for (const message of [EconomyMessages.Purchase, EconomyMessages.JobPay]) {
+      this.room.onMessage(message, (client: Client) => {
+        client.send(EconomyMessages.Error, { message: 'Prices and rewards are determined by the server' });
+      });
+    }
   }
 
   private applyRate(amountMinor: number, rate: number): number {
@@ -271,9 +292,12 @@ export class EconomyEvents {
 
   // Crédito directo al monedero (usado por Inventario al usar bolsas de dinero)
   public creditWalletMajor(userId: string, amountMajor: number, reason?: string) {
-    const addMinor = money.clampTransferMinor(money.toMinor(amountMajor));
+    if (!Number.isFinite(amountMajor) || amountMajor <= 0) return;
+    const addMinor = money.toMinor(amountMajor);
+    if (!Number.isSafeInteger(addMinor) || addMinor <= 0) return;
     const curr = this.getWalletMinor(userId);
     const next = money.addMinor(curr, addMinor);
+    if (!Number.isSafeInteger(next)) return;
     this.state.walletMinor.set(userId, next);
     this.pushLedger({ userId, type: 'deposit', amountMinor: addMinor, balanceAfterMinor: this.getBankMinor(userId), reason: reason ?? 'item', timestamp: Date.now() });
     const client = this.room.clients.find(c => c.sessionId === userId);
@@ -285,7 +309,10 @@ export class EconomyEvents {
 
   // Débito directo del monedero; devuelve true si pudo debitar
   public chargeWalletMajor(userId: string, amountMajor: number, reason?: string): boolean {
-    const amountMinor = money.clampTransferMinor(money.toMinor(amountMajor));
+    if (!Number.isFinite(amountMajor) || amountMajor < 0) return false;
+    if (amountMajor === 0) return true;
+    const amountMinor = money.toMinor(amountMajor);
+    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) return false;
     const curr = this.getWalletMinor(userId);
     if (curr < amountMinor) return false;
     const next = money.subMinor(curr, amountMinor);
@@ -299,5 +326,3 @@ export class EconomyEvents {
     return true;
   }
 }
-
-

@@ -52,6 +52,7 @@ function currentTimeState() {
 export class TimeEvents {
   private room: Room;
   private interval: NodeJS.Timeout | null = null;
+  private startupTimeout: NodeJS.Timeout | null = null;
 
   constructor(room: Room) {
     this.room = room;
@@ -75,13 +76,16 @@ export class TimeEvents {
     };
     const now = Date.now();
     const initialDelay = 60000 - (now % 60000) + 50;
-    setTimeout(() => {
+    this.startupTimeout = setTimeout(() => {
+      this.startupTimeout = null;
       tick();
       this.interval = setInterval(tick, 60000);
     }, initialDelay);
   }
 
   public dispose() {
+    if (this.startupTimeout) clearTimeout(this.startupTimeout);
+    this.startupTimeout = null;
     if (this.interval) clearInterval(this.interval);
     this.interval = null;
   }

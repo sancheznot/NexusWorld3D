@@ -19,9 +19,9 @@ export function registerNexusWorldRooms(gameServer: Server): void {
 
   // ES: enableRealtimeListing solo en la sala canónica (matchmaking).
   // EN: enableRealtimeListing only on canonical room (matchmaking).
-  gameServer.define(primary, NexusWorldRoom).enableRealtimeListing();
+  gameServer.define(primary, NexusWorldRoom).filterBy(['worldId']).enableRealtimeListing();
   for (const roomName of legacy) {
-    gameServer.define(roomName, NexusWorldRoom);
+    gameServer.define(roomName, NexusWorldRoom).filterBy(['worldId']);
   }
 
   const enableStagingEnv = process.env.NEXUS_ENABLE_STAGING_WORLD_ROOM?.trim().toLowerCase();
@@ -30,7 +30,7 @@ export function registerNexusWorldRooms(gameServer: Server): void {
   const stagingName =
     process.env.NEXUS_STAGING_WORLD_ROOM_NAME?.trim() || "nexus-world-staging";
   if (enableStaging && stagingName && stagingName !== primary && !legacy.includes(stagingName)) {
-    gameServer.define(stagingName, NexusWorldRoom);
+    gameServer.define(stagingName, NexusWorldRoom).filterBy(['worldId']);
     console.log(
       `[Colyseus] Staging world room registered: ${stagingName} (set NEXUS_SCENE_AUTHORING_STAGING_ONLY=1 to restrict scene apply/merge to this template)`
     );

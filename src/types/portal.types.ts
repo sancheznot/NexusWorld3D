@@ -18,7 +18,7 @@ export interface MapData {
   spawnPosition: { x: number; y: number; z: number };
   spawnRotation: { x: number; y: number; z: number };
   portals: Portal[];
-  objects: any[]; // Objetos del mapa
+  objects: Array<{ position: { x: number; y: number; z: number } }>;
 }
 
 export interface PortalEvent {

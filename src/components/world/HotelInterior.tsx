@@ -82,4 +82,4 @@ const HotelInterior = memo(function HotelInterior({
 export default HotelInterior;
 
 // Precarga del modelo
-useGLTF.preload('/models/maps/main_map/main_building/interior-hotel.glb');
+if (process.env.NEXT_PUBLIC_FRAMEWORK_DEMO !== '1') useGLTF.preload('/models/maps/main_map/main_building/interior-hotel.glb');

@@ -192,7 +192,7 @@ export class HousingEvents {
   private getPlayerPosition: (
     sessionId: string
   ) => { x: number; y: number; z: number } | null;
-  private normalizeUsername: (username: string) => string;
+  private getOwnerKey: (sessionId: string) => string | null;
   /** ES: Todos los modelos colocados (multijugador). EN: All placed structures. */
   private worldStructures: HousingStructureRecord[] = [];
   /** ES: Piezas modulares en mundo. EN: Modular build pieces in world. */
@@ -213,7 +213,7 @@ export class HousingEvents {
       getPlayerPosition: (
         sessionId: string
       ) => { x: number; y: number; z: number } | null;
-      normalizeUsername: (username: string) => string;
+      getOwnerKey: (sessionId: string) => string | null;
       awardExperience?: (sessionId: string, baseXp: number) => void;
     }
   ) {
@@ -223,15 +223,13 @@ export class HousingEvents {
     this.getPlayer = opts.getPlayer;
     this.getPlayerMapId = opts.getPlayerMapId;
     this.getPlayerPosition = opts.getPlayerPosition;
-    this.normalizeUsername = opts.normalizeUsername;
+    this.getOwnerKey = opts.getOwnerKey;
     this.awardExperience = opts.awardExperience;
     this.setupHandlers();
   }
 
   private normFor(client: Client): string | null {
-    const p = this.getPlayer(client.sessionId);
-    if (!p?.username) return null;
-    return this.normalizeUsername(p.username);
+    return this.getOwnerKey(client.sessionId);
   }
 
   /** ES: Cargar desde perfil al hacer join. EN: Hydrate from DB row on join. */
@@ -343,7 +341,7 @@ export class HousingEvents {
       const p = this.getPlayer(c.sessionId);
       if (
         p &&
-        this.normalizeUsername(p.username) === targetNorm
+        this.getOwnerKey(c.sessionId) === targetNorm
       ) {
         return c.sessionId;
       }

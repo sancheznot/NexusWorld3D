@@ -5,7 +5,6 @@ import { InventoryItem, ItemRarity, ItemType } from "@/types/inventory.types";
 import {
   CHOPPABLE_PROP_TREES,
   CITY_TREE_CHOP_PREFIX,
-  CLIENT_POS_TRUST_RADIUS,
   getChoppableTreeDef,
   rollWoodLogsPerChopHit,
   TREE_CHOP_MAX_DISTANCE,
@@ -149,7 +148,7 @@ export class TreeChopEvents {
         maxHits: cfg.maxHits,
       });
 
-      setTimeout(() => {
+      this.room.clock.setTimeout(() => {
         const r = this.trees.get(treeId);
         if (!r) return;
         r.stumpUntil = 0;
@@ -217,33 +216,13 @@ export class TreeChopEvents {
         }
 
         const pos = this.deps.getPlayerPosition(pid);
-        if (!pos) {
+        if (!pos || ![pos.x, pos.y, pos.z].every(Number.isFinite)) {
           client.send(WorldMessages.TreeChopResult, {
             ok: false,
             treeId,
             message: "Posición desconocida",
           });
           return;
-        }
-
-        const cp = data.clientPlayerPos;
-        let refX = pos.x;
-        let refZ = pos.z;
-        if (
-          cp &&
-          typeof cp.x === "number" &&
-          typeof cp.z === "number" &&
-          Number.isFinite(cp.x) &&
-          Number.isFinite(cp.z)
-        ) {
-          const dSync = Math.hypot(cp.x - pos.x, cp.z - pos.z);
-          if (dSync < CLIENT_POS_TRUST_RADIUS) {
-            refX = cp.x;
-            refZ = cp.z;
-          } else if (dSync > TREE_CHOP_MAX_DISTANCE * 3) {
-            refX = cp.x;
-            refZ = cp.z;
-          }
         }
 
         const mapId = this.deps.getPlayerMapId(pid);
@@ -285,9 +264,7 @@ export class TreeChopEvents {
           return;
         }
 
-        const dx = refX - def.position.x;
-        const dz = refZ - def.position.z;
-        const dist = Math.hypot(dx, dz);
+        const dist = Math.hypot(pos.x - def.position.x, pos.y - def.position.y, pos.z - def.position.z);
         if (dist > TREE_CHOP_MAX_DISTANCE) {
           client.send(WorldMessages.TreeChopResult, {
             ok: false,

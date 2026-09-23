@@ -36,7 +36,12 @@
     },
     "demo": {
       "label": "Framework demo / Demo del framework",
-      "description": "Used when NEXT_PUBLIC_FRAMEWORK_DEMO=1 (light exterior, no full city).",
+      "description": "NEXT_PUBLIC_FRAMEWORK_DEMO=1 uses a procedural background and needs only boot assets.",
+      "assets": []
+    },
+    "sky": {
+      "label": "Full world sky / Cielo del mundo completo",
+      "description": "Skybox textures and sun/moon models used outside framework demo mode.",
       "assets": [
         {
           "path": "public/models/sky/sky_43_2k.png",

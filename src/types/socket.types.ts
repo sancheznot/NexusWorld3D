@@ -1,3 +1,6 @@
+import type { InventoryItem } from './inventory.types';
+import type { Player as GamePlayer } from './player.types';
+
 // Cliente -> Servidor Events
 export interface ClientToServerEvents {
   // Player events
@@ -6,7 +9,7 @@ export interface ClientToServerEvents {
   'player:move': (data: PlayerMovementData) => void;
   'player:attack': (data: { targetId: string; damage: number }) => void;
   'player:interact': (data: { objectId: string; action: string }) => void;
-  'player:levelup': (data: { newLevel: number; stats: any }) => void;
+  'player:levelup': (data: { newLevel: number; stats: Record<string, number> }) => void;
 
   // Chat events
   'chat:message': (data: { message: string; channel: string }) => void;
@@ -14,7 +17,7 @@ export interface ClientToServerEvents {
   'chat:leave-channel': (data: { channel: string }) => void;
 
   // Inventory events
-  'inventory:update': (data: { items: any[] }) => void;
+  'inventory:update': (data: { items: InventoryItem[] }) => void;
   'inventory:use-item': (data: { itemId: string; slot: number }) => void;
   'inventory:drop-item': (data: { itemId: string; position: Vector3 }) => void;
 
@@ -38,11 +41,11 @@ export interface ServerToClientEvents {
   'player:damaged': (data: { playerId: string; damage: number; newHealth: number }) => void;
   'player:died': (data: { playerId: string; respawnTime: number }) => void;
   'player:respawned': (data: { playerId: string; position: Vector3 }) => void;
-  'player:levelup': (data: { playerId: string; newLevel: number; stats: any }) => void;
+  'player:levelup': (data: { playerId: string; newLevel: number; stats: Record<string, number> }) => void;
 
   // Chat events
-  'chat:message': (data: { playerId: string; username: string; message: string; channel: string; timestamp: Date }) => void;
-  'chat:system': (data: { message: string; type: 'info' | 'warning' | 'error' }) => void;
+  'chat:message': (data: ChatMessage) => void;
+  'chat:system': (data: { id?: string; timestamp?: string | Date; message: string; type: 'info' | 'warning' | 'error' }) => void;
 
   // World events
   'world:update': (data: { world: World; players: Player[]; objects: WorldObject[]; chatMessages?: ChatMessage[] }) => void;
@@ -50,7 +53,7 @@ export interface ServerToClientEvents {
 
   // Monster events
   'monster:spawned': (data: { monster: Monster }) => void;
-  'monster:died': (data: { monsterId: string; position: Vector3; loot: any[] }) => void;
+  'monster:died': (data: { monsterId: string; position: Vector3; loot: InventoryItem[] }) => void;
   'monster:moved': (data: { monsterId: string; position: Vector3; targetId?: string }) => void;
 
   // System events
@@ -60,6 +63,7 @@ export interface ServerToClientEvents {
 
 // Data types
 export interface PlayerMovementData {
+  animation?: string;
   position: Vector3;
   rotation: Vector3;
   velocity: Vector3;
@@ -75,7 +79,8 @@ export interface Vector3 {
   z: number;
 }
 
-export interface Player {
+export interface Player extends GamePlayer {
+  model?: string;
   id: string;
   username: string;
   position: Vector3;
@@ -98,7 +103,7 @@ export interface WorldObject {
   rotation: Vector3;
   scale: Vector3;
   isInteractable: boolean;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
 }
 
 export interface Monster {
@@ -120,7 +125,7 @@ export interface ChatMessage {
   message: string;
   channel: string;
   timestamp: Date;
-  type?: string;
+  type?: 'player' | 'system' | 'admin';
 }
 
 export interface World {

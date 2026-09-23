@@ -19,7 +19,8 @@ import {
  */
 export class WorldClient {
   private static instance: WorldClient;
-  private eventListeners: Map<string, WorldEventCallback<any>[]> = new Map();
+  private eventListeners: Map<string, WorldEventCallback<unknown>[]> = new Map();
+  private roomSubscriptions: (() => void)[] = [];
 
   private constructor() {
     this.bindToRoomLifecycle();
@@ -34,10 +35,15 @@ export class WorldClient {
 
   private bindToRoomLifecycle() {
     colyseusClient.on('room:connected', () => this.setupEventListeners());
-    colyseusClient.on('room:left', () => this.removeAllListeners());
+    colyseusClient.on('room:left', () => this.detachRoom());
+  }
+
+  private detachRoom() {
+    this.roomSubscriptions.splice(0).forEach(unsubscribe => unsubscribe());
   }
 
   private setupEventListeners() {
+    this.detachRoom();
     if (!colyseusClient.isConnectedToWorldRoom()) return;
     const room = colyseusClient.getSocket();
     if (!room) return;
@@ -46,9 +52,11 @@ export class WorldClient {
     // para que sobrevivan reconexiones. Sólo registramos handlers del room.
 
     // Eventos de mundo/ mapa desde el servidor
-    room.onMessage('map:changed', (data: MapChangedResponse) => this.emit('map:changed', data));
-    room.onMessage('map:update', (data: MapUpdateResponse) => this.emit('map:update', data));
-    room.onMessage('world:error', (data: WorldErrorResponse) => this.emit('world:error', data));
+    this.roomSubscriptions.push(
+      room.onMessage('map:changed', (data: MapChangedResponse) => this.emit('map:changed', data)),
+      room.onMessage('map:update', (data: MapUpdateResponse) => this.emit('map:update', data)),
+      room.onMessage('world:error', (data: WorldErrorResponse) => this.emit('world:error', data)),
+    );
   }
 
   // Métodos de envío
@@ -76,25 +84,25 @@ export class WorldClient {
   }
 
   // Sistema de eventos genérico (igual patrón que InventoryClient)
-  public on(event: string, callback: WorldEventCallback<any>): void {
+  public on<T>(event: string, callback: WorldEventCallback<T>): void {
     if (!this.eventListeners.has(event)) {
       this.eventListeners.set(event, []);
     }
-    this.eventListeners.get(event)!.push(callback);
+    this.eventListeners.get(event)!.push(callback as WorldEventCallback<unknown>);
   }
 
-  public off(event: string, callback?: WorldEventCallback<any>): void {
+  public off<T>(event: string, callback?: WorldEventCallback<T>): void {
     const listeners = this.eventListeners.get(event);
     if (!listeners) return;
     if (!callback) {
       this.eventListeners.delete(event);
       return;
     }
-    const idx = listeners.indexOf(callback);
+    const idx = listeners.indexOf(callback as WorldEventCallback<unknown>);
     if (idx > -1) listeners.splice(idx, 1);
   }
 
-  public emit(event: string, data: any): void {
+  public emit(event: string, data: unknown): void {
     const listeners = this.eventListeners.get(event);
     if (listeners) listeners.forEach(cb => cb(data));
   }
@@ -106,5 +114,3 @@ export class WorldClient {
 
 export const worldClient = WorldClient.getInstance();
 export default worldClient;
-
-

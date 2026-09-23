@@ -132,6 +132,19 @@ export class ItemEvents {
     });
 
     this.room.onMessage('items:collect', (client: Client, data: { spawnId: string; mapId: string }) => {
+      if (!data || typeof data.mapId !== 'string' || typeof data.spawnId !== 'string'
+        || data.mapId.length > 128 || data.spawnId.length > 128) return;
+      const playerPosition = this.getPlayerPosition(client.sessionId);
+      const target = this.worldItems.get(data.mapId)?.get(data.spawnId);
+      // Client collection radius is 1.2 m; allow a bounded latency/height margin.
+      const maxDistance = 3;
+      if (this.getPlayerMapId(client.sessionId) !== data.mapId || !target || !playerPosition
+        || !Object.values(playerPosition).every(Number.isFinite)
+        || Math.hypot(playerPosition.x - target.position.x,
+          playerPosition.y - target.position.y, playerPosition.z - target.position.z) > maxDistance) {
+        client.send(InventoryMessages.Error, { message: 'Item fuera de alcance' });
+        return;
+      }
       const result = this.collectItem(data.mapId, data.spawnId);
       const ok = result.ok;
       if (!ok) {
@@ -154,7 +167,7 @@ export class ItemEvents {
       // Programar respawn si aplica
       const state = this.worldItems.get(data.mapId)?.get(data.spawnId);
       if (state && state.respawnSec && state.respawnSec > 0) {
-        setTimeout(() => {
+        this.room.clock.setTimeout(() => {
           const map = this.worldItems.get(data.mapId);
           if (!map) return;
           const current = map.get(data.spawnId);
@@ -170,7 +183,7 @@ export class ItemEvents {
           };
           const pos = this.chooseFreePosition(respawnCfg, data.mapId, map);
           if (!pos) {
-            setTimeout(() => {
+            this.room.clock.setTimeout(() => {
               // reintento simple
               const retryPos = this.chooseFreePosition(respawnCfg, data.mapId, map);
               if (!retryPos) return; // si sigue ocupado, dejamos sin respawn hasta próximo ciclo
@@ -331,5 +344,4 @@ export class ItemEvents {
     return candidates[0] || null;
   }
 }
-
 

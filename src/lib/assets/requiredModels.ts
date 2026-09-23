@@ -24,7 +24,7 @@ export type RequiredModelsManifest = {
 export const REQUIRED_MODEL_TIER_ORDER: Record<string, string[]> = {
   boot: ["boot"],
   demo: ["boot", "demo"],
-  full: ["boot", "demo", "full"],
+  full: ["boot", "demo", "sky", "full"],
 };
 
 export type RequiredModelCheckResult = {

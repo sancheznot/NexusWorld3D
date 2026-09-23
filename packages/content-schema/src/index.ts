@@ -20,3 +20,5 @@ export {
   entityHasResourceNodeComponent,
   type ResourceNodeSceneOverride,
 } from "./sceneResourceNodeOverride";
+
+export { sceneBoxPropsSchema, getSceneBoxProps } from './sceneBox';

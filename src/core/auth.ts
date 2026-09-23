@@ -140,7 +140,7 @@ function cleanupExpiredSessions(): void {
 /**
  * Middleware for protecting admin routes
  */
-export function requireAdminAuth(handler: Function) {
+export function requireAdminAuth(handler: (req: Request) => Response | Promise<Response>) {
   return async (req: Request) => {
     const sessionId = getSessionIdFromRequest(req);
     

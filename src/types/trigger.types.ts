@@ -14,13 +14,12 @@ export interface TriggerZoneData {
   name: string;
   position: { x: number; y: number; z: number };
   radius: number;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
 }
 
-export interface TriggerEvent<T = any> {
+export interface TriggerEvent<T = unknown> {
   triggerId: string;
   kind: TriggerKind;
   payload?: T;
 }
-
 

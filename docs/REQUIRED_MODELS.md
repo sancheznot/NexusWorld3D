@@ -29,8 +29,8 @@ Defined in [`content/required-models.json`](../content/required-models.json):
 | Tier | When you need it |
 |------|------------------|
 | **boot** | Always — character creator + player in world |
-| **demo** | Skybox + sun/moon when running the game (even `NEXT_PUBLIC_FRAMEWORK_DEMO=1`) |
-| **full** | Default exterior map: `city.glb`, hotel interior, vehicles, tools, etc. |
+| **demo** | Boot assets only; `NEXT_PUBLIC_FRAMEWORK_DEMO=1` uses a procedural background |
+| **full** | Skybox + sun/moon and default exterior: `city.glb`, hotel interior, vehicles, tools, etc. |
 
 Use **`NEXT_PUBLIC_FRAMEWORK_DEMO=1`** (`npm run dev:demo`) to skip the full city GLB while testing the framework slice. You still need **boot** character models.
 
@@ -53,9 +53,9 @@ npm run validate-required-models -- --tier=full --strict
 Recommended first-time setup:
 
 ```bash
-npm install
-npm run validate-required-models -- --strict
-npm run dev
+npm ci
+npm run validate-required-models -- --tier=demo --strict
+npm run dev:demo
 ```
 
 Al abrir `/game`, si faltan archivos verás un **popup guía** con rutas exactas y pasos para colocarlos en `public/models/`.

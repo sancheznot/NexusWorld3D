@@ -132,7 +132,7 @@ export class RpgProgression {
     });
     this.applyDerivedStats(sessionId);
     this.pushSync(sessionId);
-    setTimeout(() => this.pushSync(sessionId), 75);
+    this.room.clock.setTimeout(() => this.pushSync(sessionId), 75);
   }
 
   clearSession(sessionId: string): void {

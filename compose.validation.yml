@@ -1,0 +1,18 @@
+# Disposable validation database. Never mounts the project's database or .env.
+services:
+  db:
+    image: mariadb:11.4
+    ports:
+      - "127.0.0.1:13307:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: nexus-validation-root-only
+      MARIADB_DATABASE: nexus_validation
+      MARIADB_USER: nexus_validation
+      MARIADB_PASSWORD: nexus-validation-only
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 3s
+      retries: 30

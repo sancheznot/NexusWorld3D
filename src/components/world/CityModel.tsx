@@ -126,4 +126,4 @@ export default function CityModel({
 }
 
 // Precarga
-useGLTF.preload('/models/city.glb');
+if (process.env.NEXT_PUBLIC_FRAMEWORK_DEMO !== '1') useGLTF.preload('/models/city.glb');

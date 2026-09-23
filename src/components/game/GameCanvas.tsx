@@ -144,6 +144,11 @@ export default function GameCanvas() {
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [currentMap, setCurrentMap] = useState('exterior');
   const worldJoinSentRef = useRef(false);
+  const portalTeleportTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (portalTeleportTimer.current !== null) clearTimeout(portalTeleportTimer.current);
+    portalTeleportTimer.current = null;
+  }, [isGameStarted]);
   const setActiveMapId = useGameWorldStore((s) => s.setActiveMapId);
   const richExterior = currentMap === 'exterior' && !FRAMEWORK_DEMO;
 
@@ -554,7 +559,9 @@ export default function GameCanvas() {
     console.log(`🚀 FORZANDO TELEPORTACIÓN INMEDIATA a: (${pos.x}, ${pos.y}, ${pos.z})`);
     
     // Usar un timeout para asegurar que el physics esté listo
-    setTimeout(() => {
+    if (portalTeleportTimer.current !== null) clearTimeout(portalTeleportTimer.current);
+    portalTeleportTimer.current = setTimeout(() => {
+      portalTeleportTimer.current = null;
       const physics = getPhysicsInstance();
       if (physics) {
         console.log(`🚀 EJECUTANDO TELEPORT FORZADO`);
@@ -757,7 +764,7 @@ export default function GameCanvas() {
             <Lighting />
             
             {/* Skybox */}
-            <Skybox />
+            {FRAMEWORK_DEMO ? <color attach="background" args={['#91b8d1']} /> : <Skybox />}
             
             {/* Live Camera Capture System - Cámaras reales en tiempo real */}
             <LiveCameraCapture />

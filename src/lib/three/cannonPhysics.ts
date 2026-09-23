@@ -10,14 +10,23 @@ interface ICullableBody extends CANNON.Body {
   isActive?: boolean;
 }
 
+export interface PhysicsMovementInput {
+  x: number;
+  z: number;
+  isRunning: boolean;
+  stamina: number;
+  moveSpeedMul?: number;
+}
+
+export interface PhysicsVehicleInput {
+  throttle: number;
+  brake: number;
+  steer: number;
+  handbrake?: number;
+}
+
 interface IRaycastVehicle {
-  wheelInfos: Array<{
-    frictionSlip: number;
-    rollInfluence: number;
-    suspensionRestLength?: number;
-    suspensionLength?: number;
-    worldTransform: { position: CANNON.Vec3; quaternion: CANNON.Quaternion };
-  }>;
+  wheelInfos: CANNON.WheelInfo[];
   addWheel: (o: unknown) => void;
   addToWorld: (w: CANNON.World) => void;
   removeFromWorld?: (w: CANNON.World) => void;
@@ -66,10 +75,27 @@ export class CannonPhysics {
   private groundMaterial!: CANNON.Material;
   private staticMaterial!: CANNON.Material;
   private vehicleMaterial!: CANNON.Material;
+  private movementInput: PhysicsMovementInput | null = null;
+  private vehicleInputs = new Map<string, PhysicsVehicleInput>();
+  private disposed = false;
+  private readonly applyControls = () => {
+    const dt = GAME_CONFIG.physics.fixedTimeStep;
+    if (this.movementInput) this.updateMovement(this.movementInput, dt);
+    for (const [id, input] of this.vehicleInputs) this.updateRaycastVehicle(id, input, dt);
+  };
+
+  setMovementInput(input: PhysicsMovementInput | null): void {
+    this.movementInput = input ? { ...input } : null;
+  }
+
+  setVehicleInput(id: string, input: PhysicsVehicleInput): void {
+    this.vehicleInputs.set(id, { ...input });
+  }
 
   constructor() {
     // Crear mundo de física
     this.world = new CANNON.World();
+    // Controls run before world.step: Cannon's preStep fires after contact solving.
 
     // Configurar gravedad desde constantes
     this.world.gravity.set(0, GAME_CONFIG.physics.gravity, 0);
@@ -414,15 +440,26 @@ export class CannonPhysics {
 
   // Optimización: Control de frecuencia para culling de colisiones
   private lastOptimizationTime = 0;
+  private stepAccumulator = 0;
   private readonly OPTIMIZATION_INTERVAL =
     GAME_CONFIG.physics.performance.optimizationInterval;
 
   update(delta: number) {
+    if (this.disposed || !Number.isFinite(delta) || delta <= 0) return;
     // Medir tiempo de step de física
     const stepStart = performance.now();
 
-    // Paso de física fijo
-    this.world.step(GAME_CONFIG.physics.maxDeltaTime, delta, 10);
+    // Set desired motion before the solver, never overwrite its contact impulses.
+    const dt = GAME_CONFIG.physics.fixedTimeStep;
+    this.stepAccumulator += Math.min(delta, GAME_CONFIG.physics.maxDeltaTime);
+    let substeps = 0;
+    while (this.stepAccumulator + 1e-10 >= dt && substeps < GAME_CONFIG.physics.maxSubSteps) {
+      this.applyControls();
+      this.world.step(dt);
+      this.stepAccumulator = Math.max(0, this.stepAccumulator - dt);
+      substeps++;
+    }
+    if (this.stepAccumulator >= dt) this.stepAccumulator %= dt;
 
     const stepTime = performance.now() - stepStart;
 
@@ -433,10 +470,7 @@ export class CannonPhysics {
       this.lastOptimizationTime = now;
     }
 
-    // Sincronizar vehículos
-    this.vehicles.forEach((vehicle) => {
-      vehicle.updateVehicle(delta);
-    });
+    // RaycastVehicle.addToWorld owns suspension updates through preStep.
 
     const statsMs = GAME_CONFIG.physics.performance.physicsStatsIntervalMs ?? 0;
     if (
@@ -502,21 +536,13 @@ export class CannonPhysics {
         key !== "player" &&
         key !== this.currentVehicleId
       ) {
-        // ⚠️ EXCLUDE LARGE MESHES FROM CULLING
-        // Hills, Mountains, Terrain should always be active because their center might be far
-        // but their mesh extends to the player.
-        // Also exclude ROADS to prevent "pull back" when driving fast.
-        if (
-          /hill|mountain|terrain|cliff|montaña|terreno|road|street|calle|via/i.test(
-            key
-          )
-        ) {
-          return;
-        }
-
-        const distSq =
-          (body.position.x - targetPos!.x) ** 2 +
-          (body.position.z - targetPos!.z) ** 2;
+        // Distance to world-space bounds, including shape offsets and rotation.
+        // Refresh even inactive bodies: editors may have changed their transform.
+        body.updateAABB();
+        const { lowerBound, upperBound } = body.aabb;
+        const dx = Math.max(lowerBound.x - targetPos!.x, 0, targetPos!.x - upperBound.x);
+        const dz = Math.max(lowerBound.z - targetPos!.z, 0, targetPos!.z - upperBound.z);
+        const distSq = dx * dx + dz * dz;
 
         // OPTIMIZACIÓN: Usar propiedad 'isActive' en lugar de buscar en el array (O(1) vs O(N))
         const isActive = (body as ICullableBody).isActive !== false; // Default true
@@ -690,7 +716,11 @@ export class CannonPhysics {
     }
 
     // Forzar actualización del cuerpo
+    this.playerBody.aabbNeedsUpdate = true;
     this.playerBody.wakeUp();
+    // A destination platform may have been culled while the player was away.
+    // Restore it before simulating gravity or querying ground at the new position.
+    this.optimizeStaticColliders();
 
     console.log(
       `🚀 TELEPORT COMPLETED - DESPUÉS: pos=${this.playerBody.position.x.toFixed(
@@ -789,7 +819,14 @@ export class CannonPhysics {
     const ray = new CANNON.Ray(start, end);
     const result = new CANNON.RaycastResult();
 
-    ray.intersectWorld(this.world, { mode: CANNON.Ray.CLOSEST, result });
+    ray.intersectWorld(this.world, {
+      mode: CANNON.Ray.CLOSEST,
+      result,
+      collisionFilterGroup: CollisionGroups.Characters,
+      collisionFilterMask: CollisionMasks.GroundRaycast,
+      checkCollisionResponse: true,
+      skipBackfaces: true,
+    });
 
     if (result.hasHit && result.distance < groundProbeHitMaxDistance) {
       return true;
@@ -1615,7 +1652,7 @@ export class CannonPhysics {
     vehicle.updateWheelTransform(wheelIndex);
 
     const t = vehicle.wheelInfos[wheelIndex].worldTransform;
-    const info = vehicle.wheelInfos[wheelIndex] as any; // Cast to any to access hidden props
+    const info = vehicle.wheelInfos[wheelIndex];
     return {
       position: { x: t.position.x, y: t.position.y, z: t.position.z },
       rotation: {
@@ -1661,6 +1698,7 @@ export class CannonPhysics {
   }
 
   stopVehicle(id: string) {
+    this.vehicleInputs.delete(id);
     const vehicle = (
       this as unknown as Record<
         string,
@@ -1684,6 +1722,7 @@ export class CannonPhysics {
   }
 
   removeVehicle(id: string) {
+    this.vehicleInputs.delete(id);
     const vehicle = (this as unknown as Record<string, unknown>)[
       `${id}:vehicle`
     ] as IRaycastVehicle;
@@ -2536,11 +2575,25 @@ export class CannonPhysics {
   }
 
   dispose() {
-    this.world.bodies.forEach((body: CANNON.Body) => {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.stepAccumulator = 0;
+    for (const vehicle of this.vehicles) vehicle.removeFromWorld?.(this.world);
+    for (const id of this.vehicleState.keys()) {
+      delete (this as unknown as Record<string, unknown>)[`${id}:vehicle`];
+    }
+    this.vehicles.length = 0;
+    this.vehicleInputs.clear();
+    this.vehicleState.clear();
+    this.movementInput = null;
+    this.currentVehicleId = null;
+    for (const body of [...this.world.bodies]) {
       this.world.removeBody(body);
-    });
+    }
     this.bodies.clear();
     this.playerBody = null;
+    this.currentVelocity = { x: 0, z: 0 };
+    this.targetVelocity = { x: 0, z: 0 };
     this.staticBodiesCreated = false;
     console.log("🧹 Cannon.js physics disposed");
   }

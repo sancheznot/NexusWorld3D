@@ -16,10 +16,11 @@ export const registerJobsResource: RegisterServerResource = (ctx) => {
     );
   }
 
-  new JobsEvents(room, {
+  const jobs = new JobsEvents(room, {
     grantItemToPlayer: (playerId, baseItem) =>
       inventory.addItemFromWorld(playerId, baseItem),
     getPlayerMapId: (clientId) => room.getPlayerMapId(clientId),
+    getPlayerPosition: (clientId) => room.getPlayerPosition(clientId),
     getPlayerRole: (clientId) => room.resolvePlayerJobRole(clientId),
     setPlayerRole: (playerId, roleId) =>
       room.assignPlayerJobRole(playerId, roleId),
@@ -28,4 +29,6 @@ export const registerJobsResource: RegisterServerResource = (ctx) => {
         economy.creditWalletMajor(userId, amount, reason),
     },
   });
+  services.jobs = jobs;
+  ctx.registerDisposable(() => jobs.dispose());
 };

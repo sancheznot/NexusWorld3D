@@ -20,8 +20,8 @@ export default function SunMoon() {
 
   const sunScene = useMemo(() => {
     const clone = sunGLB.scene.clone(true);
-    clone.traverse((child: any) => {
-      if (child.isMesh) {
+    clone.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
         child.material = new THREE.MeshBasicMaterial({ color: 0xffe066, toneMapped: false });
       }
     });
@@ -30,8 +30,8 @@ export default function SunMoon() {
 
   const moonScene = useMemo(() => {
     const clone = moonGLB.scene.clone(true);
-    clone.traverse((child: any) => {
-      if (child.isMesh) {
+    clone.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
         child.material = new THREE.MeshBasicMaterial({ color: 0xdde6ff, toneMapped: false });
       }
     });
@@ -80,5 +80,7 @@ export default function SunMoon() {
   );
 }
 
-useGLTF.preload('/models/sky/sun-realistic.glb');
-useGLTF.preload('/models/sky/moon-realistic.glb');
+if (process.env.NEXT_PUBLIC_FRAMEWORK_DEMO !== '1') {
+  useGLTF.preload('/models/sky/sun-realistic.glb');
+  useGLTF.preload('/models/sky/moon-realistic.glb');
+}

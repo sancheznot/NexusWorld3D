@@ -25,7 +25,7 @@ export function createMoneyFromMajor(majorAmount: number): Money {
 
 export function toMinor(majorAmount: number): number {
   // Avoid float drift using currency.js
-  return currencyjs(majorAmount).multiply(100).intValue;
+  return currencyjs(majorAmount).intValue;
 }
 
 export function toMajor(minorAmount: number): number {

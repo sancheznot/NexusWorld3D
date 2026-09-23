@@ -1,5 +1,6 @@
 import { EconomyMessages, type EconomyEventName } from '@nexusworld3d/protocol';
 import { colyseusClient } from './client';
+import { parseEconomyWalletAmount } from '@/lib/economy/parseWalletPayload';
 
 export type LedgerEntry = {
   userId: string;
@@ -50,17 +51,12 @@ export class EconomyClient {
     const room = colyseusClient.getSocket();
     if (!room) return;
     room.onMessage(EconomyMessages.Wallet, (data: { amount: number } | unknown) => {
-      const raw = (data as { amount?: unknown })?.amount;
-      const num = typeof raw === 'number' ? raw : Number(raw ?? 0);
-      // Normalizar por si llega en minor units accidentalmente
-      const normalized = num >= 10000 ? Math.round(num / 100) : num;
+      const normalized = parseEconomyWalletAmount(data);
       this.latestWallet = normalized;
       this.emit(EconomyMessages.Wallet, normalized);
     });
     room.onMessage(EconomyMessages.Bank, (data: { amount: number } | unknown) => {
-      const raw = (data as { amount?: unknown })?.amount;
-      const num = typeof raw === 'number' ? raw : Number(raw ?? 0);
-      const normalized = num >= 10000 ? Math.round(num / 100) : num;
+      const normalized = parseEconomyWalletAmount(data);
       this.latestBank = normalized;
       this.emit(EconomyMessages.Bank, normalized);
     });
@@ -82,8 +78,8 @@ export class EconomyClient {
         withdraw: typeof d.withdraw === 'number' ? d.withdraw : Math.round(Number(d.withdraw ?? 0)),
         transfer: typeof d.transfer === 'number' ? d.transfer : Math.round(Number(d.transfer ?? 0)),
       };
-      // Normalizar si llegan en minor units
-      const normalize = (v: number) => (v >= 10000 ? Math.round(v / 100) : v);
+      // Network values are major units, including balances above 10,000.
+      const normalize = parseEconomyWalletAmount;
       const normalized = {
         deposit: normalize(norm.deposit),
         withdraw: normalize(norm.withdraw),
@@ -155,5 +151,3 @@ export class EconomyClient {
 
 export const economyClient = EconomyClient.getInstance();
 export default economyClient;
-
-

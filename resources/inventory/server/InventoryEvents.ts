@@ -1,4 +1,5 @@
 import { Room, Client } from 'colyseus';
+import type { EconomyEvents } from '@resources/economy/server/EconomyEvents';
 import { InventoryItem, Inventory } from '@/types/inventory.types';
 import { ITEMS_CATALOG } from '@/constants/items';
 import { isChopAxeItemId } from '@/constants/choppableTrees';
@@ -49,9 +50,9 @@ export interface GoldUpdateData {
 export class InventoryEvents {
   private room: Room;
   private playerInventories = new Map<string, Inventory>();
-  private economyEvents: any; // EconomyEvents instance
+  private economyEvents?: EconomyEvents;
 
-  constructor(room: Room, economyEvents?: any) {
+  constructor(room: Room, economyEvents?: EconomyEvents) {
     this.room = room;
     this.economyEvents = economyEvents;
     this.setupEventHandlers();
@@ -61,15 +62,12 @@ export class InventoryEvents {
    * Configurar los manejadores de eventos de inventario
    */
   private setupEventHandlers() {
-    // Evento: Actualizar inventario completo
-    this.room.onMessage(InventoryMessages.Update, (client: Client, data: { inventory: Inventory }) => {
-      this.handleInventoryUpdate(client, data);
-    });
-
-    // Evento: Agregar item
-    this.room.onMessage(InventoryMessages.AddItem, (client: Client, data: { item: InventoryItem }) => {
-      this.handleAddItem(client, data);
-    });
+    // Legacy mutation messages must never grant client-supplied state.
+    for (const message of [InventoryMessages.Update, InventoryMessages.AddItem, InventoryMessages.UpdateGold]) {
+      this.room.onMessage(message, (client: Client) => {
+        client.send(InventoryMessages.Error, { message: 'El inventario y las recompensas los modifica el servidor' });
+      });
+    }
 
     // Evento: Remover item
     this.room.onMessage(InventoryMessages.RemoveItem, (client: Client, data: { itemId: string; quantity?: number }) => {
@@ -91,11 +89,6 @@ export class InventoryEvents {
       this.handleUnequipItem(client, data);
     });
 
-    // Evento: Actualizar oro
-    this.room.onMessage(InventoryMessages.UpdateGold, (client: Client, data: { amount: number; reason: string }) => {
-      this.handleGoldUpdate(client, data);
-    });
-
     // Evento: Solicitar inventario
     this.room.onMessage(InventoryMessages.Request, (client: Client) => {
       this.handleInventoryRequest(client);
@@ -104,6 +97,7 @@ export class InventoryEvents {
     this.room.onMessage(
       CraftingMessages.Execute,
       (client: Client, data: { recipeId: string }) => {
+        if (typeof data?.recipeId !== 'string' || data.recipeId.length > 128) return;
         const res = this.tryCraftRecipe(client.sessionId, data.recipeId);
         if (!res.ok) {
           client.send(InventoryMessages.Error, {
@@ -302,12 +296,12 @@ export class InventoryEvents {
     }
 
     const fromPayload =
-      typeof (baseItem as any).maxStack === 'number' && (baseItem as any).maxStack > 0
-        ? Math.floor((baseItem as any).maxStack)
+      typeof baseItem.maxStack === 'number' && baseItem.maxStack > 0
+        ? Math.floor(baseItem.maxStack)
         : 0;
     const maxStack = Math.max(catalogMaxStack(itemId), fromPayload);
-    const unitW = (baseItem as any).weight ?? cat?.weight ?? 0.1;
-    const qtyRequested = Math.max(1, Math.floor((baseItem as any).quantity ?? 1));
+    const unitW = baseItem.weight ?? cat?.weight ?? 0.1;
+    const qtyRequested = Math.max(1, Math.floor(baseItem.quantity ?? 1));
     let remaining = qtyRequested;
 
     const roomW = inventory.maxWeight - this.calculateTotalWeight(inventory);
@@ -328,8 +322,8 @@ export class InventoryEvents {
     }
     const remainingAfterWeightCap = remaining;
 
-    let maxDurability = (baseItem as any).maxDurability as number | undefined;
-    let durability = (baseItem as any).durability as number | undefined;
+    let maxDurability = baseItem.maxDurability as number | undefined;
+    let durability = baseItem.durability as number | undefined;
     const catMd = catalogMaxDurability(itemId);
     if (isChopAxeItemId(itemId) || isMinePickaxeItemId(itemId)) {
       maxDurability = maxDurability ?? 80;
@@ -371,20 +365,20 @@ export class InventoryEvents {
       const merged: InventoryItem = {
         id: `${itemId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         itemId,
-        name: (baseItem as any).name || cat?.name || itemId,
-        description: (baseItem as any).description || '',
-        type: (baseItem as any).type || cat?.type || 'misc',
-        rarity: (baseItem as any).rarity || cat?.rarity || 'common',
+        name: baseItem.name || cat?.name || itemId,
+        description: baseItem.description || '',
+        type: baseItem.type || cat?.type || 'misc',
+        rarity: baseItem.rarity || cat?.rarity || 'common',
         quantity: chunk,
         maxStack,
         weight: unitW,
-        stats: (baseItem as any).stats,
+        stats: baseItem.stats,
         durability,
         maxDurability,
-        level: (baseItem as any).level || 1,
-        icon: (baseItem as any).icon || cat?.icon || '📦',
-        thumb: (baseItem as any).thumb || cat?.thumb,
-        model: (baseItem as any).model || cat?.visual?.path,
+        level: baseItem.level || 1,
+        icon: baseItem.icon || cat?.icon || '📦',
+        thumb: baseItem.thumb || cat?.thumb,
+        model: baseItem.model || cat?.visual?.path,
         isEquipped: false,
         slot: -1,
       };
@@ -549,6 +543,7 @@ export class InventoryEvents {
   }
 
   private handleSwapSlots(client: Client, data: { fromSlot: number; toSlot: number }) {
+    if (!Number.isSafeInteger(data?.fromSlot) || !Number.isSafeInteger(data?.toSlot)) return;
     const fromSlot = Math.floor(data.fromSlot);
     const toSlot = Math.floor(data.toSlot);
     if (
@@ -636,82 +631,14 @@ export class InventoryEvents {
   }
 
   /**
-   * Manejar actualización completa del inventario
-   */
-  private handleInventoryUpdate(client: Client, data: { inventory: Inventory }) {
-    const playerId = client.sessionId;
-    
-    console.log(`📦 [DEBUG] handleInventoryUpdate: playerId=${playerId}`);
-    console.log(`📦 [DEBUG] Datos recibidos:`, data.inventory);
-    
-    // Validar datos del inventario
-    if (!this.validateInventory(data.inventory)) {
-      console.log(`❌ [DEBUG] Inventario inválido para ${playerId}`);
-      client.send(InventoryMessages.Error, { message: 'Datos de inventario inválidos' });
-      return;
-    }
-
-    // Normalizar slots y actualizar inventario del jugador
-    const normalized = this.ensureSlots({ ...data.inventory });
-    this.playerInventories.set(playerId, normalized);
-    console.log(`✅ [DEBUG] Inventario actualizado en servidor para ${playerId}:`, data.inventory);
-
-    // Enviar actualización a todos los jugadores
-    this.room.broadcast(InventoryMessages.Updated, {
-      playerId,
-      inventory: normalized,
-      timestamp: Date.now()
-    } as InventoryEventData);
-
-    console.log(`📦 Inventario actualizado para jugador ${playerId}`);
-  }
-
-  /**
-   * Manejar agregar item
-   */
-  private handleAddItem(client: Client, data: { item: InventoryItem }) {
-    const playerId = client.sessionId;
-    const inventory = this.playerInventories.get(playerId);
-
-    if (!inventory) {
-      client.send(InventoryMessages.Error, { message: 'Inventario no encontrado' });
-      return;
-    }
-
-    // Validar item
-    if (!this.validateItem(data.item)) {
-      client.send(InventoryMessages.Error, { message: 'Item inválido' });
-      return;
-    }
-
-    if (!this.isClientAddItemAllowed(data.item.itemId)) {
-      client.send(InventoryMessages.Error, {
-        message: 'No se puede añadir ese objeto desde el cliente',
-      });
-      return;
-    }
-
-    // Agregar item al inventario
-    inventory.items.push(data.item);
-    inventory.usedSlots++;
-    inventory.currentWeight = this.calculateTotalWeight(inventory);
-
-    const normalized = this.ensureSlots(inventory);
-    this.playerInventories.set(playerId, normalized);
-
-    this.room.broadcast(InventoryMessages.Updated, {
-      playerId,
-      inventory: normalized,
-      timestamp: Date.now(),
-    } as InventoryEventData);
-
-    console.log(`➕ Item agregado: ${data.item.name} para jugador ${playerId}`);
-  }
-
-  /**
    * Manejar remover item
    */
   private handleRemoveItem(client: Client, data: { itemId: string; quantity?: number }) {
+    const quantity = data?.quantity === undefined ? 1 : data.quantity;
+    if (typeof data?.itemId !== 'string' || !Number.isSafeInteger(quantity) || quantity <= 0) {
+      client.send(InventoryMessages.Error, { message: 'Cantidad o identificador inválido' });
+      return;
+    }
     const playerId = client.sessionId;
     const inventory = this.playerInventories.get(playerId);
 
@@ -727,7 +654,10 @@ export class InventoryEvents {
     }
 
     const item = inventory.items[itemIndex];
-    const quantity = data.quantity || 1;
+    if (quantity > item.quantity) {
+      client.send(InventoryMessages.Error, { message: 'Cantidad superior a la disponible' });
+      return;
+    }
 
     if (item.quantity <= quantity) {
       // Remover item completamente
@@ -756,6 +686,8 @@ export class InventoryEvents {
    * Manejar usar item
    */
   private handleUseItem(client: Client, data: { id?: string; itemId: string; slot: number }) {
+    if (typeof data?.itemId !== 'string' || data.itemId.length > 128 ||
+        (data.id !== undefined && typeof data.id !== 'string')) return;
     const playerId = client.sessionId;
     const inventory = this.playerInventories.get(playerId);
 
@@ -876,6 +808,7 @@ export class InventoryEvents {
    * Manejar equipar item
    */
   private handleEquipItem(client: Client, data: { itemId: string }) {
+    if (typeof data?.itemId !== 'string' || data.itemId.length > 128) return;
     const playerId = client.sessionId;
     const inventory = this.playerInventories.get(playerId);
 
@@ -908,6 +841,7 @@ export class InventoryEvents {
    * Manejar desequipar item
    */
   private handleUnequipItem(client: Client, data: { itemType: string }) {
+    if (typeof data?.itemType !== 'string' || data.itemType.length > 128) return;
     const playerId = client.sessionId;
     const inventory = this.playerInventories.get(playerId);
 
@@ -934,35 +868,6 @@ export class InventoryEvents {
     } as ItemUpdateData);
 
     console.log(`🔓 Item desequipado: ${item.name} por jugador ${playerId}`);
-  }
-
-  /**
-   * Manejar actualización de oro
-   */
-  private handleGoldUpdate(client: Client, data: { amount: number; reason: string }) {
-    const playerId = client.sessionId;
-    const inventory = this.playerInventories.get(playerId);
-
-    if (!inventory) {
-      client.send(InventoryMessages.Error, { message: 'Inventario no encontrado' });
-      return;
-    }
-
-    const change = data.amount - inventory.gold;
-    inventory.gold = data.amount;
-
-    this.playerInventories.set(playerId, inventory);
-
-    // Notificar cambio de oro
-    this.room.broadcast(InventoryMessages.GoldUpdated, {
-      playerId,
-      amount: data.amount,
-      change,
-      reason: data.reason,
-      timestamp: Date.now()
-    } as GoldUpdateData);
-
-    console.log(`💰 Oro actualizado: ${data.amount} (${change > 0 ? '+' : ''}${change}) para jugador ${playerId}`);
   }
 
   /**
@@ -1023,32 +928,6 @@ export class InventoryEvents {
       typeof inventory.maxWeight === 'number' &&
       typeof inventory.currentWeight === 'number'
     );
-  }
-
-  /**
-   * Validar item
-   */
-  private validateItem(item: InventoryItem): boolean {
-    return (
-      typeof item.id === 'string' &&
-      typeof item.itemId === 'string' &&
-      typeof item.name === 'string' &&
-      typeof item.quantity === 'number' &&
-      typeof item.maxStack === 'number' &&
-      typeof item.weight === 'number' &&
-      typeof item.level === 'number' &&
-      typeof item.isEquipped === 'boolean'
-    );
-  }
-
-  /**
-   * ES: El mensaje `inventory:add-item` no debe otorgar ids inventados (alinear con manifest).
-   * EN: Client-initiated add must not grant arbitrary ids (manifest-aligned).
-   */
-  private isClientAddItemAllowed(itemId: string): boolean {
-    if (!ITEMS_CATALOG[itemId]) return false;
-    if (getContentManifest() && !isDeclaredManifestItemId(itemId)) return false;
-    return true;
   }
 
   /**

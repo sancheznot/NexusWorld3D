@@ -133,7 +133,7 @@ export default function CannonCar({ driving, spawn, modelPath = '/models/vehicle
   }, []);
 
   // Actualizar vehículo y sincronizar visual
-  useFrame((state, delta) => {
+  useFrame(() => {
     const physics = getPhysicsInstance();
     if (!physics) return;
 
@@ -150,7 +150,7 @@ export default function CannonCar({ driving, spawn, modelPath = '/models/vehicle
       
       const steer = controls.left ? -1 : controls.right ? 1 : 0;
       const handbrake = controls.handbrake ? 1 : 0; // Space
-      physics.updateRaycastVehicle(id, { throttle, brake, steer, handbrake }, delta);
+      physics.setVehicleInput(id, { throttle, brake, steer, handbrake });
     } else {
       physics.stopVehicle(id);
     }
@@ -238,8 +238,8 @@ export default function CannonCar({ driving, spawn, modelPath = '/models/vehicle
             const chassisRot = groupRef.current.quaternion;
             
             // Datos de suspensión (ahora expuestos por physics)
-            const wInfo = wTransform as any; // Cast para acceder a props nuevas
-            if (wInfo.chassisConnectionPointLocal) {
+            const wInfo = wTransform;
+            if (wInfo.chassisConnectionPointLocal && wInfo.directionLocal) {
                const conn = new THREE.Vector3(wInfo.chassisConnectionPointLocal.x, wInfo.chassisConnectionPointLocal.y, wInfo.chassisConnectionPointLocal.z);
                const dir = new THREE.Vector3(wInfo.directionLocal.x, wInfo.directionLocal.y, wInfo.directionLocal.z);
                const suspLen = wInfo.suspensionLength || 0;
@@ -340,7 +340,7 @@ export default function CannonCar({ driving, spawn, modelPath = '/models/vehicle
   );
 }
 
-useGLTF.preload('/models/vehicles/cars/City_Car_07.glb');
-useGLTF.preload('/models/vehicles/cars/Wheel_01.glb');
-
-
+if (process.env.NEXT_PUBLIC_FRAMEWORK_DEMO !== '1') {
+  useGLTF.preload('/models/vehicles/cars/City_Car_07.glb');
+  useGLTF.preload('/models/vehicles/cars/Wheel_01.glb');
+}

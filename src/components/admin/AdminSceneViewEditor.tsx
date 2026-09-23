@@ -5,7 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import type { SceneDocumentV0_1, SceneEntityV0_1 } from "@nexusworld3d/content-schema";
-import { parseSceneDocumentV0_1 } from "@nexusworld3d/content-schema";
+import { parseSceneDocumentV0_1, getSceneBoxProps } from "@nexusworld3d/content-schema";
 import { adminBtnDanger, adminBtnPrimary, adminBtnSecondary, adminCard } from "@/components/admin/admin-ui";
 
 type Props = {
@@ -33,10 +33,11 @@ function EntityBox({
 }) {
   const [x, y, z] = entity.transform.position;
   const q = useMemo(
-    () => new THREE.Quaternion(...entity.transform.rotation),
+    () => new THREE.Quaternion(...entity.transform.rotation).normalize(),
     [entity.transform.rotation]
   );
   const [sx, sy, sz] = entity.transform.scale;
+  const box = getSceneBoxProps(entity);
 
   return (
     <mesh
@@ -48,9 +49,9 @@ function EntityBox({
         onSelect(entity.id);
       }}
     >
-      <boxGeometry args={[1, 1, 1]} />
+      <boxGeometry args={box?.size ?? [1, 1, 1]} />
       <meshStandardMaterial
-        color={selected ? "#22d3ee" : "#475569"}
+        color={selected ? "#22d3ee" : box?.color ?? "#475569"}
         metalness={0.2}
         roughness={0.75}
         transparent
@@ -197,6 +198,12 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
     () => doc.entities.find((e) => e.id === selectedId) ?? null,
     [doc.entities, selectedId]
   );
+  const selectedBox = selected ? getSceneBoxProps(selected) : null;
+  const updateBox = (props: Record<string, unknown>) => {
+    setDoc(current => ({ ...current, entities: current.entities.map(entity =>
+      entity.id !== selectedId ? entity : { ...entity, components: entity.components.map(component =>
+        component.type !== 'nexus:box' ? component : { ...component, props: { ...component.props, ...props } }) }) }));
+  };
 
   const setPosition = useCallback((entityId: string, axis: 0 | 1 | 2, value: number) => {
     setDoc((prev) => ({
@@ -380,6 +387,17 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
           <p className="font-mono text-[11px] text-slate-500">{filename}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" className={adminBtnSecondary} onClick={() => {
+            const id = `box-${crypto.randomUUID()}`;
+            setDoc(current => ({ ...current, entities: [...current.entities, {
+              id, parentId: null,
+              transform: { position: [3, 1, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+              components: [{ type: 'nexus:box', props: { size: [2, 2, 2], color: '#a78bfa', solid: true, mapId: 'exterior' } }],
+            }] }));
+            setSelectedId(id);
+          }}>
+            Añadir caja sólida
+          </button>
           <button type="button" className={adminBtnSecondary} onClick={reset}>
             Restablecer / Reset
           </button>
@@ -547,6 +565,28 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
                   {JSON.stringify(selected.transform.rotation)}
                 </pre>
               </div>
+              {selectedBox && (
+                <fieldset className="space-y-2">
+                  <legend>Caja de juego</legend>
+                  {(['X', 'Y', 'Z'] as const).map((axis, index) => (
+                    <label key={axis} className="block">Tamaño {axis}
+                      <input type="number" min="0.01" max="1000" step="0.1"
+                        value={selectedBox.size[index]}
+                        onChange={event => {
+                          const value = event.target.valueAsNumber;
+                          if (!Number.isFinite(value) || value < 0.01 || value > 1000) return;
+                          const size = [...selectedBox.size]; size[index] = value;
+                          updateBox({ size });
+                        }} className="w-full rounded bg-slate-900 px-2 py-1" />
+                    </label>
+                  ))}
+                  <label className="block">Color
+                    <input type="color" value={selectedBox.color} onChange={event => updateBox({ color: event.target.value })} />
+                  </label>
+                  <label className="block"><input type="checkbox" checked={selectedBox.solid}
+                    onChange={event => updateBox({ solid: event.target.checked })} /> Colisión sólida</label>
+                </fieldset>
+              )}
               <div>
                 <span className="text-slate-500">scale</span>
                 <pre className="mt-1 max-h-20 overflow-auto rounded bg-black/40 p-2 font-mono text-[10px] text-slate-400">

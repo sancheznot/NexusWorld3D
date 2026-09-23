@@ -5,6 +5,8 @@ import { Vector3 } from 'three';
 import { Portal, MapData, PortalEvent } from '@/types/portal.types';
 import { getAllMaps } from '@/lib/game/mapRegistry';
 import worldClient from '@/lib/colyseus/WorldClient';
+import { colyseusClient } from '@/lib/colyseus/client';
+import type { MapChangedResponse } from '@/types/world-sync.types';
 
 interface UsePortalSystemProps {
   currentMap: string;
@@ -14,6 +16,16 @@ interface UsePortalSystemProps {
 export function usePortalSystem({ currentMap, onMapChange }: UsePortalSystemProps) {
   const [activePortal, setActivePortal] = useState<Portal | null>(null);
   const [showPortalUI, setShowPortalUI] = useState(false);
+
+  useEffect(() => {
+    const accepted = (data: MapChangedResponse) => {
+      if (data.playerId !== colyseusClient.getSessionId()) return;
+      onMapChange(data.mapId, new Vector3(data.position.x, data.position.y, data.position.z),
+        new Vector3(data.rotation.x, data.rotation.y, data.rotation.z));
+    };
+    worldClient.onMapChanged(accepted);
+    return () => worldClient.off('map:changed', accepted);
+  }, [onMapChange]);
 
   // Cargar mapas disponibles (memoizado para evitar re-renderizados)
   const maps = useMemo(() => {
@@ -72,6 +84,7 @@ export function usePortalSystem({ currentMap, onMapChange }: UsePortalSystemProp
 
     // Notificar al servidor el cambio de mapa
     worldClient.changeMap({
+      portalId: portal.id,
       fromMapId: currentMap,
       toMapId: portal.targetMap,
       position: nextPos,
@@ -79,19 +92,14 @@ export function usePortalSystem({ currentMap, onMapChange }: UsePortalSystemProp
       reason: 'portal'
     });
 
-    // Aplicar localmente de inmediato
-    onMapChange(
-      portal.targetMap,
-      new Vector3(nextPos.x, nextPos.y, nextPos.z),
-      new Vector3(nextRot.x, nextRot.y, nextRot.z)
-    );
+    // Apply the destination only after the server's map:changed acknowledgement.
 
     // Cerrar UI
     setShowPortalUI(false);
     setActivePortal(null);
 
     console.log('Portal event:', portalEvent);
-  }, [currentMap, maps, onMapChange]);
+  }, [currentMap, maps]);
 
   // Manejar teclas
   useEffect(() => {

@@ -1,4 +1,5 @@
 export interface MapChangeRequest {
+  portalId?: string;
   playerId?: string; // opcional, servidor usa sessionId si no viene
   fromMapId: string;
   toMapId: string;
@@ -40,5 +41,4 @@ export type WorldEventCallback<T> = (data: T) => void;
 export type MapChangedCallback = WorldEventCallback<MapChangedResponse>;
 export type MapUpdateCallback = WorldEventCallback<MapUpdateResponse>;
 export type WorldErrorCallback = WorldEventCallback<WorldErrorResponse>;
-
 

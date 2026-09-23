@@ -5,7 +5,9 @@ import { usePlayerStore } from "@/store/playerStore";
 import { useWorldStore } from "@/store/worldStore";
 import { useUIStore } from "@/store/uiStore";
 import { inventoryService } from "@/lib/services/inventory";
-import type { InventoryItem } from "@/types/inventory.types";
+import type { InventoryItem, Inventory } from "@/types/inventory.types";
+import type { MapChangedResponse, MapUpdateResponse } from '@/types/world-sync.types';
+import { JOBS, type ExtendedJobId } from '@/constants/jobs';
 import {
   frameworkColyseusRoomName,
   frameworkDefaultWorldId,
@@ -108,6 +110,7 @@ export const useSocket = () => {
     });
     if (!isConnected || !colyseusClient.getSocket()) return;
 
+    const subscriptions: Array<() => void> = [];
     hydratedServerPoseRef.current = false;
 
     const snapPhysicsToServerPose = (
@@ -174,6 +177,17 @@ export const useSocket = () => {
       console.log("📍 Pose local ← servidor:", self.position, "map:", self.mapId);
     };
 
+    const removeCorrectionListener = colyseusClient.getSocket()!.onMessage(
+      'player:correction',
+      (data: { mapId: string; position: Player['position']; rotation: Player['rotation'] }) => {
+        updateLocalPlayer({ mapId: data.mapId, position: data.position, rotation: data.rotation });
+        updatePosition(data.position);
+        updateRotation(data.rotation);
+        colyseusClient.emit('local:map-sync', { mapId: data.mapId });
+        snapPhysicsToServerPose(data.position, data.rotation);
+      }
+    );
+
     const applyPlayersSnapshot = (data: { players?: unknown }) => {
       if (!data?.players || !Array.isArray(data.players)) return;
       syncSelfFromServerList(data.players);
@@ -186,9 +200,9 @@ export const useSocket = () => {
     };
 
     // Player events
-    colyseusClient.onPlayerJoined(onPlayerJoinedHandler);
+    subscriptions.push(colyseusClient.onPlayerJoined(onPlayerJoinedHandler));
 
-    colyseusClient.onPlayerLeft((data) => {
+    subscriptions.push(colyseusClient.onPlayerLeft((data) => {
       console.log("👤 Jugador salió:", data);
       if (data.playerId) {
         removePlayer(data.playerId);
@@ -196,9 +210,9 @@ export const useSocket = () => {
       if (data.players) {
         setPlayers(data.players);
       }
-    });
+    }));
 
-    colyseusClient.onPlayerMoved((data) => {
+    subscriptions.push(colyseusClient.onPlayerMoved((data) => {
       console.log("🚶 Jugador se movió:", data);
       if (data.playerId && data.movement) {
         updateWorldPlayer(data.playerId, {
@@ -215,9 +229,9 @@ export const useSocket = () => {
               : "idle"),
         });
       }
-    });
+    }));
 
-    colyseusClient.onPlayerAttacked((data) => {
+    subscriptions.push(colyseusClient.onPlayerAttacked((data) => {
       console.log("⚔️ Ataque:", data);
       addNotification({
         id: `attack-${Date.now()}`,
@@ -227,17 +241,17 @@ export const useSocket = () => {
         duration: 3000,
         timestamp: new Date(),
       });
-    });
+    }));
 
-    colyseusClient.onPlayerDamaged((data) => {
+    subscriptions.push(colyseusClient.onPlayerDamaged((data) => {
       console.log("💥 Daño recibido:", data);
       if (data.playerId) {
         updateWorldPlayer(data.playerId, { health: data.newHealth });
       }
       updateHealth(data.newHealth);
-    });
+    }));
 
-    colyseusClient.onPlayerDied((data) => {
+    subscriptions.push(colyseusClient.onPlayerDied((data) => {
       console.log("💀 Jugador murió:", data);
       addNotification({
         id: `death-${Date.now()}`,
@@ -247,9 +261,9 @@ export const useSocket = () => {
         duration: 5000,
         timestamp: new Date(),
       });
-    });
+    }));
 
-    colyseusClient.onPlayerRespawned((data) => {
+    subscriptions.push(colyseusClient.onPlayerRespawned((data) => {
       console.log("🔄 Jugador respawned:", data);
       if (data.playerId) {
         updateWorldPlayer(data.playerId, {
@@ -257,9 +271,9 @@ export const useSocket = () => {
           health: 100,
         });
       }
-    });
+    }));
 
-    colyseusClient.onPlayerLevelUp((data) => {
+    subscriptions.push(colyseusClient.onPlayerLevelUp((data) => {
       console.log("📈 Level up:", data);
       const me = colyseusClient.getSessionId();
       if (data.playerId && me && data.playerId !== me) return;
@@ -273,18 +287,18 @@ export const useSocket = () => {
         duration: 5000,
         timestamp: new Date(),
       });
-    });
+    }));
 
-    colyseusClient.onPlayerRole((data) => {
+    subscriptions.push(colyseusClient.onPlayerRole((data) => {
+      if (data.roleId !== null && !Object.hasOwn(JOBS, data.roleId)) return;
+      const roleId = data.roleId as ExtendedJobId | null;
       console.log("🎭 Role assigned:", data);
       const myId = colyseusClient.getSessionId();
 
       // Update local player if it's me
       if (data.playerId === myId) {
         console.log("✅ Updating local player role to:", data.roleId);
-        // We need to cast roleId to any because ExtendedJobId might not be fully compatible with string in the store update signature
-        // although the store expects ExtendedJobId | null, data.roleId comes as string | null
-        updateLocalPlayer({ roleId: data.roleId as any });
+        updateLocalPlayer({ roleId });
 
         addNotification({
           id: `role-${Date.now()}`,
@@ -297,11 +311,11 @@ export const useSocket = () => {
       }
 
       // Also update world store for other players
-      updateWorldPlayer(data.playerId, { roleId: data.roleId as any });
-    });
+      updateWorldPlayer(data.playerId, { roleId });
+    }));
 
     // Chat events
-    colyseusClient.onChatMessage((data) => {
+    subscriptions.push(colyseusClient.onChatMessage((data) => {
       console.log("💬 Mensaje de chat RECIBIDO en useSocket:", data);
       addChatMessage({
         id: data.id, // Usar el ID generado por el servidor
@@ -312,9 +326,9 @@ export const useSocket = () => {
         timestamp: new Date(data.timestamp), // Asegurarse de que sea un objeto Date
         type: data.type,
       });
-    });
+    }));
 
-    colyseusClient.onChatSystem((data) => {
+    subscriptions.push(colyseusClient.onChatSystem((data) => {
       console.log("🔧 Mensaje del sistema:", data);
       addChatMessage({
         id: data.id || `system-${Date.now()}`,
@@ -325,7 +339,7 @@ export const useSocket = () => {
         timestamp: new Date(data.timestamp || Date.now()),
         type: "system",
       });
-    });
+    }));
 
     const onChatHistory = (raw: unknown) => {
       const messages = (raw as { messages?: unknown[] })?.messages;
@@ -355,15 +369,15 @@ export const useSocket = () => {
         .filter(Boolean) as Parameters<typeof setChatMessages>[0];
       setChatMessages(parsed);
     };
-    colyseusClient.on(ChatMessages.History, onChatHistory);
+    subscriptions.push(colyseusClient.on(ChatMessages.History, onChatHistory));
 
     // World events
-    colyseusClient.onWorldUpdate((data) => {
+    subscriptions.push(colyseusClient.onWorldUpdate((data) => {
       console.log("🌍 Actualización del mundo:", data);
       applyPlayersSnapshot(data as { players?: unknown });
-    });
+    }));
 
-    colyseusClient.onWorldChanged((data) => {
+    subscriptions.push(colyseusClient.onWorldChanged((data) => {
       console.log("🌍 Mundo cambiado:", data);
       addNotification({
         id: `world-change-${Date.now()}`,
@@ -373,25 +387,25 @@ export const useSocket = () => {
         duration: 3000,
         timestamp: new Date(),
       });
-    });
+    }));
 
     // Inventory server-authoritative sync
     // ES: Ignorar `inventory:item-added` para mutar el inventario local — provoca duplicados y carreras
     // con `inventory:updated`. La autoridad es siempre el snapshot completo del servidor.
     // EN: Do not merge item-added locally; use full inventory:updated only.
-    colyseusClient
-      .getSocket()
-      ?.onMessage(
+    subscriptions.push(colyseusClient
+      .getSocket()!
+      .onMessage(
         InventoryMessages.Updated,
-        (data: { playerId: string; inventory: unknown }) => {
+        (data: { playerId: string; inventory: Inventory }) => {
           const myId = colyseusClient.getSessionId();
           if (data.playerId && myId === data.playerId && data.inventory) {
-            inventoryService.setInventorySnapshot(data.inventory as any);
+            inventoryService.setInventorySnapshot(data.inventory);
           }
         }
-      );
+      ));
 
-    colyseusClient.getSocket()?.onMessage(
+    subscriptions.push(colyseusClient.getSocket()!.onMessage(
       InventoryMessages.ItemEquipped,
       (data: { playerId: string; item?: InventoryItem }) => {
         const myId = colyseusClient.getSessionId();
@@ -399,8 +413,8 @@ export const useSocket = () => {
           inventoryService.applyInventoryItemPatch(data.item);
         }
       }
-    );
-    colyseusClient.getSocket()?.onMessage(
+    ));
+    subscriptions.push(colyseusClient.getSocket()!.onMessage(
       InventoryMessages.ItemUnequipped,
       (data: { playerId: string; item?: InventoryItem }) => {
         const myId = colyseusClient.getSessionId();
@@ -408,10 +422,10 @@ export const useSocket = () => {
           inventoryService.applyInventoryItemPatch(data.item);
         }
       }
-    );
+    ));
 
     // WorldClient events (map sync)
-    const handleMapChanged = (data: any) => {
+    const handleMapChanged = (data: MapChangedResponse) => {
       console.log("🗺️ map:changed recibido", data);
       const myId = colyseusClient.getSessionId();
       if (myId && data.playerId === myId && data.mapId) {
@@ -421,31 +435,31 @@ export const useSocket = () => {
       updateWorldPlayer(data.playerId, {
         position: data.position,
         rotation: data.rotation,
-        mapId: data.mapId as any,
-      } as any);
+        mapId: data.mapId,
+      });
     };
     worldClient.onMapChanged(handleMapChanged);
 
-    const handleMapUpdate = (data: any) => {
+    const handleMapUpdate = (data: MapUpdateResponse) => {
       console.log("🗺️ map:update recibido", data);
       // Refrescar jugadores presentes en este mapa (sin perder campos extra)
       // Mezcla conservadora: solo aseguramos mapId/position/rotation de los reportados
-      data.players.forEach((p: any) => {
+      data.players.forEach((p) => {
         updateWorldPlayer(p.id, {
           position: p.position,
           rotation: p.rotation,
-          mapId: p.mapId as any,
-        } as any);
+          mapId: p.mapId,
+        });
       });
     };
     worldClient.onMapUpdate(handleMapUpdate);
 
     // Monster events
-    colyseusClient.onMonsterSpawned((data) => {
+    subscriptions.push(colyseusClient.onMonsterSpawned((data) => {
       console.log("👹 Monstruo apareció:", data);
-    });
+    }));
 
-    colyseusClient.onMonsterDied((data) => {
+    subscriptions.push(colyseusClient.onMonsterDied((data) => {
       console.log("💀 Monstruo murió:", data);
       addNotification({
         id: `monster-death-${Date.now()}`,
@@ -455,10 +469,10 @@ export const useSocket = () => {
         duration: 3000,
         timestamp: new Date(),
       });
-    });
+    }));
 
     // System events
-    colyseusClient.onSystemError((data) => {
+    subscriptions.push(colyseusClient.onSystemError((data) => {
       console.error("❌ Error del sistema:", data);
       addNotification({
         id: `system-error-${Date.now()}`,
@@ -468,9 +482,9 @@ export const useSocket = () => {
         duration: 5000,
         timestamp: new Date(),
       });
-    });
+    }));
 
-    colyseusClient.onSystemMaintenance((data) => {
+    subscriptions.push(colyseusClient.onSystemMaintenance((data) => {
       console.log("🔧 Mantenimiento:", data);
       addNotification({
         id: `maintenance-${Date.now()}`,
@@ -480,7 +494,7 @@ export const useSocket = () => {
         duration: 10000,
         timestamp: new Date(),
       });
-    });
+    }));
 
     // Sincronización de jugadores desde el servidor
     const onPlayersUpdatedHandler = (data: { players?: unknown }) => {
@@ -488,7 +502,7 @@ export const useSocket = () => {
       applyPlayersSnapshot(data);
     };
 
-    colyseusClient.onPlayersUpdated(onPlayersUpdatedHandler);
+    subscriptions.push(colyseusClient.onPlayersUpdated(onPlayersUpdatedHandler));
 
     const onRpgSync = (raw: unknown) => {
       const p = raw as RpgSyncPayload;
@@ -517,8 +531,8 @@ export const useSocket = () => {
         timestamp: new Date(),
       });
     };
-    colyseusClient.on(RpgMessages.Sync, onRpgSync);
-    colyseusClient.on(RpgMessages.Error, onRpgError);
+    subscriptions.push(colyseusClient.on(RpgMessages.Sync, onRpgSync));
+    subscriptions.push(colyseusClient.on(RpgMessages.Error, onRpgError));
 
     const onSceneAuthoringApplied = (raw: unknown) => {
       const p = raw as {
@@ -545,7 +559,7 @@ export const useSocket = () => {
         timestamp: new Date(),
       });
     };
-    colyseusClient.on(SceneMessages.AppliedDocumentV0_1, onSceneAuthoringApplied);
+    subscriptions.push(colyseusClient.on(SceneMessages.AppliedDocumentV0_1, onSceneAuthoringApplied));
 
     // ES: Re-aplicar snapshot si llegó antes de registrar handlers (sin delay artificial).
     // EN: Replay join snapshot if it arrived before useSocket handlers attached.
@@ -565,6 +579,8 @@ export const useSocket = () => {
 
     // Cleanup function
     return () => {
+      for (const unsubscribe of subscriptions) unsubscribe();
+      removeCorrectionListener();
       colyseusClient.off(PlayerMessages.Joined, onPlayerJoinedHandler);
       colyseusClient.off("players:updated", onPlayersUpdatedHandler);
       colyseusClient.off(ChatMessages.History, onChatHistory);

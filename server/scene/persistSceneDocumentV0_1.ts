@@ -54,6 +54,7 @@ export function tryLoadSceneDocumentV0_1FromDisk(
   }
   const parsed = safeParseSceneDocumentV0_1(raw);
   if (!parsed.success) return null;
+  if (parsed.data.worldId !== worldId) return null;
   const sem = validateSceneDocumentSemanticsV0_1(parsed.data);
   if (!sem.ok) return null;
   return parsed.data;

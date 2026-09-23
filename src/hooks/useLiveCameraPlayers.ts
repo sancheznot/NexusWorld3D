@@ -23,13 +23,14 @@ export function useLiveCameraPlayers() {
       "🎮 [LIVE CAMERAS] Conectando a Colyseus para obtener jugadores..."
     );
     let isMounted = true;
-    let listenersAttached = false;
+    const subscriptions: Array<() => void> = [];
     const scheduledTimeouts: ReturnType<typeof setTimeout>[] = [];
 
     // Conectar a Colyseus
     colyseusClient
       .connect()
       .then(() => {
+        if (!isMounted) return;
         console.log("✅ [LIVE CAMERAS] Conectado a Colyseus");
         setIsConnected(true);
 
@@ -40,12 +41,10 @@ export function useLiveCameraPlayers() {
         }
 
         // No necesitamos esperar al estado si usamos eventos manuales
-        listenersAttached = true;
-
         // Escuchar actualización completa de jugadores
-        colyseusClient.onPlayersUpdated((data: any) => {
+        subscriptions.push(colyseusClient.onPlayersUpdated((data) => {
           if (!isMounted) return;
-          const playersList = data.players as any[];
+          const playersList = data.players;
           console.log(
             `📊 [LIVE CAMERAS] Actualización de jugadores recibida: ${playersList.length}`
           );
@@ -64,10 +63,10 @@ export function useLiveCameraPlayers() {
             return newPlayers;
           });
           setPlayerCount(playersList.length);
-        });
+        }));
 
         // Escuchar movimiento de jugadores
-        colyseusClient.onPlayerMoved((data: any) => {
+        subscriptions.push(colyseusClient.onPlayerMoved((data) => {
           if (!isMounted) return;
           const { playerId, movement } = data;
 
@@ -83,21 +82,21 @@ export function useLiveCameraPlayers() {
             }
             return newPlayers;
           });
-        });
+        }));
 
         // Escuchar entrada de jugadores
-        colyseusClient.onPlayerJoined((data: any) => {
+        subscriptions.push(colyseusClient.onPlayerJoined((data) => {
           // La actualización completa suele venir después, pero podemos manejarlo aquí también
           console.log(
             `👤 [LIVE CAMERAS] Jugador unido: ${data.player?.username}`
           );
-        });
+        }));
 
         // Escuchar salida de jugadores
-        colyseusClient.onPlayerLeft((data: any) => {
+        subscriptions.push(colyseusClient.onPlayerLeft((data) => {
           console.log(`👋 [LIVE CAMERAS] Jugador salió: ${data.playerId}`);
           // La actualización completa suele venir después
-        });
+        }));
       })
       .catch((error) => {
         console.error("❌ [LIVE CAMERAS] Error conectando a Colyseus:", error);
@@ -107,6 +106,7 @@ export function useLiveCameraPlayers() {
     return () => {
       console.log("🔌 [LIVE CAMERAS] Limpiando listeners");
       isMounted = false;
+      for (const unsubscribe of subscriptions) unsubscribe();
       scheduledTimeouts.forEach(clearTimeout);
     };
   }, []);

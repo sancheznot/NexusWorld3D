@@ -30,7 +30,7 @@ export interface WorldObject {
   rotation: Vector3;
   scale: Vector3;
   isInteractable: boolean;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
 }
 
 export interface SpawnPoint {
