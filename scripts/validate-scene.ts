@@ -6,6 +6,10 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { safeParseSceneDocumentV0_1 } from "@nexusworld3d/content-schema";
+import { loadContentManifestOrThrow } from '../server/content/loadContentManifest';
+import { validateSceneDocumentSemanticsV0_1 } from '../server/scene/validateSceneDocumentSemanticsV0_1';
+
+loadContentManifestOrThrow();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const scenesDir = join(__dirname, "..", "content", "scenes");
@@ -43,6 +47,8 @@ for (const name of names) {
     const msg = r.error.flatten();
     fail(`${name} — schema — ${JSON.stringify(msg, null, 2)}`);
   }
+  const semantics = validateSceneDocumentSemanticsV0_1(r.data);
+  if (!semantics.ok) fail(`${name} — ${semantics.error}`);
   console.log(
     `[validate-scene] OK — ${name} worldId=${r.data.worldId} entities=${r.data.entities.length}`
   );

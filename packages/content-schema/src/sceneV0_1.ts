@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { sceneBoxPropsSchema } from './sceneBox';
+import { sceneModelPropsSchema } from './sceneModel';
 
 const componentTypeRegex = /^(nexus|game):[a-zA-Z0-9._-]+$/;
 
@@ -91,6 +92,18 @@ export const sceneDocumentV0_1Schema = z
       }
       for (const id of path) complete.add(id);
       const boxes = entity.components.filter(c => c.type === 'nexus:box');
+      const models = entity.components.filter(c => c.type === 'nexus:model');
+      if (models.length) {
+        const model = sceneModelPropsSchema.safeParse(models[0].props);
+        if (models.length !== 1 || boxes.length || entity.parentId !== null || !model.success ||
+            entity.components.some(c => c.type === 'nexus:resourceNode') ||
+            entity.transform.position.some(p => Math.abs(p) > 1e6) ||
+            entity.transform.scale.some(s => s < 0.01 || s > 1000) ||
+            (model.success && model.data.colliders.some(c => c.size.some((s, i) => s * entity.transform.scale[i] > 1000) ||
+              c.offset.some((s, i) => Math.abs(s * entity.transform.scale[i]) > 1000)))) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Entity "${entity.id}": invalid root model or collider dimensions`, path: ['entities'] });
+        }
+      }
       if (!boxes.length) continue;
       const props = sceneBoxPropsSchema.safeParse(boxes[0].props);
       if (boxes.length !== 1 || entity.parentId !== null || !props.success ||

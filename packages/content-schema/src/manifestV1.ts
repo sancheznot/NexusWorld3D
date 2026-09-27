@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sceneModelAssetSchema } from './sceneModel';
 
 /**
  * ES: Esquema Zod para `content/manifest.json` v1 (extensible con claves extra).
@@ -7,6 +8,7 @@ import { z } from "zod";
 export const contentManifestV1Schema = z
   .object({
     schemaVersion: z.number().int().min(1),
+    modelAssets: z.array(sceneModelAssetSchema).default([]),
     items: z.array(
       z.object({
         id: z.string().min(1, "item id must be non-empty"),
@@ -19,6 +21,9 @@ export const contentManifestV1Schema = z
   })
   .passthrough()
   .superRefine((data, ctx) => {
+    if (new Set(data.modelAssets.map(asset => asset.id)).size !== data.modelAssets.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Duplicate model asset id', path: ['modelAssets'] });
+    }
     const ids = data.items.map((r) => r.id);
     const seen = new Set<string>();
     for (let i = 0; i < ids.length; i++) {

@@ -3,7 +3,8 @@
 import { useEffect, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import type { Mesh } from 'three';
-import { getSceneBoxProps, type SceneDocumentV0_1 } from '@nexusworld3d/content-schema';
+import { getSceneBoxProps, getSceneModelProps, type SceneDocumentV0_1 } from '@nexusworld3d/content-schema';
+import SceneModelVisual from '../world/SceneModelVisual';
 import { createScenePlaySession } from '@/lib/three/scenePlaySession';
 import { adminBtnDanger } from './admin-ui';
 
@@ -65,6 +66,7 @@ function Simulation({ document }: { document: SceneDocumentV0_1 }) {
     <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#172033" /></mesh>
     <gridHelper args={[200, 100, '#334155', '#253047']} position={[0, 0.01, 0]} />
     {document.entities.map(entity => {
+      if (getSceneModelProps(entity)?.mapId === 'exterior') return <SceneModelVisual key={entity.id} entity={entity} />;
       const box = getSceneBoxProps(entity);
       if (!box || box.mapId !== 'exterior' || entity.parentId !== null) return null;
       const rotation = entity.transform.rotation;
@@ -93,7 +95,7 @@ export default function AdminScenePlayPreview({ document, onStop }: { document: 
         <p className="text-xs text-slate-400">WASD / flechas · Shift correr · Espacio saltar · Escape salir</p></div>
       <button type="button" onClick={onStop} className={adminBtnDanger}>Stop</button>
     </header>
-    <p className="px-4 py-2 text-xs text-amber-200">Prueba aislada: cajas del mapa exterior, suelo y jugador local. No ejecuta otros componentes ni conecta jugadores. No guarda ni publica cambios.</p>
+    <p className="px-4 py-2 text-xs text-amber-200">Prueba aislada: cajas y modelos estáticos del mapa exterior, suelo y jugador local. No ejecuta otros componentes ni conecta jugadores. No guarda ni publica cambios.</p>
     <div className="h-[calc(100%_-_150px)] min-h-40"><Canvas camera={{ position: [0, 10, 18], far: 500 }} dpr={[1, 1.5]}><Simulation document={document} /></Canvas></div>
   </dialog>;
 }

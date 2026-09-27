@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import modelFixture from '../content/scenes/models.v0_1.json';
 
 if (process.env.NEXUS_RUN_ISOLATED_DB_TESTS !== '1') throw new Error('Integration tests require explicit isolated opt-in');
 delete process.env.DATABASE_URL;
@@ -71,7 +72,7 @@ test('scene publish reaches two WebSocket clients and survives a full server pro
     id: 'wall', parentId: null,
     transform: { position: [3, 3, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
     components: [{ type: 'nexus:box', props: { size: [0.5, 6, 10], solid: true } }],
-  }] };
+  }, ...modelFixture.entities] };
   const waitScene = (room: import('colyseus.js').Room) => new Promise<unknown>((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error('scene broadcast timeout')), 3000);
     room.onMessage(SceneMessages.AppliedDocumentV0_1, payload => {

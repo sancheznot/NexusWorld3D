@@ -9,6 +9,7 @@ import { loadContentManifestOrThrow } from '../server/content/loadContentManifes
 import { createScenePlaySession } from '../src/lib/three/scenePlaySession';
 import { createServer } from 'node:http';
 import { tryHandleGameMonitorRequest } from '../server/metrics/gameMonitorHttp';
+import modelFixture from '../content/scenes/models.v0_1.json';
 
 const document = () => parseSceneDocumentV0_1({ schemaVersion: 1, worldId: 'library-test', entities: [{
   id: 'box', parentId: null, transform: { position: [3, 1, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
@@ -26,6 +27,18 @@ function isolated(run: () => void) {
     rmSync(directory, { recursive: true });
   }
 }
+
+test('model asset IDs and compound colliders survive draft, publish and restore', () => isolated(() => {
+  const document = parseSceneDocumentV0_1(modelFixture);
+  const worldId = document.worldId;
+  executeSceneLibraryCommand({ action: 'save-draft', worldId, document, expectedRevision: null });
+  const published = executeSceneLibraryCommand({ action: 'publish', worldId, document, expectedRevision: null });
+  const changed = structuredClone(document); changed.entities[0].components[0].props.colliders = [];
+  const newer = executeSceneLibraryCommand({ action: 'publish', worldId, document: changed, expectedRevision: published.publishedRevision });
+  const restored = executeSceneLibraryCommand({ action: 'restore', worldId, revision: published.publishedRevision, expectedRevision: newer.publishedRevision });
+  assert.deepEqual(restored.draft, document);
+  assert.deepEqual(restored.published, document);
+}));
 
 test('draft, publication and restored revisions remain independent and durable', () => isolated(() => {
   const first = document();

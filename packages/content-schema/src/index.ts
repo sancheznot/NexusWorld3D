@@ -23,3 +23,4 @@ export {
 } from "./sceneResourceNodeOverride";
 
 export { sceneBoxPropsSchema, getSceneBoxProps } from './sceneBox';
+export { sceneModelAssetSchema, sceneModelPropsSchema, getSceneModelProps, type SceneModelProps, type SceneModelAsset } from './sceneModel';

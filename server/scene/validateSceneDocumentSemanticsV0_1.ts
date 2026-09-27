@@ -3,7 +3,7 @@
  * EN: Post-Zod semantic validation v0.1 — ADR 0001 (nexus:* when applying to room).
  */
 
-import type { SceneDocumentV0_1 } from "@nexusworld3d/content-schema";
+import { getSceneModelProps, type SceneDocumentV0_1 } from "@nexusworld3d/content-schema";
 import { getWorldResourceNodeById } from "@/constants/worldResourceNodes";
 import {
   getContentManifest,
@@ -28,6 +28,13 @@ export function validateSceneDocumentSemanticsV0_1(
     for (const c of ent.components) {
       // Shape and transform constraints belong to the shared document schema.
       if (c.type === 'nexus:box') continue;
+      if (c.type === 'nexus:model') {
+        const props = getSceneModelProps(ent);
+        if (!props || !getContentManifest()!.modelAssets.some(asset => asset.id === props.assetId)) {
+          return { ok: false, error: `entity "${ent.id}": unknown model asset id` };
+        }
+        continue;
+      }
       if (c.type === "nexus:resourceNode") {
         const nodeId = (c.props as Record<string, unknown> | undefined)?.nodeId;
         if (typeof nodeId !== "string" || !nodeId.trim()) {

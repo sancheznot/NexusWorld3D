@@ -82,3 +82,9 @@ Por petición del usuario se cierra este bloque para commit local, sin abrir nue
 - Pruebas: validación y compatibilidad del schema, pose de Play, undo/redo de spawn y montaje físico tardío. Integración de dos clientes/reinicio ampliada: nuevo jugador recibe exactamente la posición y orientación publicadas. Integración SQL/Auth.js ampliada: el perfil guardado conserva su posición aunque la escena tenga otro spawn.
 - Suite local **89/89**, integraciones **2/2** en entorno aislado, TypeScript/check:phase1 y lint sin errores (82 advertencias existentes). Validación visual sigue aplazada. Pendientes de fase 3: assets/modelos y colliders importados, jerarquías coherentes, ejecución completa del documento y experiencia pública de acceso a mundos. Fases 4–6 siguen abiertas.
 - El test SQL ahora reproduce la carga del manifiesto del arranque real y exige recibir la escena por WebSocket antes de comprobar la prioridad del perfil: sin ello podía pasar sin haber cargado el spawn. Build de producción aislado y `git diff --check` correctos. No se alteró la base de datos original ni se desplegaron servidores.
+
+## Modelos estáticos registrados + colliders — 2026-09-27
+
+Implementado el recorrido por asset ID: selector → instancia transformable → cajas de colisión editables → borrador/publicación → Play/runtime, con loader común y limpieza por instancia. Fixture glTF de puerta redistribuible: apertura transitable y pilares sólidos verificados a 30/144 FPS. Detalles y límites en `2026-09-27-scene-models-colliders.md`.
+
+Verificación: **96 pruebas**, **2 integraciones**, TypeScript/check:phase1, build aislado y lint sin errores. Revisión visual aplazada. Quedan **registro/subida completamente desde web**, jerarquías, ejecución de otros componentes y acceso público a mundos; mallas físicas exactas, animaciones y optimización masiva no forman parte de este bloque. No marcar fase 3 completa.

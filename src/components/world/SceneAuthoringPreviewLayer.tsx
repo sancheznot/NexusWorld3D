@@ -1,6 +1,7 @@
 "use client";
 
-import { entityHasResourceNodeComponent, getSceneBoxProps } from "@nexusworld3d/content-schema";
+import { entityHasResourceNodeComponent, getSceneBoxProps, getSceneModelProps } from "@nexusworld3d/content-schema";
+import SceneModelVisual from './SceneModelVisual';
 import React, { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { useSceneAuthoringStore } from "@/store/sceneAuthoringStore";
@@ -24,7 +25,7 @@ export default function SceneAuthoringPreviewLayer() {
   const items = useMemo(() => {
     if (!document?.entities?.length) return [];
     return document.entities
-      .filter((ent) => !entityHasResourceNodeComponent(ent) &&
+      .filter((ent) => !getSceneModelProps(ent) && !entityHasResourceNodeComponent(ent) &&
         (!getSceneBoxProps(ent) || getSceneBoxProps(ent)!.mapId === mapId))
       .map((ent) => {
         const [x, y, z] = ent.transform.position;
@@ -34,10 +35,9 @@ export default function SceneAuthoringPreviewLayer() {
       });
   }, [document, mapId]);
 
-  if (items.length === 0) return null;
-
   return (
     <group name="scene-authoring-preview">
+      {document?.entities.filter(entity => getSceneModelProps(entity)?.mapId === mapId).map(entity => <SceneModelVisual key={entity.id} entity={entity} />)}
       {items.map((it) => (
         <mesh
           key={it.id}

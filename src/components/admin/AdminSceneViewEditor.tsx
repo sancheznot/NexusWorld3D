@@ -5,7 +5,10 @@ import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import type { SceneDocumentV0_1, SceneEntityV0_1 } from "@nexusworld3d/content-schema";
-import { parseSceneDocumentV0_1, getSceneBoxProps } from "@nexusworld3d/content-schema";
+import { parseSceneDocumentV0_1, getSceneBoxProps, getSceneModelProps } from "@nexusworld3d/content-schema";
+import SceneModelVisual from '../world/SceneModelVisual';
+import SceneModelInspector from './SceneModelInspector';
+import { sceneModelAssets } from '@/lib/assets/sceneModelAssets';
 import { adminBtnDanger, adminBtnPrimary, adminBtnSecondary, adminCard } from "@/components/admin/admin-ui";
 import AdminScenePublicationPanel from './AdminScenePublicationPanel';
 import dynamic from 'next/dynamic';
@@ -45,6 +48,8 @@ function EntityBox({
   );
   const [sx, sy, sz] = entity.transform.scale;
   const box = getSceneBoxProps(entity);
+
+  if (getSceneModelProps(entity)) return <SceneModelVisual entity={entity} showColliders={selected} onSelect={onSelect} />;
 
   return (
     <mesh
@@ -161,6 +166,7 @@ function HierarchyTree({
 export default function AdminSceneViewEditor({ filename, initialDocument, onClose }: Props) {
   const { doc, setDoc, selectedId, setSelectedId, replace, undo, redo, canUndo, canRedo } = useSceneEditorHistory(initialDocument);
   const [transformError, setTransformError] = useState<string | null>(null);
+  const [modelAssetId, setModelAssetId] = useState(sceneModelAssets[0]?.id ?? '');
   const [liveRoomIds, setLiveRoomIds] = useState<string[]>([]);
   const [targetRoomId, setTargetRoomId] = useState("");
   const [applyMsg, setApplyMsg] = useState<string | null>(null);
@@ -211,6 +217,8 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
     [doc.entities, selectedId]
   );
   const selectedBox = selected ? getSceneBoxProps(selected) : null;
+  const selectedModel = selected ? getSceneModelProps(selected) : null;
+  const selectedGeometry = selectedBox || selectedModel;
   const selectedDegrees = selected ? sceneRotationDegrees(selected.transform.rotation) : [0, 0, 0];
   const setTransform = (patch: Partial<SceneEntityV0_1['transform']>) => {
     if (!selected) return;
@@ -399,6 +407,19 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
           <p className="font-mono text-[11px] text-slate-500">{filename}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <select aria-label="Modelo a añadir" value={modelAssetId} onChange={event => setModelAssetId(event.target.value)} className="max-w-52 rounded border border-white/10 bg-slate-900 px-2 text-xs text-white">
+            {sceneModelAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+          </select>
+          <button type="button" disabled={!modelAssetId} className={adminBtnSecondary} onClick={() => {
+            const asset = sceneModelAssets.find(asset => asset.id === modelAssetId);
+            if (!asset) return;
+            const id = `model-${crypto.randomUUID()}`;
+            setDoc(current => ({ ...current, entities: [...current.entities, { id, parentId: null,
+              transform: { position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+              components: [{ type: 'nexus:model', props: { assetId: asset.id, mapId: 'exterior', colliders: structuredClone(asset.colliders) } }],
+            }] }));
+            setSelectedId(id);
+          }}>Añadir modelo</button>
           <button type="button" disabled={!canUndo} className={adminBtnSecondary} onClick={undo} title="Ctrl/Cmd+Z fuera de campos de texto">Deshacer</button>
           <button type="button" disabled={!canRedo} className={adminBtnSecondary} onClick={redo} title="Ctrl/Cmd+Shift+Z o Ctrl+Y">Rehacer</button>
           <button type="button" className={adminBtnPrimary} onClick={() => {
@@ -581,7 +602,7 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
                 <span className="text-slate-500">position (editable)</span>
                 <div className="mt-1 grid grid-cols-3 gap-2">
                   {(['X', 'Y', 'Z'] as const).map((label, axis) => <SceneNumberInput key={`${selected.id}-position-${axis}`}
-                    label={label} value={selected.transform.position[axis]} min={selectedBox ? -1e6 : undefined} max={selectedBox ? 1e6 : undefined}
+                    label={label} value={selected.transform.position[axis]} min={selectedGeometry ? -1e6 : undefined} max={selectedGeometry ? 1e6 : undefined}
                     onCommit={value => {
                       const position = [...selected.transform.position] as [number, number, number];
                       position[axis] = value; setTransform({ position });
@@ -590,7 +611,7 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
               </div>
               <div>
                 <span className="text-slate-500">Rotación XYZ (grados)</span>
-                {selectedBox ? <div className="mt-1 grid grid-cols-3 gap-2">
+                {selectedGeometry ? <div className="mt-1 grid grid-cols-3 gap-2">
                   {(['X', 'Y', 'Z'] as const).map((label, axis) => <SceneNumberInput key={`${selected.id}-rotation-${axis}`}
                     label={label} value={Number(selectedDegrees[axis].toFixed(4))} min={-360} max={360} step={1}
                     onCommit={value => {
@@ -602,26 +623,35 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
                   {JSON.stringify(selected.transform.rotation)}
                 </pre>
               </div>
-              {selectedBox && (
-                <fieldset className="space-y-2">
-                  <legend>Caja de juego</legend>
+              {selectedGeometry ? <>
                   <div className="flex flex-wrap gap-2">
                     <button type="button" className={adminBtnSecondary} onClick={() => {
                       const copy = structuredClone(selected);
-                      copy.id = `box-${crypto.randomUUID()}`;
-                      copy.transform.position[0] += 2;
+                      copy.id = `entity-${crypto.randomUUID()}`;
+                      copy.transform.position[0] = Math.min(1e6, copy.transform.position[0] + 2);
                       setDoc(current => ({ ...current, entities: [...current.entities, copy] }));
                       setSelectedId(copy.id);
-                    }}>Duplicar caja</button>
+                    }}>Duplicar objeto</button>
                     <button type="button" className={adminBtnDanger}
                       disabled={doc.entities.some(entity => entity.parentId === selected.id)}
-                      title="Solo se pueden eliminar cajas sin entidades hijas"
+                      title="Solo se pueden eliminar objetos sin entidades hijas"
                       onClick={() => {
-                        if (!window.confirm('¿Eliminar esta caja del borrador?')) return;
+                        if (!window.confirm('¿Eliminar este objeto del borrador?')) return;
                         setDoc(current => ({ ...current, entities: current.entities.filter(entity => entity.id !== selected.id) }));
                         setSelectedId(null);
-                      }}>Eliminar caja</button>
+                      }}>Eliminar objeto</button>
                   </div>
+              </> : null}
+              {selectedModel ? <SceneModelInspector key={selected.id} model={selectedModel} scale={selected.transform.scale} onChange={props => {
+                try {
+                  setDoc(parseSceneDocumentV0_1({ ...doc, entities: doc.entities.map(entity => entity.id === selected.id
+                    ? { ...entity, components: entity.components.map(c => c.type === 'nexus:model' ? { ...c, props } : c) } : entity) }));
+                  setTransformError(null);
+                } catch { setTransformError('Colliders inválidos para la escala actual. Reduce el tamaño o la escala.'); }
+              }} /> : null}
+              {selectedBox && (
+                <fieldset className="space-y-2">
+                  <legend>Caja de juego</legend>
                   {(['X', 'Y', 'Z'] as const).map((axis, index) => (
                     <SceneNumberInput key={`${selected.id}-size-${axis}`} label={`Tamaño ${axis}`} min={0.01} max={Math.min(1000, 1000 / selected.transform.scale[index])}
                         value={selectedBox.size[index]} onCommit={value => {
@@ -638,9 +668,10 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
               )}
               <div>
                 <span className="text-slate-500">Escala</span>
-                {selectedBox ? <div className="mt-1 grid grid-cols-3 gap-2">
+                {selectedGeometry ? <div className="mt-1 grid grid-cols-3 gap-2">
                   {(['X', 'Y', 'Z'] as const).map((label, axis) => <SceneNumberInput key={`${selected.id}-scale-${axis}`}
-                    label={label} value={selected.transform.scale[axis]} min={0.01} max={Math.min(1000, 1000 / selectedBox.size[axis])}
+                    label={label} value={selected.transform.scale[axis]} min={0.01} max={selectedBox ? Math.min(1000, 1000 / selectedBox.size[axis])
+                      : Math.min(1000, ...(selectedModel?.colliders.flatMap(c => [1000 / c.size[axis], c.offset[axis] ? 1000 / Math.abs(c.offset[axis]) : 1000]) ?? []))}
                     onCommit={value => {
                       const scale = [...selected.transform.scale] as [number, number, number]; scale[axis] = value;
                       setTransform({ scale });

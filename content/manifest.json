@@ -1,5 +1,14 @@
 {
   "schemaVersion": 1,
+  "modelAssets": [
+    { "id": "demo-doorway", "name": "Puerta de prueba (marco abierto)", "url": "/scene-assets/demo-doorway.gltf",
+      "colliders": [
+        { "size": [1, 4, 1], "offset": [-2.5, 2, 0] },
+        { "size": [1, 4, 1], "offset": [2.5, 2, 0] },
+        { "size": [6, 1, 1], "offset": [0, 4.5, 0] }
+      ]
+    }
+  ],
   "items": [
     { "id": "coin_gold" },
     { "id": "potion_health" },

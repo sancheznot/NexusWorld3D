@@ -36,6 +36,9 @@ try {
 }
 
 const catalogKeys = new Set(Object.keys(ITEMS_CATALOG));
+for (const asset of manifest.modelAssets) {
+  if (!existsSync(join(__dirname, '..', 'public', asset.url))) fail(`Missing model asset ${asset.id}: ${asset.url}`);
+}
 for (const row of manifest.items) {
   if (!catalogKeys.has(row.id)) {
     fail(
