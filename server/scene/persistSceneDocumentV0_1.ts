@@ -3,8 +3,9 @@
  * EN: Atomic persistence for `SceneDocumentV0_1` under `content/scenes/persisted/` (or `NEXUS_SCENE_PERSIST_DIR`).
  */
 
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, rmSync } from "node:fs";
+import { createHash, randomUUID } from 'node:crypto';
+import { dirname, join } from "node:path";
 import {
   safeParseSceneDocumentV0_1,
   type SceneDocumentV0_1,
@@ -24,17 +25,22 @@ function sanitizeWorldId(worldId: string): string {
 }
 
 export function persistedSceneFilePath(worldId: string): string {
-  return join(persistRootDir(), `${sanitizeWorldId(worldId)}.v0_1.json`);
+  const key = createHash('sha256').update(worldId, 'utf8').digest('hex');
+  // Separate namespace avoids collisions with any existing legacy basename.
+  return join(persistRootDir(), 'by-world-id-v1', `${key}.v0_1.json`);
 }
 
 export function writeSceneDocumentV0_1ToDisk(doc: SceneDocumentV0_1): void {
-  const dir = persistRootDir();
-  mkdirSync(dir, { recursive: true });
   const finalPath = persistedSceneFilePath(doc.worldId);
+  mkdirSync(dirname(finalPath), { recursive: true });
   const json = JSON.stringify(doc, null, 2) + "\n";
-  const tmp = `${finalPath}.${process.pid}.${Date.now()}.tmp`;
-  writeFileSync(tmp, json, "utf8");
-  renameSync(tmp, finalPath);
+  const tmp = `${finalPath}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(tmp, json, { encoding: 'utf8', flag: 'wx' });
+    renameSync(tmp, finalPath);
+  } finally {
+    rmSync(tmp, { force: true });
+  }
 }
 
 /**
@@ -44,7 +50,10 @@ export function writeSceneDocumentV0_1ToDisk(doc: SceneDocumentV0_1): void {
 export function tryLoadSceneDocumentV0_1FromDisk(
   worldId: string
 ): SceneDocumentV0_1 | null {
-  const path = persistedSceneFilePath(worldId);
+  const currentPath = persistedSceneFilePath(worldId);
+  // Read-only migration: never overwrite or rename a legacy file belonging to another ID.
+  const path = existsSync(currentPath) ? currentPath
+    : join(persistRootDir(), `${sanitizeWorldId(worldId)}.v0_1.json`);
   if (!existsSync(path)) return null;
   let raw: unknown;
   try {

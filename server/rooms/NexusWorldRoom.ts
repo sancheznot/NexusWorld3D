@@ -171,10 +171,12 @@ export class NexusWorldRoom extends Room {
   onAuth(client: Client, options: Record<string, unknown> = {}): WorldIdentity {
     const identity = authenticateWorldJoin(options, this.roomName, nexusWorld3DConfig.worlds.default);
     if ((options.worldId !== undefined && options.worldId !== identity.worldId) ||
-        (this.roomWorldId !== null && this.roomWorldId !== identity.worldId)) {
+        (this.roomWorldId !== null && this.roomWorldId !== identity.worldId) ||
+        (this.sceneDocumentV0_1 !== null && this.sceneDocumentV0_1.worldId !== identity.worldId)) {
       throw new Error('World identity does not match this room');
     }
     this.roomWorldId = identity.worldId;
+    if (!this.sceneDocumentV0_1) this.tryLoadPersistedScene(identity.worldId);
     this.identities.set(client.sessionId, identity);
     return identity;
   }
@@ -392,7 +394,7 @@ export class NexusWorldRoom extends Room {
     // ES: Tiempo, jobs, ejemplo — tras ítems/tienda. EN: Time, jobs, example after items/shop.
     attachLateFrameworkResources(this);
 
-    this.tryLoadPersistedSceneOnCreate();
+    // Persisted scenes load after authentication binds the room to a world.
 
     registerNexusWorldRoomInspect(this.roomId, () => this.buildAdminInspectSnapshot());
     registerNexusWorldRoomSceneAuthoring(this.roomId, {
@@ -859,11 +861,8 @@ export class NexusWorldRoom extends Room {
    * ES: Snapshot para monitor admin HTTP — sin PII extra ni secretos.
    * EN: Snapshot for admin HTTP monitor — no extra PII or secrets.
    */
-  private tryLoadPersistedSceneOnCreate(): void {
+  private tryLoadPersistedScene(worldId: string): void {
     if (!isSceneLoadPersistedEnabled()) return;
-    const worldId =
-      process.env.NEXUS_SCENE_PERSIST_WORLD_ID?.trim() ||
-      nexusWorld3DConfig.worlds.default;
     const doc = tryLoadSceneDocumentV0_1FromDisk(worldId);
     if (!doc) return;
     this.sceneDocumentV0_1 = doc;
@@ -934,6 +933,9 @@ export class NexusWorldRoom extends Room {
       return { ok: false, error: msg || "scene_parse_failed" };
     }
     const doc = parsed.data;
+    if (this.roomWorldId !== null && doc.worldId !== this.roomWorldId) {
+      return { ok: false, error: 'scene_world_mismatch' };
+    }
     const sem = validateSceneDocumentSemanticsV0_1(doc);
     if (!sem.ok) {
       pushGameMonitorLog("warn", "room", "scene authoring rejected (semantics)", {
@@ -943,6 +945,7 @@ export class NexusWorldRoom extends Room {
       return { ok: false, error: sem.error };
     }
     if (!this.maybePersistSceneDocument(doc)) return { ok: false, error: 'scene_persist_failed' };
+    this.roomWorldId = doc.worldId;
     this.sceneDocumentV0_1 = doc;
     pushGameMonitorLog("info", "room", "scene authoring v0.1 applied", {
       roomId: this.roomId,

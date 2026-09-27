@@ -10,6 +10,7 @@ import { NexusWorldRoom } from '../server/rooms/NexusWorldRoom';
 import { PlayerMessages, PROTOCOL_VERSION } from '../packages/protocol/src';
 import { InventoryEvents } from '../resources/inventory/server/InventoryEvents';
 import { EconomyEvents } from '../resources/economy/server/EconomyEvents';
+import { loadContentManifestOrThrow } from '../server/content/loadContentManifest';
 
 const secret = 'test-only-shared-secret-with-at-least-32-characters';
 const roomName = 'identity-test';
@@ -97,6 +98,22 @@ test('world room authentication ignores forged usernames for guests', () => {
   const result = room.onAuth({ sessionId: 'guest-test' } as Client, { username: 'Alice' });
   assert.equal(result.kind, 'guest');
   assert.notEqual(result.displayName, 'Alice');
+});
+
+test('room rejects a scene targeting another authenticated world before saving or broadcasting', () => {
+  loadContentManifestOrThrow();
+  const room = new NexusWorldRoom();
+  const identity = room.onAuth({ sessionId: 'scene-owner' } as Client, {});
+  const internal = room as unknown as {
+    applySceneAuthoringFromRegistry(raw: unknown): { ok: boolean; error?: string };
+  };
+  let broadcasts = 0;
+  room.broadcast = (() => { broadcasts++; }) as typeof room.broadcast;
+  const result = internal.applySceneAuthoringFromRegistry({ schemaVersion: 1,
+    worldId: `${identity.worldId}-other`, entities: [] });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'scene_world_mismatch');
+  assert.equal(broadcasts, 0);
 });
 
 test('world room verifies an account ticket and rejects a simultaneous session', async () => {
