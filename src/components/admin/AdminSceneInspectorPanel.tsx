@@ -196,6 +196,8 @@ export default function AdminSceneInspectorPanel() {
     doc: SceneDocumentV0_1;
   } | null>(null);
   const [sceneParseError, setSceneParseError] = useState<string | null>(null);
+  const [worldId, setWorldId] = useState('');
+  const [customScene, setCustomScene] = useState<SceneDocumentV0_1 | null>(null);
 
   const toggleSceneView = useCallback((row: SceneFileRow) => {
     if (!row.ok || !row.document) return;
@@ -259,12 +261,31 @@ export default function AdminSceneInspectorPanel() {
     <div className="space-y-8 px-4 py-6 sm:px-6">
       <LiveNexusWorldBlock />
 
+      <section className={`${adminCard} p-5`}>
+        <h2 className="font-semibold text-cyan-200">Crear o recuperar un mundo</h2>
+        <p className="mt-1 text-xs text-slate-400">Abre una escena vacía con un identificador estable. Si ya existe, usa «Abrir borrador guardado» o «Abrir publicada» en el editor.</p>
+        <form className="mt-3 flex flex-wrap items-end gap-2" onSubmit={event => {
+          event.preventDefault();
+          if (!worldId.trim()) return;
+          if (customScene && !window.confirm('¿Cerrar el editor actual? Los cambios sin guardar se perderán.')) return;
+          setCustomScene(parseSceneDocumentV0_1({ schemaVersion: 1, worldId: worldId.trim(), entities: [] }));
+        }}>
+          <label className="text-xs text-slate-300">Identificador del mundo
+            <input required maxLength={256} value={worldId} onChange={event => setWorldId(event.target.value)}
+              placeholder="mi-mundo" className="mt-1 block rounded border border-white/10 bg-slate-900 px-3 py-2 text-white" />
+          </label>
+          <button type="submit" className={adminBtnPrimary}>Abrir editor</button>
+        </form>
+        {customScene ? <AdminSceneViewEditor key={customScene.worldId} filename={`Mundo: ${customScene.worldId}`}
+          initialDocument={customScene} onClose={() => setCustomScene(null)} /> : null}
+      </section>
+
       <div>
         <h2 className="text-lg font-bold text-white">Escenas v0.1 (archivo / on-disk)</h2>
         <p className="mt-1 text-sm text-slate-400">
           JSON en <code className="text-cyan-300/90">content/scenes/</code> validado con{" "}
           <code className="text-cyan-300/90">@nexusworld3d/content-schema</code>. Sin aplicar al
-          mundo en vivo (Fase C).
+          mundo en vivo automáticamente. Abre el editor para guardar, publicar o aplicar a una sala.
         </p>
       </div>
 

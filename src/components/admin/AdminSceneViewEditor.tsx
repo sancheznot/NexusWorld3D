@@ -7,6 +7,10 @@ import * as THREE from "three";
 import type { SceneDocumentV0_1, SceneEntityV0_1 } from "@nexusworld3d/content-schema";
 import { parseSceneDocumentV0_1, getSceneBoxProps } from "@nexusworld3d/content-schema";
 import { adminBtnDanger, adminBtnPrimary, adminBtnSecondary, adminCard } from "@/components/admin/admin-ui";
+import AdminScenePublicationPanel from './AdminScenePublicationPanel';
+import dynamic from 'next/dynamic';
+
+const AdminScenePlayPreview = dynamic(() => import('./AdminScenePlayPreview'), { ssr: false });
 
 type Props = {
   filename: string;
@@ -156,6 +160,7 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
   const [applyBusy, setApplyBusy] = useState(false);
   const [pullBusy, setPullBusy] = useState(false);
   const [mergeBusy, setMergeBusy] = useState(false);
+  const [playing, setPlaying] = useState<SceneDocumentV0_1 | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -387,6 +392,10 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
           <p className="font-mono text-[11px] text-slate-500">{filename}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" className={adminBtnPrimary} onClick={() => {
+            try { setPlaying(parseSceneDocumentV0_1(cloneDoc(doc))); }
+            catch { setApplyMsg('No se puede iniciar Play: revisa los valores de la escena.'); }
+          }}>Play local</button>
           <button type="button" className={adminBtnSecondary} onClick={() => {
             const id = `box-${crypto.randomUUID()}`;
             setDoc(current => ({ ...current, entities: [...current.entities, {
@@ -410,18 +419,18 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
         </div>
       </div>
 
-      <p className="border-b border-white/5 px-4 py-2 text-[11px] text-amber-200/90">
-        Borrador solo en navegador — no guarda en disco del repo. Ejecuta{" "}
-        <code className="text-cyan-200/90">npm run validate-scene</code> antes de commitear. /
-        Browser draft — not saved to repo disk. Run validate-scene before commit.
-      </p>
+      <AdminScenePublicationPanel document={doc} onLoad={saved => {
+        setDoc(saved);
+        setSelectedId(saved.entities[0]?.id ?? null);
+      }} />
+      {playing ? <AdminScenePlayPreview document={playing} onStop={() => setPlaying(null)} /> : null}
 
       <div className="border-b border-emerald-500/20 bg-emerald-950/15 px-4 py-3 text-xs text-slate-200">
         <p className="font-semibold text-emerald-200/95">
-          Aplicar a sala Colyseus (memoria) / Apply to live room (in-memory)
+          Aplicar a sala Colyseus activa
         </p>
         <p className="mt-1 text-[11px] text-slate-400">
-          Requiere sesión admin + <code className="text-cyan-200/80">NEXUS_GAME_MONITOR_SECRET</code>{" "}
+          Actualiza jugadores conectados; también cambia la publicación si NEXUS_SCENE_PERSIST_ENABLE está habilitado. Requiere sesión admin + <code className="text-cyan-200/80">NEXUS_GAME_MONITOR_SECRET</code>{" "}
           y proceso de juego alcanzable. Los clientes conectados reciben el documento por{" "}
           <code className="text-cyan-200/80">world:scene-applied-document-v0_1</code>. Opcional: join
           con <code className="text-cyan-200/80">sceneAuthoringToken</code> ={" "}
@@ -568,6 +577,23 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
               {selectedBox && (
                 <fieldset className="space-y-2">
                   <legend>Caja de juego</legend>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" className={adminBtnSecondary} onClick={() => {
+                      const copy = structuredClone(selected);
+                      copy.id = `box-${crypto.randomUUID()}`;
+                      copy.transform.position[0] += 2;
+                      setDoc(current => ({ ...current, entities: [...current.entities, copy] }));
+                      setSelectedId(copy.id);
+                    }}>Duplicar caja</button>
+                    <button type="button" className={adminBtnDanger}
+                      disabled={doc.entities.some(entity => entity.parentId === selected.id)}
+                      title="Solo se pueden eliminar cajas sin entidades hijas"
+                      onClick={() => {
+                        if (!window.confirm('¿Eliminar esta caja del borrador?')) return;
+                        setDoc(current => ({ ...current, entities: current.entities.filter(entity => entity.id !== selected.id) }));
+                        setSelectedId(null);
+                      }}>Eliminar caja</button>
+                  </div>
                   {(['X', 'Y', 'Z'] as const).map((axis, index) => (
                     <label key={axis} className="block">Tamaño {axis}
                       <input type="number" min="0.01" max="1000" step="0.1"

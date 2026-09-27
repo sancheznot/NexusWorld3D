@@ -5,6 +5,7 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { matchMaker } from "colyseus";
+import { executeSceneLibraryCommand, SceneLibraryError } from '@server/scene/sceneLibrary';
 import {
   broadcastGameMonitorStats,
   getGameMonitorLogs,
@@ -180,6 +181,18 @@ export async function tryHandleGameMonitorRequest(
 
   if (req.method === "GET" && url === `${PREFIX}/stream`) {
     handleStream(req, res);
+    return true;
+  }
+
+  if (req.method === 'POST' && url === `${PREFIX}/scene-library-v1`) {
+    try {
+      const body = await readJsonBody(req, MAX_SCENE_POST_BYTES);
+      sendJson(res, 200, { ok: true, state: executeSceneLibraryCommand(body) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'scene_library_failed';
+      sendJson(res, error instanceof SceneLibraryError ? error.status : message === 'payload_too_large' ? 413 : 400,
+        { ok: false, error: message });
+    }
     return true;
   }
 
