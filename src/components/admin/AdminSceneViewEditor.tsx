@@ -9,6 +9,9 @@ import { parseSceneDocumentV0_1, getSceneBoxProps } from "@nexusworld3d/content-
 import { adminBtnDanger, adminBtnPrimary, adminBtnSecondary, adminCard } from "@/components/admin/admin-ui";
 import AdminScenePublicationPanel from './AdminScenePublicationPanel';
 import dynamic from 'next/dynamic';
+import { useSceneEditorHistory } from '@/hooks/useSceneEditorHistory';
+import { sceneRotationDegrees, sceneRotationQuaternion, updateSceneTransform } from '@/lib/sceneEditorTransforms';
+import SceneNumberInput from './SceneNumberInput';
 
 const AdminScenePlayPreview = dynamic(() => import('./AdminScenePlayPreview'), { ssr: false });
 
@@ -150,10 +153,8 @@ function HierarchyTree({
 }
 
 export default function AdminSceneViewEditor({ filename, initialDocument, onClose }: Props) {
-  const [doc, setDoc] = useState(() => cloneDoc(initialDocument));
-  const [selectedId, setSelectedId] = useState<string | null>(
-    initialDocument.entities[0]?.id ?? null
-  );
+  const { doc, setDoc, selectedId, setSelectedId, replace, undo, redo, canUndo, canRedo } = useSceneEditorHistory(initialDocument);
+  const [transformError, setTransformError] = useState<string | null>(null);
   const [liveRoomIds, setLiveRoomIds] = useState<string[]>([]);
   const [targetRoomId, setTargetRoomId] = useState("");
   const [applyMsg, setApplyMsg] = useState<string | null>(null);
@@ -195,40 +196,33 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
   }, []);
 
   useEffect(() => {
-    setDoc(cloneDoc(initialDocument));
-    setSelectedId(initialDocument.entities[0]?.id ?? null);
-  }, [initialDocument]);
+    replace(initialDocument);
+    setTransformError(null);
+  }, [initialDocument, replace]);
 
   const selected = useMemo(
     () => doc.entities.find((e) => e.id === selectedId) ?? null,
     [doc.entities, selectedId]
   );
   const selectedBox = selected ? getSceneBoxProps(selected) : null;
+  const selectedDegrees = selected ? sceneRotationDegrees(selected.transform.rotation) : [0, 0, 0];
+  const setTransform = (patch: Partial<SceneEntityV0_1['transform']>) => {
+    if (!selected) return;
+    try {
+      setDoc(updateSceneTransform(doc, selected.id, patch));
+      setTransformError(null);
+    } catch { setTransformError('Transformación inválida: revisa los límites de posición, escala y tamaño final.'); }
+  };
   const updateBox = (props: Record<string, unknown>) => {
     setDoc(current => ({ ...current, entities: current.entities.map(entity =>
       entity.id !== selectedId ? entity : { ...entity, components: entity.components.map(component =>
         component.type !== 'nexus:box' ? component : { ...component, props: { ...component.props, ...props } }) }) }));
   };
 
-  const setPosition = useCallback((entityId: string, axis: 0 | 1 | 2, value: number) => {
-    setDoc((prev) => ({
-      ...prev,
-      entities: prev.entities.map((e) => {
-        if (e.id !== entityId) return e;
-        const next = [...e.transform.position] as [number, number, number];
-        next[axis] = value;
-        return {
-          ...e,
-          transform: { ...e.transform, position: next },
-        };
-      }),
-    }));
-  }, []);
-
   const reset = useCallback(() => {
     setDoc(cloneDoc(initialDocument));
     setSelectedId(initialDocument.entities[0]?.id ?? null);
-  }, [initialDocument]);
+  }, [initialDocument, setDoc, setSelectedId]);
 
   const downloadDraft = useCallback(() => {
     const body = JSON.stringify(doc, null, 2);
@@ -331,7 +325,7 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
     } finally {
       setPullBusy(false);
     }
-  }, [targetRoomId]);
+  }, [targetRoomId, setDoc, setSelectedId]);
 
   const mergeSelectionToLiveRoom = useCallback(async () => {
     if (!selectedId) {
@@ -383,7 +377,14 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
   }, [doc.entities, selectedId, targetRoomId]);
 
   return (
-    <div className={`${adminCard} mt-4 overflow-hidden border-cyan-500/30`}>
+    <div tabIndex={0} aria-label="Editor de escena" className={`${adminCard} mt-4 overflow-hidden border-cyan-500/30`} onKeyDown={event => {
+      if (playing || event.altKey || !(event.ctrlKey || event.metaKey)) return;
+      const target = event.target as HTMLElement;
+      if (target.closest('input,textarea,select,[contenteditable="true"]')) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z') { event.preventDefault(); if (event.shiftKey) redo(); else undo(); }
+      else if (key === 'y') { event.preventDefault(); redo(); }
+    }}>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-slate-950/60 px-4 py-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-cyan-400/90">
@@ -392,6 +393,8 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
           <p className="font-mono text-[11px] text-slate-500">{filename}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={!canUndo} className={adminBtnSecondary} onClick={undo} title="Ctrl/Cmd+Z fuera de campos de texto">Deshacer</button>
+          <button type="button" disabled={!canRedo} className={adminBtnSecondary} onClick={redo} title="Ctrl/Cmd+Shift+Z o Ctrl+Y">Rehacer</button>
           <button type="button" className={adminBtnPrimary} onClick={() => {
             try { setPlaying(parseSceneDocumentV0_1(cloneDoc(doc))); }
             catch { setApplyMsg('No se puede iniciar Play: revisa los valores de la escena.'); }
@@ -418,6 +421,8 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
           </button>
         </div>
       </div>
+
+      <p className="px-4 py-2 text-[11px] text-slate-400">Historial local: hasta 50 cambios. Deshacer no revierte publicaciones ni salas activas. Confirma campos numéricos con Enter o al salir del campo.</p>
 
       <AdminScenePublicationPanel document={doc} onLoad={saved => {
         setDoc(saved);
@@ -550,26 +555,24 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
               <div>
                 <span className="text-slate-500">position (editable)</span>
                 <div className="mt-1 grid grid-cols-3 gap-2">
-                  {(["X", "Y", "Z"] as const).map((label, axis) => (
-                    <label key={label} className="block">
-                      <span className="text-[10px] text-slate-500">{label}</span>
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={selected.transform.position[axis]}
-                        onChange={(e) => {
-                          const v = e.target.valueAsNumber;
-                          if (!Number.isFinite(v)) return;
-                          setPosition(selected.id, axis as 0 | 1 | 2, v);
-                        }}
-                        className="mt-0.5 w-full rounded border border-white/10 bg-slate-900 px-2 py-1 font-mono text-[11px] text-white"
-                      />
-                    </label>
-                  ))}
+                  {(['X', 'Y', 'Z'] as const).map((label, axis) => <SceneNumberInput key={`${selected.id}-position-${axis}`}
+                    label={label} value={selected.transform.position[axis]} min={selectedBox ? -1e6 : undefined} max={selectedBox ? 1e6 : undefined}
+                    onCommit={value => {
+                      const position = [...selected.transform.position] as [number, number, number];
+                      position[axis] = value; setTransform({ position });
+                    }} />)}
                 </div>
               </div>
               <div>
-                <span className="text-slate-500">rotation (quat)</span>
+                <span className="text-slate-500">Rotación XYZ (grados)</span>
+                {selectedBox ? <div className="mt-1 grid grid-cols-3 gap-2">
+                  {(['X', 'Y', 'Z'] as const).map((label, axis) => <SceneNumberInput key={`${selected.id}-rotation-${axis}`}
+                    label={label} value={Number(selectedDegrees[axis].toFixed(4))} min={-360} max={360} step={1}
+                    onCommit={value => {
+                      const degrees = [...selectedDegrees] as [number, number, number]; degrees[axis] = value;
+                      setTransform({ rotation: sceneRotationQuaternion(degrees) });
+                    }} />)}
+                </div> : null}
                 <pre className="mt-1 max-h-24 overflow-auto rounded bg-black/40 p-2 font-mono text-[10px] text-slate-400">
                   {JSON.stringify(selected.transform.rotation)}
                 </pre>
@@ -595,16 +598,11 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
                       }}>Eliminar caja</button>
                   </div>
                   {(['X', 'Y', 'Z'] as const).map((axis, index) => (
-                    <label key={axis} className="block">Tamaño {axis}
-                      <input type="number" min="0.01" max="1000" step="0.1"
-                        value={selectedBox.size[index]}
-                        onChange={event => {
-                          const value = event.target.valueAsNumber;
-                          if (!Number.isFinite(value) || value < 0.01 || value > 1000) return;
+                    <SceneNumberInput key={`${selected.id}-size-${axis}`} label={`Tamaño ${axis}`} min={0.01} max={Math.min(1000, 1000 / selected.transform.scale[index])}
+                        value={selectedBox.size[index]} onCommit={value => {
                           const size = [...selectedBox.size]; size[index] = value;
                           updateBox({ size });
-                        }} className="w-full rounded bg-slate-900 px-2 py-1" />
-                    </label>
+                        }} />
                   ))}
                   <label className="block">Color
                     <input type="color" value={selectedBox.color} onChange={event => updateBox({ color: event.target.value })} />
@@ -614,11 +612,19 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
                 </fieldset>
               )}
               <div>
-                <span className="text-slate-500">scale</span>
-                <pre className="mt-1 max-h-20 overflow-auto rounded bg-black/40 p-2 font-mono text-[10px] text-slate-400">
+                <span className="text-slate-500">Escala</span>
+                {selectedBox ? <div className="mt-1 grid grid-cols-3 gap-2">
+                  {(['X', 'Y', 'Z'] as const).map((label, axis) => <SceneNumberInput key={`${selected.id}-scale-${axis}`}
+                    label={label} value={selected.transform.scale[axis]} min={0.01} max={Math.min(1000, 1000 / selectedBox.size[axis])}
+                    onCommit={value => {
+                      const scale = [...selected.transform.scale] as [number, number, number]; scale[axis] = value;
+                      setTransform({ scale });
+                    }} />)}
+                </div> : <pre className="mt-1 max-h-20 overflow-auto rounded bg-black/40 p-2 font-mono text-[10px] text-slate-400">
                   {JSON.stringify(selected.transform.scale)}
-                </pre>
+                </pre>}
               </div>
+              {transformError ? <p role="alert" className="text-amber-200">{transformError}</p> : null}
               <div>
                 <span className="text-slate-500">components</span>
                 <pre className="mt-1 max-h-40 overflow-auto rounded bg-black/40 p-2 font-mono text-[10px] leading-relaxed text-slate-300">
