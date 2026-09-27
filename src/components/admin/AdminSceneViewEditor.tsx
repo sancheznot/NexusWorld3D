@@ -70,10 +70,12 @@ function EntityBox({
 
 function SceneContent({
   entities,
+  spawn,
   selectedId,
   onSelect,
 }: {
   entities: SceneEntityV0_1[];
+  spawn: SceneDocumentV0_1['spawn'];
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
@@ -101,6 +103,10 @@ function SceneContent({
           onSelect={onSelect}
         />
       ))}
+      {spawn ? <group position={spawn.position} rotation={[0, spawn.yaw, 0]}>
+        <mesh><capsuleGeometry args={[0.5, 1, 4, 8]} /><meshBasicMaterial color="#34d399" wireframe /></mesh>
+        <arrowHelper args={[new THREE.Vector3(0, 0, -1), new THREE.Vector3(), 2, '#34d399']} />
+      </group> : null}
       <OrbitControls makeDefault minDistance={2} maxDistance={80} />
     </>
   );
@@ -424,6 +430,24 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
 
       <p className="px-4 py-2 text-[11px] text-slate-400">Historial local: hasta 50 cambios. Deshacer no revierte publicaciones ni salas activas. Confirma campos numéricos con Enter o al salir del campo.</p>
 
+      <section aria-label="Punto de aparición" className="border-y border-emerald-500/20 bg-emerald-950/10 px-4 py-3 text-xs text-slate-300">
+        <label className="font-semibold text-emerald-200"><input type="checkbox" checked={Boolean(doc.spawn)} onChange={event => {
+          if (event.target.checked) setDoc(current => ({ ...current, spawn: { mapId: 'exterior', position: [0, 2, 6], yaw: 0 } }));
+          else setDoc(current => { const next = { ...current }; delete next.spawn; return next; });
+        }} /> Spawn de escena · exterior</label>
+        <p className="my-2 text-slate-400">Para jugadores nuevos y Play local. Las cuentas con posición guardada la conservan. La altura indica el centro del jugador; evita colocar el marcador dentro de cajas.</p>
+        {doc.spawn ? <div className="grid max-w-xl grid-cols-2 gap-2 sm:grid-cols-4">
+          {(['X', 'Y', 'Z'] as const).map((label, axis) => <SceneNumberInput key={`spawn-${axis}`} label={label}
+            value={doc.spawn!.position[axis]} min={axis === 1 ? 1.05 : -1e6} max={1e6} onCommit={value => setDoc(current => {
+              if (!current.spawn) return current;
+              const position = [...current.spawn.position] as [number, number, number]; position[axis] = value;
+              return { ...current, spawn: { ...current.spawn, position } };
+            })} />)}
+          <SceneNumberInput label="Orientación (grados)" value={Number(THREE.MathUtils.radToDeg(doc.spawn.yaw).toFixed(4))} min={-360} max={360} step={1}
+            onCommit={value => setDoc(current => current.spawn ? { ...current, spawn: { ...current.spawn, yaw: THREE.MathUtils.degToRad(value) } } : current)} />
+        </div> : null}
+      </section>
+
       <AdminScenePublicationPanel document={doc} onLoad={saved => {
         setDoc(saved);
         setSelectedId(saved.entities[0]?.id ?? null);
@@ -524,6 +548,7 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
             <Suspense fallback={null}>
               <SceneContent
                 entities={doc.entities}
+                spawn={doc.spawn}
                 selectedId={selectedId}
                 onSelect={setSelectedId}
               />

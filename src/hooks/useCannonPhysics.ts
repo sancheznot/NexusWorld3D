@@ -5,7 +5,7 @@ import { useThree } from "@react-three/fiber";
 import { Scene, type BufferGeometry, type Material } from "three";
 import { CannonPhysics } from "@/lib/three/cannonPhysics";
 import cannonDebugger from "cannon-es-debugger";
-import { GAME_CONFIG } from "@/constants/game";
+import { usePlayerStore } from '@/store/playerStore';
 
 // One simulation for the active game canvas. All consumers release their refs.
 let globalPhysics: CannonPhysics | null = null;
@@ -35,7 +35,11 @@ export function useCannonPhysics(createPhysicsBody: boolean = true) {
     if (!globalPhysics && createPhysicsBody) {
       globalPhysics = new CannonPhysics();
       globalPhysics.createGround();
-      globalPhysics.createPlayer(GAME_CONFIG.player.spawnPosition);
+      // The server pose may arrive before the canvas mounts. Start from the
+      // current store (including its legacy default), not a hard-coded spawn.
+      const { position, rotation } = usePlayerStore.getState();
+      globalPhysics.createPlayer(position);
+      globalPhysics.teleportPlayer(position, rotation);
 
       if (process.env.NODE_ENV === "development") {
         const group = new Scene();

@@ -11,6 +11,7 @@ import SceneAuthoringPreviewLayer from '../src/components/world/SceneAuthoringPr
 import { useSceneAuthoringStore } from '../src/store/sceneAuthoringStore';
 import { useGameWorldStore } from '../src/store/gameWorldStore';
 import { parseSceneDocumentV0_1 } from '@nexusworld3d/content-schema';
+import { usePlayerStore } from '../src/store/playerStore';
 
 test('React StrictMode mount cycles release the shared world and debugger resources', async () => {
   const testEnvironment: Record<string, string | undefined> = process.env;
@@ -26,8 +27,11 @@ test('React StrictMode mount cycles release the shared world and debugger resour
     return null;
   }
   let renderer: ReactTestRenderer | undefined;
+  const previousPose = { position: usePlayerStore.getState().position, rotation: usePlayerStore.getState().rotation };
   try {
     for (let cycle = 0; cycle < 20; cycle++) {
+      const serverPosition = { x: 12 + cycle, y: 4, z: -8 };
+      usePlayerStore.setState({ position: serverPosition, rotation: { x: 0, y: 0.75, z: 0 } });
       const scene = new Scene();
       const store = create(() => ({ scene })) as unknown as RootStore;
       await act(async () => {
@@ -39,6 +43,7 @@ test('React StrictMode mount cycles release the shared world and debugger resour
       });
       const physics = getPhysicsInstance();
       assert.ok(physics);
+      assert.deepEqual(physics.getPlayerPosition(), serverPosition, 'late physics initialization preserves server pose');
       assert.ok(refs.every(ref => ref.current === null || ref.current === physics));
       updatePhysicsDebugger();
       const pending = new Set<object>();
@@ -61,6 +66,7 @@ test('React StrictMode mount cycles release the shared world and debugger resour
     }
   } finally {
     if (renderer) await act(async () => { renderer!.unmount(); });
+    usePlayerStore.setState(previousPose);
     actEnv.IS_REACT_ACT_ENVIRONMENT = previousAct;
     if (previousEnv === undefined) delete testEnvironment.NODE_ENV;
     else testEnvironment.NODE_ENV = previousEnv;

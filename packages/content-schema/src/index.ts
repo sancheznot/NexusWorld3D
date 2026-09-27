@@ -8,6 +8,7 @@ export {
 export {
   sceneDocumentV0_1Schema,
   sceneEntityV0_1Schema,
+  sceneSpawnV0_1Schema,
   parseSceneDocumentV0_1,
   safeParseSceneDocumentV0_1,
   type SceneDocumentV0_1,

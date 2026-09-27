@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // Deliberately ignores project DB settings and never loads dotenv.
 if (process.env.NEXUS_RUN_ISOLATED_DB_TESTS !== '1') {
@@ -14,6 +17,11 @@ for (const key of Object.keys(process.env)) {
 }
 
 test('isolated MariaDB: migrations, account profiles and single-use login tokens', async () => {
+  const sceneDirectory = mkdtempSync(join(tmpdir(), 'nexus-account-spawn-'));
+  const previousSceneDir = process.env.NEXUS_SCENE_PERSIST_DIR;
+  const previousSceneLoad = process.env.NEXUS_SCENE_LOAD_PERSISTED;
+  process.env.NEXUS_SCENE_PERSIST_DIR = sceneDirectory;
+  process.env.NEXUS_SCENE_LOAD_PERSISTED = '1';
   const { runPendingMigrations } = await import('../src/lib/db/runMigrations');
   const { mariaAuthAdapter } = await import('../src/lib/auth/mariaAuthAdapter');
   const { identityStorageKey } = await import('../src/lib/auth/worldIdentity');
@@ -94,8 +102,14 @@ test('isolated MariaDB: migrations, account profiles and single-use login tokens
     const { WebSocketTransport } = loadModule('@colyseus/ws-transport') as typeof import('@colyseus/ws-transport');
     const { Client } = await import('colyseus.js');
     const { NexusWorldRoom } = await import('../server/rooms/NexusWorldRoom');
-    const { PROTOCOL_VERSION, PlayerMessages, EconomyMessages } = await import('../packages/protocol/src');
+    const { PROTOCOL_VERSION, PlayerMessages, EconomyMessages, SceneMessages } = await import('../packages/protocol/src');
     const { GAME_CONFIG } = await import('../src/constants/game');
+    const { writeSceneDocumentV0_1ToDisk, tryLoadSceneDocumentV0_1FromDisk } = await import('../server/scene/persistSceneDocumentV0_1');
+    const { loadContentManifestOrThrow } = await import('../server/content/loadContentManifest');
+    loadContentManifestOrThrow();
+    writeSceneDocumentV0_1ToDisk({ schemaVersion: 1, worldId: identity.worldId, entities: [],
+      spawn: { mapId: 'exterior', position: [90, 5, 90], yaw: 1 } });
+    assert.equal(tryLoadSceneDocumentV0_1FromDisk(identity.worldId)?.spawn?.position[0], 90);
     process.env.NEXUS_GAME_AUTH_SECRET = secret;
     const http = createServer();
     const gameServer = new Server({ transport: new WebSocketTransport({ server: http }), greet: false });
@@ -131,6 +145,13 @@ test('isolated MariaDB: migrations, account profiles and single-use login tokens
       assert.equal(storedStats.economy.daily.depositMinor, 1000);
       const second = await client.joinOrCreate('integration-world', options);
       second.onMessage('*', () => {});
+      const loadedSpawn = new Promise<number>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('account scene spawn timeout')), 3000);
+        second.onMessage(SceneMessages.AppliedDocumentV0_1, data => {
+          clearTimeout(timeout); resolve(data.document.spawn.position[0]);
+        });
+      });
+      assert.equal(await loadedSpawn, 90, 'the reconnecting account actually received the scene spawn');
       const restoredBank = new Promise<number>((resolve, reject) => {
         const timeout = setTimeout(() => reject(new Error('restored bank timeout')), 3000);
         second.onMessage(EconomyMessages.Bank, data => { clearTimeout(timeout); resolve(data.amount); });
@@ -148,7 +169,7 @@ test('isolated MariaDB: migrations, account profiles and single-use login tokens
       });
       second.send('map:request', { mapId: 'exterior' });
       const map = await snapshot;
-      assert.equal(map.players.find(p => p.id === second.sessionId)?.position.x, 8, 'reconnected account restores saved position');
+      assert.equal(map.players.find(p => p.id === second.sessionId)?.position.x, 8, 'saved account position wins over the scene spawn at x=90');
       await second.leave();
     } finally {
       await gameServer.gracefullyShutdown(false);
@@ -156,5 +177,8 @@ test('isolated MariaDB: migrations, account profiles and single-use login tokens
   } finally {
     await getMariaPool()?.end();
     globalThis.__nexusMariaPool = undefined;
+    if (previousSceneDir === undefined) delete process.env.NEXUS_SCENE_PERSIST_DIR; else process.env.NEXUS_SCENE_PERSIST_DIR = previousSceneDir;
+    if (previousSceneLoad === undefined) delete process.env.NEXUS_SCENE_LOAD_PERSISTED; else process.env.NEXUS_SCENE_LOAD_PERSISTED = previousSceneLoad;
+    rmSync(sceneDirectory, { recursive: true });
   }
 });

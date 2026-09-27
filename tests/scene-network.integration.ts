@@ -66,7 +66,8 @@ test('scene publish reaches two WebSocket clients and survives a full server pro
   const { Client } = await import('colyseus.js');
   const { PROTOCOL_VERSION, SceneMessages } = await import('../packages/protocol/src');
   let server: Awaited<ReturnType<typeof startSceneServer>> | undefined;
-  const document = { schemaVersion: 1, worldId: frameworkDefaultWorldId, entities: [{
+  const document = { schemaVersion: 1, worldId: frameworkDefaultWorldId,
+    spawn: { mapId: 'exterior', position: [12, 4, -8], yaw: 0.75 }, entities: [{
     id: 'wall', parentId: null,
     transform: { position: [3, 3, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
     components: [{ type: 'nexus:box', props: { size: [0.5, 6, 10], solid: true } }],
@@ -103,6 +104,14 @@ test('scene publish reaches two WebSocket clients and survives a full server pro
     restored.onMessage('*', () => {});
     assert.notEqual(restored.roomId, originalRoomId);
     assert.deepEqual(await waitScene(restored), document, 'restarted process hydrates the persisted document');
+    const snapshot = new Promise<{ players: Array<{ id: string; position: { x: number; y: number; z: number }; rotation: { y: number } }> }>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('spawn snapshot timeout')), 3000);
+      restored.onMessage('map:update', data => { clearTimeout(timeout); resolve(data); });
+    });
+    restored.send('map:request', { mapId: 'exterior' });
+    const player = (await snapshot).players.find(player => player.id === restored.sessionId);
+    assert.deepEqual(player?.position, { x: 12, y: 4, z: -8 }, 'new player uses persisted scene spawn after restart');
+    assert.equal(player?.rotation.y, 0.75);
     await restored.leave();
   } finally {
     try { await server?.stop(); }

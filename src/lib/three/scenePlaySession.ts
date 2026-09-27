@@ -6,8 +6,10 @@ import { mountSceneBoxColliders } from './sceneBoxColliders';
 export function createScenePlaySession(document: SceneDocumentV0_1, mapId: string) {
   const physics = new CannonPhysics();
   physics.createGround();
-  const player = physics.createPlayer({ x: 0, y: 2, z: 6 });
-  physics.teleportPlayer({ x: 0, y: 2, z: 6 });
+  const spawn = document.spawn?.mapId === mapId ? document.spawn : undefined;
+  const position = spawn ? { x: spawn.position[0], y: spawn.position[1], z: spawn.position[2] } : { x: 0, y: 2, z: 6 };
+  const player = physics.createPlayer(position);
+  physics.teleportPlayer(position, { x: 0, y: spawn?.yaw ?? 0, z: 0 });
   const unmount = mountSceneBoxColliders(physics, document, mapId);
   let disposed = false;
   return { physics, player, dispose() {

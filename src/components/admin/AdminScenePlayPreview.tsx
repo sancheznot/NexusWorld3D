@@ -47,12 +47,16 @@ function Simulation({ document }: { document: SceneDocumentV0_1 }) {
     let z = Number(held.has('KeyS') || held.has('ArrowDown')) - Number(held.has('KeyW') || held.has('ArrowUp'));
     const length = Math.hypot(x, z);
     if (length > 1) { x /= length; z /= length; }
-    current.physics.setMovementInput({ x, z, isRunning: held.has('ShiftLeft') || held.has('ShiftRight'), stamina: 100 });
+    const yaw = document.spawn?.yaw ?? 0;
+    const sin = Math.sin(yaw), cos = Math.cos(yaw);
+    current.physics.setMovementInput({ x: x * cos + z * sin, z: z * cos - x * sin,
+      isRunning: held.has('ShiftLeft') || held.has('ShiftRight'), stamina: 100 });
     if (jump.current) { current.physics.jump(8); jump.current = false; }
     current.physics.update(delta);
     const position = current.player.position;
     avatar.current?.position.set(position.x, position.y, position.z);
-    camera.position.set(position.x, position.y + 8, position.z + 12);
+    avatar.current?.rotation.set(0, yaw, 0);
+    camera.position.set(position.x + 12 * sin, position.y + 8, position.z + 12 * cos);
     camera.lookAt(position.x, position.y, position.z);
   });
   return <>

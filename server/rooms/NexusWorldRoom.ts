@@ -438,9 +438,11 @@ export class NexusWorldRoom extends Room {
     NexusWorldRoom.activeOwners.set(persistenceKey, client.sessionId);
 
     const now = Date.now();
-    const defaultPosition = { x: 0, y: 0, z: 0 };
-    const defaultRotation = { x: 0, y: 0, z: 0 };
-    const defaultMapId = "exterior";
+    // Scene spawn only supplies defaults. Account snapshots/SQL profiles still win.
+    const spawn = this.sceneDocumentV0_1?.spawn;
+    const defaultPosition = spawn ? { x: spawn.position[0], y: spawn.position[1], z: spawn.position[2] } : { x: 0, y: 0, z: 0 };
+    const defaultRotation = { x: 0, y: spawn?.yaw ?? 0, z: 0 };
+    const defaultMapId = spawn?.mapId ?? "exterior";
     const defaultWorldId = identity.worldId;
 
     const parseVector = (

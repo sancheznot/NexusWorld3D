@@ -5,6 +5,12 @@ const componentTypeRegex = /^(nexus|game):[a-zA-Z0-9._-]+$/;
 
 const finite = z.number().finite();
 const vec3 = z.tuple([finite, finite, finite]);
+export const sceneSpawnV0_1Schema = z.object({
+  mapId: z.literal('exterior'),
+  // Player body center: at least one capsule half-height above the preview ground.
+  position: z.tuple([finite.min(-1e6).max(1e6), finite.min(1.05).max(1e6), finite.min(-1e6).max(1e6)]),
+  yaw: finite.min(-Math.PI * 2).max(Math.PI * 2),
+}).strict();
 const quat = z.tuple([finite, finite, finite, finite]).refine(
   q => Math.abs(Math.hypot(...q) - 1) < 0.001, 'Rotation must be a unit quaternion'
 );
@@ -40,6 +46,7 @@ export const sceneDocumentV0_1Schema = z
   .object({
     schemaVersion: z.literal(1),
     worldId: z.string().min(1, "worldId required"),
+    spawn: sceneSpawnV0_1Schema.optional(),
     entities: z.array(sceneEntityV0_1Schema),
   })
   .passthrough()
