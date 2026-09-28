@@ -23,6 +23,8 @@ jobs:
         run: npm run check:phase1
       - name: Regression tests
         run: npm test
+      - name: Standalone packaged consumer
+        run: npm run check:consumer
       - name: Global lint
         run: npm run lint
       - name: Required demo assets

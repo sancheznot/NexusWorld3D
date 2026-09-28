@@ -30,6 +30,8 @@
     "dev:demo": "env NEXT_PUBLIC_FRAMEWORK_DEMO=1 concurrently --timings -p \"{time} [{name}]\" --timestamp-format \"HH:mm:ss.SSS\" -n \"next,colyseus\" -c \"cyan,magenta\" \"next dev -p 3000 --turbo\" \"tsx server/index.ts\"",
     "dev:check-ports": "node scripts/ensure-dev-ports.mjs",
     "build": "next build",
+    "build:packages": "node scripts/build-framework-packages.mjs",
+    "check:consumer": "node scripts/check-framework-consumer.mjs",
     "start": "tsx server/combined.ts",
     "start:all": "npm run start",
     "docker:up": "bash scripts/compose-with-env.sh -f docker-compose.yml up --build",
