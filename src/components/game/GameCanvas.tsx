@@ -94,14 +94,16 @@ import { frameworkColyseusRoomName, frameworkDefaultWorldId } from '@/lib/framew
 import type { PublicPortalRoom } from '@/types/gamePortal.types';
 import FrameworkDemoGround from '@/components/world/FrameworkDemoGround';
 import SceneAuthoringPreviewLayer from '@/components/world/SceneAuthoringPreviewLayer';
+import SceneInteractionLayer from '@/components/world/SceneInteractionLayer';
 import { resolveRemoteAnimation } from '@/lib/gameplay/resolveRemoteAnimation';
 
 /** ES: `NEXT_PUBLIC_FRAMEWORK_DEMO=1` — exterior ligero sin ciudad ni capas de juego. EN: Lightweight exterior. */
-const FRAMEWORK_DEMO =
+const FRAMEWORK_DEMO_ENABLED =
   typeof process.env.NEXT_PUBLIC_FRAMEWORK_DEMO === 'string' &&
   process.env.NEXT_PUBLIC_FRAMEWORK_DEMO === '1';
 
-export default function GameCanvas() {
+export default function GameCanvas({ authoredWorld }: { authoredWorld?: { worldId: string; name: string; description: string } } = {}) {
+  const FRAMEWORK_DEMO = FRAMEWORK_DEMO_ENABLED || !!authoredWorld;
   const { data: session, status } = useSession();
   const isAuthenticated = status === 'authenticated';
   const { isConnected, connectionError, connect, joinGame } = useSocket();
@@ -131,7 +133,7 @@ export default function GameCanvas() {
     error: requiredModelsError,
     refresh: refreshRequiredModels,
     hasBlockingMissing,
-  } = useRequiredModelsCheck(true);
+  } = useRequiredModelsCheck(!authoredWorld);
   const { isActive: isTestingCameraActive, height: testingHeight, distance: testingDistance } = useTestingCamera();
   
   // Game flow state — lobby primero; login solo si la sala exige cuenta
@@ -181,7 +183,7 @@ export default function GameCanvas() {
   }, [isGameStarted, isConnected, joinGame, updatePlayer]);
 
   useEffect(() => {
-    if (requiredModelsLoading || !requiredModelsCheck) return;
+    if (authoredWorld || requiredModelsLoading || !requiredModelsCheck) return;
     if (!hasBlockingMissing) {
       setShowMissingModelsGuide(false);
       return;
@@ -193,6 +195,7 @@ export default function GameCanvas() {
     requiredModelsCheck,
     hasBlockingMissing,
     missingModelsGuideDismissed,
+    authoredWorld,
   ]);
 
   useEffect(() => {
@@ -207,7 +210,7 @@ export default function GameCanvas() {
       }
     }, 800);
     return () => window.clearTimeout(id);
-  }, [isGameStarted, currentMap]);
+  }, [isGameStarted, currentMap, FRAMEWORK_DEMO]);
 
   useEffect(() => {
     const onHousingErr = (data: unknown) => {
@@ -342,7 +345,7 @@ export default function GameCanvas() {
 
   /** ES: Jugador en lobby — nombre desde perfil DB si existe. EN: Lobby player — name from DB profile when set. */
   useEffect(() => {
-    if (status !== 'authenticated' || !session?.user?.id) return;
+    if (isGameStarted || status !== 'authenticated' || !session?.user?.id) return;
     const name =
       meProfile?.displayName?.trim() ||
       session.user.name?.trim() ||
@@ -365,6 +368,7 @@ export default function GameCanvas() {
     });
   }, [
     status,
+    isGameStarted,
     session?.user?.id,
     session?.user?.name,
     session?.user?.email,
@@ -497,7 +501,7 @@ export default function GameCanvas() {
 
   // Obtener spawn publicado por CityModel (con polling para evitar race condition)
   useEffect(() => {
-    if (currentMap !== 'exterior') {
+    if (currentMap !== 'exterior' || FRAMEWORK_DEMO) {
       setVehSpawn(null);
       return;
     }
@@ -530,7 +534,7 @@ export default function GameCanvas() {
     }, 100);
     
     return () => clearInterval(interval);
-  }, [currentMap]); // ⚡ Optimized: Removed position dependencies to prevent re-running every frame
+  }, [currentMap, FRAMEWORK_DEMO]);
   
   // Constantes para evitar re-renderizados
   const hotelInteriorProps = useMemo(() => ({
@@ -713,9 +717,10 @@ export default function GameCanvas() {
         ? { username: pBefore.username.trim().slice(0, 64) }
         : {};
     try {
-      await connect(roomName, joinOpts);
+      await connect(roomName, { ...joinOpts, ...(authoredWorld ? { worldId: authoredWorld.worldId } : {}) });
+      if (!colyseusClient.getSocket()?.connection.isOpen) { setIsGameStarted(false); setShowLobby(true); }
     } catch {
-      /* connectionError en useSocket */
+      setIsGameStarted(false); setShowLobby(true);
     }
   };
 
@@ -807,7 +812,7 @@ export default function GameCanvas() {
             {/* Renderizar modelo según el mapa actual */}
             
             {currentMap === 'exterior' &&
-              (FRAMEWORK_DEMO ? (
+              (authoredWorld ? <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[2000, 2000]} /><meshStandardMaterial color="#253047" /></mesh> : FRAMEWORK_DEMO ? (
                 <FrameworkDemoGround />
               ) : (
                 <CityModel
@@ -820,6 +825,7 @@ export default function GameCanvas() {
               ))}
 
             <SceneAuthoringPreviewLayer />
+            <SceneInteractionLayer mapId={currentMap} />
             
             {currentMap === 'hotel-interior' && (
               <HotelInterior {...hotelInteriorProps} />
@@ -851,8 +857,8 @@ export default function GameCanvas() {
             {richExterior && (
               <MineableRocksLayer mapId={currentMap} />
             )}
-            {richExterior && (
-              <WorldResourceNodesLayer mapId={currentMap} />
+            {(richExterior || !!authoredWorld) && (
+              <WorldResourceNodesLayer mapId={currentMap} sceneOnly={!!authoredWorld} />
             )}
             {richExterior && (
               <FarmPlotsLayer mapId={currentMap} />
@@ -1190,7 +1196,17 @@ export default function GameCanvas() {
       {isGameStarted && <Minimap placement="top-right" />}
 
       {showLobby && !isGameStarted && (
-        <GameLobby
+        authoredWorld ? <div className="absolute inset-0 flex items-center justify-center bg-slate-950 p-6 text-white">
+          <section className="max-w-lg rounded-xl border border-cyan-900 bg-slate-900 p-8">
+            <h1 className="text-3xl font-semibold">{authoredWorld.name}</h1><p className="my-4 text-slate-400">{authoredWorld.description}</p>
+            <p className="mb-4 text-sm">WASD / flechas para moverte · Espacio para saltar · E para interactuar</p>
+            {connectionError ? <p role="alert" className="my-4 text-amber-200">{connectionError}</p> : null}
+            <button className="rounded bg-cyan-300 px-5 py-3 font-semibold text-slate-950" onClick={() => handleLobbyEnterRoom({
+              id: authoredWorld.worldId, colyseusRoomName: frameworkColyseusRoomName, displayName: authoredWorld.name,
+              maxPlayers: 50, playersOnline: null, status: 'unknown', requiresAuth: false,
+            }, '')}>Entrar al mundo</button><a href="/worlds" className="ml-4 text-cyan-200 underline">Otros mundos</a>
+          </section>
+        </div> : <GameLobby
           onEnterRoom={handleLobbyEnterRoom}
           onOpenAuth={() => setShowLogin(true)}
           isAuthenticated={isAuthenticated}

@@ -2,7 +2,9 @@
 
 import {
   findResourceNodeOverrideInDocument,
+  nearestSceneInteraction, resolveSceneWorldEntities,
   type SceneDocumentV0_1,
+  type ResourceNodeSceneOverride,
 } from '@nexusworld3d/content-schema';
 import { useMemo } from 'react';
 import TriggerZone from '@/components/world/TriggerZone';
@@ -13,6 +15,8 @@ import {
 import { harvestWorldResourceNode } from '@/lib/world/worldResourceClient';
 import { useSceneAuthoringStore } from '@/store/sceneAuthoringStore';
 import type { TriggerZoneData } from '@/types/trigger.types';
+import { SceneInteractionMarker } from './SceneInteractionVisual';
+import { usePlayerStore } from '@/store/playerStore';
 
 function nodeToZone(node: WorldResourceNodeDef): TriggerZoneData {
   return {
@@ -60,7 +64,7 @@ function NodeVisuals({ node }: { node: WorldResourceNodeDef }) {
 function applySceneOverrides(
   nodes: WorldResourceNodeDef[],
   sceneDoc: SceneDocumentV0_1 | null
-): WorldResourceNodeDef[] {
+): Array<WorldResourceNodeDef & { sceneOverride?: ResourceNodeSceneOverride }> {
   if (!sceneDoc) return nodes;
   return nodes.map((node) => {
     const o = findResourceNodeOverrideInDocument(sceneDoc, node.id);
@@ -69,16 +73,19 @@ function applySceneOverrides(
       ...node,
       position: o.position,
       radius: o.interactionRadius ?? node.radius,
+      labelEs: o.label ?? node.labelEs, labelEn: o.label ?? node.labelEn,
+      sceneOverride: o,
     };
   });
 }
 
-export default function WorldResourceNodesLayer({ mapId }: { mapId: string }) {
+export default function WorldResourceNodesLayer({ mapId, sceneOnly = false }: { mapId: string; sceneOnly?: boolean }) {
   const sceneDoc = useSceneAuthoringStore((s) => s.document);
   const nodes = useMemo(
-    () => applySceneOverrides(getWorldResourceNodesForMap(mapId), sceneDoc),
-    [mapId, sceneDoc]
+    () => applySceneOverrides(getWorldResourceNodesForMap(mapId), sceneDoc).filter(node => !sceneOnly || !!node.sceneOverride),
+    [mapId, sceneDoc, sceneOnly]
   );
+  const entities = useMemo(() => sceneDoc ? resolveSceneWorldEntities(sceneDoc.entities) : [], [sceneDoc]);
   if (nodes.length === 0) return null;
 
   return (
@@ -88,11 +95,16 @@ export default function WorldResourceNodesLayer({ mapId }: { mapId: string }) {
           key={node.id}
           data={nodeToZone(node)}
           onInteract={() => {
+            if (node.sceneOverride) {
+              const position = usePlayerStore.getState().position;
+              if (!position || nearestSceneInteraction(entities, mapId, position)?.resourceId !== node.id) return;
+            }
             harvestWorldResourceNode(node.id);
           }}
           debug={false}
         >
-          <NodeVisuals node={node} />
+          <group quaternion={node.sceneOverride?.rotation}
+            scale={node.sceneOverride?.scale}>{node.sceneOverride ? <SceneInteractionMarker resource /> : <NodeVisuals node={node} />}</group>
         </TriggerZone>
       ))}
     </group>

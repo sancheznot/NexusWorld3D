@@ -11,6 +11,26 @@ import { PlayerMessages, PROTOCOL_VERSION } from '../packages/protocol/src';
 import { InventoryEvents } from '../resources/inventory/server/InventoryEvents';
 import { EconomyEvents } from '../resources/economy/server/EconomyEvents';
 import { loadContentManifestOrThrow } from '../server/content/loadContentManifest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { writeSceneDocumentV0_1ToDisk } from '../server/scene/persistSceneDocumentV0_1';
+import { saveWorldAccess } from '../server/scene/publicWorlds';
+
+const previousSceneDir = process.env.NEXUS_SCENE_PERSIST_DIR;
+const sceneDir = mkdtempSync(join(tmpdir(), 'nexus-identity-worlds-'));
+test.before(() => {
+  process.env.NEXUS_SCENE_PERSIST_DIR = sceneDir;
+  loadContentManifestOrThrow();
+  for (const worldId of ['world-A', 'world-B']) {
+    writeSceneDocumentV0_1ToDisk({ schemaVersion: 1, worldId, entities: [] });
+    saveWorldAccess({ worldId, name: worldId, public: true });
+  }
+});
+test.after(() => {
+  if (previousSceneDir === undefined) delete process.env.NEXUS_SCENE_PERSIST_DIR; else process.env.NEXUS_SCENE_PERSIST_DIR = previousSceneDir;
+  rmSync(sceneDir, { recursive: true });
+});
 
 const secret = 'test-only-shared-secret-with-at-least-32-characters';
 const roomName = 'identity-test';
@@ -157,7 +177,7 @@ test('a guest can join fully without loading or saving persistent account data',
   internal.rpgProgression = { hydrate: () => {} };
   internal.housingEvents = { hydrateFromProfile: () => {}, afterPlayerJoined: () => {} };
   const client = { sessionId: 'full-guest', send: () => {} } as unknown as Client;
-  assert.throws(() => room.onAuth(client, { username: 'Alice', worldId: 'forged-world' }), /World identity/);
+  assert.throws(() => room.onAuth(client, { username: 'Alice', worldId: 'forged-world' }), /World not available/);
   const guest = room.onAuth(client, { username: 'Alice' });
   try {
     await room.onJoin(client, { username: 'Alice', protocolVersion: PROTOCOL_VERSION } as never);

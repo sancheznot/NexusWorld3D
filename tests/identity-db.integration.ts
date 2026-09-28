@@ -110,6 +110,8 @@ test('isolated MariaDB: migrations, account profiles and single-use login tokens
     writeSceneDocumentV0_1ToDisk({ schemaVersion: 1, worldId: identity.worldId, entities: [],
       spawn: { mapId: 'exterior', position: [90, 5, 90], yaw: 1 } });
     assert.equal(tryLoadSceneDocumentV0_1FromDisk(identity.worldId)?.spawn?.position[0], 90);
+    const { saveWorldAccess } = await import('../server/scene/publicWorlds');
+    saveWorldAccess({ worldId: identity.worldId, name: 'Isolated SQL world', public: true });
     process.env.NEXUS_GAME_AUTH_SECRET = secret;
     const http = createServer();
     const gameServer = new Server({ transport: new WebSocketTransport({ server: http }), greet: false });

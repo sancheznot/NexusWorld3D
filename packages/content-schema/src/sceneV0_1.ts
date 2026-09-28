@@ -2,6 +2,7 @@ import { z } from "zod";
 import { sceneBoxPropsSchema } from './sceneBox';
 import { sceneModelPropsSchema } from './sceneModel';
 import { isSceneGroup, resolveSceneWorldEntities } from './sceneHierarchy';
+import { sceneResourcePropsSchema, sceneTriggerPropsSchema, scenePortalPropsSchema } from './sceneInteraction';
 
 const componentTypeRegex = /^(nexus|game):[a-zA-Z0-9._-]+$/;
 
@@ -81,6 +82,7 @@ export const sceneDocumentV0_1Schema = z
     }
     // Iterative ancestry walk: reject self-parenting and cycles without recursive overflow.
     const parents = new Map(data.entities.map(e => [e.id, e.parentId]));
+    const resourceIds = new Set<string>();
     const complete = new Set<string>();
     for (const entity of data.entities) {
       const path = new Set<string>();
@@ -97,9 +99,26 @@ export const sceneDocumentV0_1Schema = z
       const boxes = entity.components.filter(c => c.type === 'nexus:box');
       const models = entity.components.filter(c => c.type === 'nexus:model');
       const groups = entity.components.filter(c => c.type === 'nexus:group');
+      const resources = entity.components.filter(c => c.type === 'nexus:resourceNode');
+      const triggers = entity.components.filter(c => c.type === 'nexus:triggerSphere');
+      const portals = entity.components.filter(c => c.type === 'nexus:portal');
+      if (resources.length || triggers.length || portals.length) {
+        const resource = resources[0] && sceneResourcePropsSchema.safeParse(resources[0].props);
+        const trigger = triggers[0] && sceneTriggerPropsSchema.safeParse(triggers[0].props);
+        const portal = portals[0] && scenePortalPropsSchema.safeParse(portals[0].props);
+        if (resources.length > 1 || (resources.length && triggers.length !== 1) || triggers.length > 1 || portals.length > 1 || boxes.length || models.length || groups.length ||
+            (resource && !resource.success) || (trigger && !trigger.success) || (portal && (!portal.success || !triggers.length || resources.length)) ||
+            entity.transform.scale.some(s => s !== entity.transform.scale[0] || s < 0.01 || s > 1000) || entity.transform.position.some(p => Math.abs(p) > 1e6)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid resource, spherical trigger or portal: requires uniform positive scale and compatible components', path: ['entities'] });
+        }
+        if (resource?.success) {
+          if (resourceIds.has(resource.data.nodeId)) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Duplicate resource node override', path: ['entities'] });
+          resourceIds.add(resource.data.nodeId);
+        }
+      }
       if (entity.parentId !== null && (!isSceneGroup(byId.get(entity.parentId)!) ||
-          ![...boxes, ...models, ...groups].length || entity.components.some(c => !['nexus:box', 'nexus:model', 'nexus:group'].includes(c.type)))) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Only groups may parent groups, boxes or models; other components must remain at root', path: ['entities'] });
+          ![...boxes, ...models, ...groups, ...resources, ...triggers, ...portals].length || entity.components.some(c => !['nexus:box', 'nexus:model', 'nexus:group', 'nexus:resourceNode', 'nexus:triggerSphere', 'nexus:portal'].includes(c.type)))) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Only groups may parent supported scene components; plugin components must remain at root', path: ['entities'] });
       }
       if (groups.length && (groups.length !== 1 || entity.components.length !== 1 || Object.keys(groups[0].props).length !== 0 ||
           entity.transform.position.some(p => Math.abs(p) > 1e6) || entity.transform.scale.some(s => s < 0.01 || s > 1000) ||
@@ -133,12 +152,16 @@ export const sceneDocumentV0_1Schema = z
       for (const entity of resolveSceneWorldEntities(data.entities)) {
         const box = entity.components.find(c => c.type === 'nexus:box');
         const model = entity.components.find(c => c.type === 'nexus:model');
-        if (!box && !model && !isSceneGroup(entity)) continue;
+        const trigger = entity.components.find(c => c.type === 'nexus:triggerSphere');
+        const interaction = trigger || entity.components.find(c => c.type === 'nexus:resourceNode');
+        if (!box && !model && !isSceneGroup(entity) && !interaction) continue;
         const scale = entity.transform.scale;
         const boxProps = box && sceneBoxPropsSchema.safeParse(box.props);
         const modelProps = model && sceneModelPropsSchema.safeParse(model.props);
+        const triggerProps = trigger && sceneTriggerPropsSchema.safeParse(trigger.props);
         if (entity.transform.position.some(p => !Number.isFinite(p) || Math.abs(p) > 1e6) ||
             scale.some(s => !Number.isFinite(s) || s < 0.01 || s > 1000) ||
+            (triggerProps?.success && triggerProps.data.radius * scale[0] > 100) ||
             (boxProps?.success && boxProps.data.size.some((s, i) => s * scale[i] > 1000)) ||
             (modelProps?.success && modelProps.data.colliders.some(c => c.size.some((s, i) => s * scale[i] > 1000) || c.offset.some((s, i) => Math.abs(s * scale[i]) > 1000)))) {
           ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Entity "${entity.id}": world transform or collider exceeds bounds`, path: ['entities'] });

@@ -77,6 +77,9 @@ import {
   type PlayerProfileRow,
 } from "@/lib/db/playerProfile";
 import { authenticateWorldJoin, identityStorageKey, type WorldIdentity } from '@/lib/auth/worldIdentity';
+import { readPublicWorld, readWorldAccess } from '@server/scene/publicWorlds';
+import { assertScenePlayable } from '@server/scene/scenePlayable';
+import { resolveScenePortal } from '@nexusworld3d/content-schema';
 import { parsePlayerMovement } from '@server/validation/playerMovement';
 
 interface PlayerData {
@@ -150,12 +153,14 @@ export class NexusWorldRoom extends Room {
   /** ES: Throttle guardado MariaDB/Redis en movimiento. EN: Throttle DB save on move. */
   private lastMoveProfileSaveAt = new Map<string, number>();
   private movementBudgets = new Map<string, MovementBudget>();
+  private lastScenePortalAt = new Map<string, number>();
   private identities = new Map<string, WorldIdentity>();
   private roomWorldId: string | null = null;
   private static activeOwners = new Map<string, string>();
   private profileWrites = new SerialWrites();
 
   private releaseIdentity(sessionId: string): void {
+    this.lastScenePortalAt.delete(sessionId);
     const key = this.ownerKey(sessionId);
     if (key && NexusWorldRoom.activeOwners.get(key) === sessionId) {
       NexusWorldRoom.activeOwners.delete(key);
@@ -169,14 +174,17 @@ export class NexusWorldRoom extends Room {
   }
 
   onAuth(client: Client, options: Record<string, unknown> = {}): WorldIdentity {
-    const identity = authenticateWorldJoin(options, this.roomName, nexusWorld3DConfig.worlds.default);
+    const requested = typeof options.worldId === 'string' ? options.worldId : nexusWorld3DConfig.worlds.default;
+    const identity = authenticateWorldJoin(options, this.roomName, requested);
     if ((options.worldId !== undefined && options.worldId !== identity.worldId) ||
         (this.roomWorldId !== null && this.roomWorldId !== identity.worldId) ||
         (this.sceneDocumentV0_1 !== null && this.sceneDocumentV0_1.worldId !== identity.worldId)) {
       throw new Error('World identity does not match this room');
     }
+    const publicWorld = identity.worldId !== nexusWorld3DConfig.worlds.default ? readPublicWorld(identity.worldId) : null;
+    if (identity.worldId !== nexusWorld3DConfig.worlds.default && !publicWorld) throw new Error('World not available');
     this.roomWorldId = identity.worldId;
-    if (!this.sceneDocumentV0_1) this.tryLoadPersistedScene(identity.worldId);
+    if (!this.sceneDocumentV0_1) this.tryLoadPersistedScene(identity.worldId, !!publicWorld);
     this.identities.set(client.sessionId, identity);
     return identity;
   }
@@ -329,6 +337,7 @@ export class NexusWorldRoom extends Room {
         awardExperience: (pid, amount) =>
           this.rpgProgression.addXp(pid, amount),
         getSceneDocument: () => this.sceneDocumentV0_1,
+        sceneOnly: () => this.roomWorldId !== null && this.roomWorldId !== nexusWorld3DConfig.worlds.default,
       }),
     ]);
 
@@ -440,7 +449,10 @@ export class NexusWorldRoom extends Room {
     const now = Date.now();
     // Scene spawn only supplies defaults. Account snapshots/SQL profiles still win.
     const spawn = this.sceneDocumentV0_1?.spawn;
-    const defaultPosition = spawn ? { x: spawn.position[0], y: spawn.position[1], z: spawn.position[2] } : { x: 0, y: 0, z: 0 };
+    // Authored worlds share Play's fallback; preserve the original world's spawn.
+    const fallbackPosition = identity.worldId === nexusWorld3DConfig.worlds.default
+      ? { x: 0, y: 0, z: 0 } : { x: 0, y: 2, z: 6 };
+    const defaultPosition = spawn ? { x: spawn.position[0], y: spawn.position[1], z: spawn.position[2] } : fallbackPosition;
     const defaultRotation = { x: 0, y: spawn?.yaw ?? 0, z: 0 };
     const defaultMapId = spawn?.mapId ?? "exterior";
     const defaultWorldId = identity.worldId;
@@ -863,8 +875,8 @@ export class NexusWorldRoom extends Room {
    * ES: Snapshot para monitor admin HTTP — sin PII extra ni secretos.
    * EN: Snapshot for admin HTTP monitor — no extra PII or secrets.
    */
-  private tryLoadPersistedScene(worldId: string): void {
-    if (!isSceneLoadPersistedEnabled()) return;
+  private tryLoadPersistedScene(worldId: string, force = false): void {
+    if (!force && !isSceneLoadPersistedEnabled()) return;
     const doc = tryLoadSceneDocumentV0_1FromDisk(worldId);
     if (!doc) return;
     this.sceneDocumentV0_1 = doc;
@@ -938,6 +950,9 @@ export class NexusWorldRoom extends Room {
     if (this.roomWorldId !== null && doc.worldId !== this.roomWorldId) {
       return { ok: false, error: 'scene_world_mismatch' };
     }
+    if (readWorldAccess(doc.worldId)) {
+      try { assertScenePlayable(doc); } catch (error) { return { ok: false, error: error instanceof Error ? error.message : 'unsupported_scene' }; }
+    }
     const sem = validateSceneDocumentSemanticsV0_1(doc);
     if (!sem.ok) {
       pushGameMonitorLog("warn", "room", "scene authoring rejected (semantics)", {
@@ -996,6 +1011,9 @@ export class NexusWorldRoom extends Room {
     }
     const doc = parsed.data;
     const sem = validateSceneDocumentSemanticsV0_1(doc);
+    if (readWorldAccess(doc.worldId)) {
+      try { assertScenePlayable(doc); } catch (error) { return { ok: false, error: error instanceof Error ? error.message : 'unsupported_scene' }; }
+    }
     if (!sem.ok) {
       pushGameMonitorLog("warn", "room", "scene merge rejected (semantics)", {
         roomId: this.roomId,
@@ -1124,13 +1142,17 @@ export class NexusWorldRoom extends Room {
       ) => {
         const player = this.players.get(client.sessionId);
         if (!player) return;
-        const transition = resolvePortalTransition(player.mapId, player.position, data);
+        const sceneEntityId = data && typeof data === 'object' ? (data as { sceneEntityId?: unknown }).sceneEntityId : undefined;
+        if (sceneEntityId !== undefined && Date.now() - (this.lastScenePortalAt.get(client.sessionId) ?? 0) < 1000) return;
+        const transition = sceneEntityId !== undefined ? resolveScenePortal(this.sceneDocumentV0_1, player.mapId, player.position, sceneEntityId)
+          : this.roomWorldId === nexusWorld3DConfig.worlds.default ? resolvePortalTransition(player.mapId, player.position, data) : null;
         if (!transition) {
           client.send('player:correction', { mapId: player.mapId, position: player.position, rotation: player.rotation });
           client.send('world:error', { code: 'invalid_portal', message: 'Portal inválido o fuera de alcance', timestamp: Date.now() });
           return;
         }
         player.mapId = transition.mapId;
+        if (sceneEntityId !== undefined) this.lastScenePortalAt.set(client.sessionId, Date.now());
         player.position = transition.position;
         player.rotation = transition.rotation;
         this.movementBudgets.set(client.sessionId, new MovementBudget(Date.now()));

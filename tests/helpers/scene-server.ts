@@ -16,7 +16,7 @@ void (async () => {
   const http = createServer();
   // The harness owns shutdown instead of installing the default signal handlers.
   const server = new Server({ transport: new WebSocketTransport({ server: http }), greet: false, gracefullyShutdown: false });
-  server.define('scene-network', NexusWorldRoom);
+  server.define('scene-network', NexusWorldRoom).filterBy(['worldId']);
   await server.listen(0, '127.0.0.1');
   let stopping = false;
   process.on('message', message => {

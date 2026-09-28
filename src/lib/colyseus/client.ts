@@ -13,7 +13,7 @@ import {
   SceneMessages,
 } from "@nexusworld3d/protocol";
 import { withWorldProtocolJoinOptions } from "@nexusworld3d/engine-client";
-import { frameworkColyseusRoomName, frameworkLobbyRoomName } from "@/lib/frameworkBranding";
+import { frameworkColyseusRoomName, frameworkLobbyRoomName, frameworkDefaultWorldId } from "@/lib/frameworkBranding";
 import { useHousingStore } from "@/store/housingStore";
 import { useSceneAuthoringStore } from '@/store/sceneAuthoringStore';
 import type { HousingSyncPayload } from "@/types/housing.types";
@@ -24,6 +24,7 @@ class ColyseusClient {
   private room: Room | null = null;
   private isConnected: boolean = false;
   private currentJoinedRoom: string | null = null;
+  private currentWorldId: string | null = null;
   private eventListeners: Map<string, ((data: unknown) => void)[]> = new Map();
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 5;
@@ -34,7 +35,7 @@ class ColyseusClient {
   private lastChatHistory: unknown[] | null = null;
   private lastScenePayload: unknown | null = null;
   private connectionGeneration = 0;
-  private pendingConnection: { roomName: string; promise: Promise<void> } | null = null;
+  private pendingConnection: { roomName: string; worldId: unknown; promise: Promise<void> } | null = null;
 
   private constructor() {}
 
@@ -80,7 +81,8 @@ class ColyseusClient {
     joinOptions: Record<string, unknown> = {},
     forceReconnect = false
   ): Promise<void> {
-    if (!forceReconnect && this.pendingConnection?.roomName === roomName) {
+    const requestedWorldId = joinOptions.worldId ?? frameworkDefaultWorldId;
+    if (!forceReconnect && this.pendingConnection?.roomName === roomName && this.pendingConnection.worldId === requestedWorldId) {
       return this.pendingConnection.promise;
     }
     const generation = ++this.connectionGeneration;
@@ -88,7 +90,7 @@ class ColyseusClient {
       if (
         !forceReconnect &&
         this.room?.connection.isOpen &&
-        this.currentJoinedRoom === roomName
+        this.currentJoinedRoom === roomName && this.currentWorldId === requestedWorldId
       ) {
         resolve();
         return;
@@ -105,7 +107,7 @@ class ColyseusClient {
             const response = await fetch('/api/game/join-ticket', {
               method: 'POST', credentials: 'same-origin', cache: 'no-store',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ roomName }),
+              body: JSON.stringify({ roomName, worldId: joinOptions.worldId }),
             });
             if (!response.ok) throw new Error('No se pudo verificar la sesión de juego');
             const { ticket, worldId } = await response.json();
@@ -121,6 +123,7 @@ class ColyseusClient {
           }
           this.room = room;
           this.currentJoinedRoom = roomName;
+          this.currentWorldId = String(mergedJoinOptions.worldId ?? requestedWorldId);
           this.isConnected = true;
           this.reconnectAttempts = 0;
           console.log("✅ Conectado a Colyseus — sala:", roomName);
@@ -150,7 +153,7 @@ class ColyseusClient {
 
       void join();
     });
-    this.pendingConnection = { roomName, promise };
+    this.pendingConnection = { roomName, worldId: requestedWorldId, promise };
     const clearPending = () => {
       if (this.pendingConnection?.promise === promise) this.pendingConnection = null;
     };

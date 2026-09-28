@@ -1,5 +1,7 @@
 # Fase 3 — primer incremento editor → juego
 
+**Estado actualizado 2026-09-28:** implementación del flujo MVP de fase 3 completada; revisión visual aplazada. El cierre, la evidencia y los límites actuales están en [2026-09-28-phase-3-closure.md](./2026-09-28-phase-3-closure.md). Las secciones siguientes conservan el historial y sus pendientes históricos; no deben leerse como el estado actual.
+
 ## Dirección
 
 El usuario autorizó continuar con las demás fases y dejar la validación visual para después. No se marcan las fases 0–2 como cerradas por esa decisión. Seguimos el formato canónico v0.1 y los endpoints protegidos existentes; no añadimos un editor alternativo ni adelantamos la extracción modular de fase 4.

@@ -1,4 +1,5 @@
 import type { SceneDocumentV0_1 } from "./sceneV0_1";
+import { resolveSceneWorldEntities } from './sceneHierarchy';
 
 /**
  * ES: Posición (y radio opcional) de un `nexus:resourceNode` definido en escena v0.1.
@@ -8,6 +9,9 @@ export type ResourceNodeSceneOverride = {
   position: { x: number; y: number; z: number };
   /** ES: De `nexus:triggerSphere` cuando existe. EN: From `nexus:triggerSphere` when present. */
   interactionRadius?: number;
+  label?: string;
+  scale: [number, number, number];
+  rotation: [number, number, number, number];
 };
 
 /**
@@ -19,7 +23,7 @@ export function findResourceNodeOverrideInDocument(
   nodeId: string
 ): ResourceNodeSceneOverride | null {
   if (!doc?.entities?.length) return null;
-  for (const ent of doc.entities) {
+  for (const ent of resolveSceneWorldEntities(doc.entities)) {
     for (const c of ent.components) {
       if (c.type !== "nexus:resourceNode") continue;
       const p = c.props as { nodeId?: string } | undefined;
@@ -30,13 +34,15 @@ export function findResourceNodeOverrideInDocument(
         if (c2.type === "nexus:triggerSphere") {
           const r = (c2.props as { radius?: number } | undefined)?.radius;
           if (typeof r === "number" && Number.isFinite(r) && r > 0) {
-            interactionRadius = r;
+            interactionRadius = r * ent.transform.scale[0];
             break;
           }
         }
       }
       return {
         position: { x, y, z },
+        label: ent.components.find(c => c.type === 'nexus:triggerSphere')?.props.label as string | undefined,
+        scale: ent.transform.scale, rotation: ent.transform.rotation,
         ...(interactionRadius !== undefined ? { interactionRadius } : {}),
       };
     }

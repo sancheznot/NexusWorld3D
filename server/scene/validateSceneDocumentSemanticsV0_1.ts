@@ -28,7 +28,7 @@ export function validateSceneDocumentSemanticsV0_1(
   for (const ent of doc.entities) {
     for (const c of ent.components) {
       // Shape and transform constraints belong to the shared document schema.
-      if (c.type === 'nexus:box' || c.type === 'nexus:group') continue;
+      if (c.type === 'nexus:box' || c.type === 'nexus:group' || c.type === 'nexus:portal') continue;
       if (c.type === 'nexus:model') {
         const props = getSceneModelProps(ent);
         if (!props || (!getContentManifest()!.modelAssets.some(asset => asset.id === props.assetId) && !getUploadedSceneModel(props.assetId))) {
@@ -51,6 +51,8 @@ export function validateSceneDocumentSemanticsV0_1(
             error: `entity "${ent.id}": unknown resource node id "${nodeId}"`,
           };
         }
+        const trigger = ent.components.find(c => c.type === 'nexus:triggerSphere');
+        if (trigger && (trigger.props.mapId ?? 'exterior') !== node.mapId) return { ok: false, error: 'resource trigger map must match registered resource map' };
         for (const g of node.grants) {
           if (!isDeclaredManifestItemId(g.itemId)) {
             return {

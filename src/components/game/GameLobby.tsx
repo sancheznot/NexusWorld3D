@@ -457,6 +457,7 @@ export default function GameLobby({
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
+            <a href="/worlds" className="rounded-xl border border-cyan-500/40 px-4 py-3 text-sm font-semibold text-cyan-200 hover:bg-cyan-500/10">Explorar mundos</a>
             {isAuthenticated ? (
               <>
                 <GameButton

@@ -5,13 +5,17 @@ import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import type { SceneDocumentV0_1, SceneEntityV0_1 } from "@nexusworld3d/content-schema";
-import { parseSceneDocumentV0_1, getSceneBoxProps, getSceneModelProps, isSceneGroup, resolveSceneWorldEntities } from "@nexusworld3d/content-schema";
-import SceneModelVisual from '../world/SceneModelVisual';
+import { parseSceneDocumentV0_1, getSceneBoxProps, getSceneModelProps, getSceneInteraction, isSceneGroup, resolveSceneWorldEntities } from "@nexusworld3d/content-schema";
+import SceneInteractionInspector from './SceneInteractionInspector';
+import { getWorldResourceNodesForMap } from '@/constants/worldResourceNodes';
+import { importSceneDocument } from '@/lib/importSceneDocument';
+import SceneEntityVisual from '../world/SceneEntityVisual';
 import SceneModelInspector from './SceneModelInspector';
 import { sceneModelAssets } from '@/lib/assets/sceneModelAssets';
 import { useSceneModelCatalog } from '@/hooks/useSceneModelCatalog';
 import { adminBtnDanger, adminBtnPrimary, adminBtnSecondary, adminCard } from "@/components/admin/admin-ui";
 import AdminScenePublicationPanel from './AdminScenePublicationPanel';
+import SceneWorldAccessPanel from './SceneWorldAccessPanel';
 import dynamic from 'next/dynamic';
 import { useSceneEditorHistory } from '@/hooks/useSceneEditorHistory';
 import { sceneRotationDegrees, sceneRotationQuaternion, updateSceneTransform } from '@/lib/sceneEditorTransforms';
@@ -39,37 +43,7 @@ function EntityBox({
   selected: boolean;
   onSelect: (id: string) => void;
 }) {
-  const [x, y, z] = entity.transform.position;
-  const q = useMemo(
-    () => new THREE.Quaternion(...entity.transform.rotation).normalize(),
-    [entity.transform.rotation]
-  );
-  const [sx, sy, sz] = entity.transform.scale;
-  const box = getSceneBoxProps(entity);
-
-  if (getSceneModelProps(entity)) return <SceneModelVisual entity={entity} showColliders={selected} onSelect={onSelect} />;
-
-  return (
-    <mesh
-      position={[x, y, z]}
-      quaternion={q}
-      scale={[sx, sy, sz]}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect(entity.id);
-      }}
-    >
-      <boxGeometry args={box?.size ?? [1, 1, 1]} />
-      <meshStandardMaterial
-        wireframe={isSceneGroup(entity)}
-        color={selected ? "#22d3ee" : box?.color ?? "#475569"}
-        metalness={0.2}
-        roughness={0.75}
-        transparent
-        opacity={selected ? 0.95 : 0.65}
-      />
-    </mesh>
-  );
+  return <SceneEntityVisual editor entity={entity} selected={selected} onSelect={onSelect} />;
 }
 
 function SceneContent({
@@ -217,7 +191,8 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
   const selectedBox = selected ? getSceneBoxProps(selected) : null;
   const selectedModel = selected ? getSceneModelProps(selected) : null;
   const selectedGroup = selected ? isSceneGroup(selected) : false;
-  const selectedGeometry = selectedBox || selectedModel || selectedGroup;
+  const selectedInteraction = selected ? getSceneInteraction(selected) : null;
+  const selectedGeometry = selectedBox || selectedModel || selectedGroup || selectedInteraction;
   const selectedSubtree = useMemo(() => selectedId ? sceneSubtreeIds(doc, selectedId) : new Set<string>(), [doc, selectedId]);
   const childrenByParent = useMemo(() => {
     const index = new Map<string | null, SceneEntityV0_1[]>();
@@ -228,6 +203,16 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
     return index;
   }, [doc.entities]);
   const selectedDegrees = selected ? sceneRotationDegrees(selected.transform.rotation) : [0, 0, 0];
+  function addInteraction(kind: string) {
+    const node = getWorldResourceNodesForMap('exterior').find(node => node.id === kind);
+    const id = `interaction-${crypto.randomUUID()}`;
+    const components: SceneEntityV0_1['components'] = [{ type: 'nexus:triggerSphere', props: { radius: node?.radius ?? 3, mapId: 'exterior', label: node?.labelEs ?? (kind === 'portal' ? 'Portal' : 'Zona de interacción') } }];
+    if (node) components.push({ type: 'nexus:resourceNode', props: { nodeId: node.id } });
+    if (kind === 'portal') components.push({ type: 'nexus:portal', props: { targetPosition: [0, 1.05, 10], yaw: 0 } });
+    try { setDoc(parseSceneDocumentV0_1({ ...doc, entities: [...doc.entities, { id, parentId: null,
+      transform: { position: [0, 0, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] }, components }] })); setSelectedId(id); setTransformError(null); }
+    catch { setTransformError('Ese recurso ya está incluido en la escena. Selecciona su entidad para moverlo.'); }
+  }
   const setTransform = (patch: Partial<SceneEntityV0_1['transform']>) => {
     if (!selected) return;
     try {
@@ -422,6 +407,13 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
             const id = `group-${crypto.randomUUID()}`;
             setDoc(createSceneGroup(doc, id)); setSelectedId(id);
           }}>Crear grupo</button>
+          <button type="button" className={adminBtnSecondary} onClick={() => addInteraction('trigger')}>Añadir zona</button>
+          <button type="button" className={adminBtnSecondary} onClick={() => addInteraction('portal')}>Añadir portal</button>
+          <select aria-label="Añadir recurso" value="" className="max-w-52 rounded border border-white/10 bg-slate-900 px-2 text-xs text-white"
+            onChange={event => { if (event.target.value) addInteraction(event.target.value); }}>
+            <option value="">Añadir recurso…</option>{getWorldResourceNodesForMap('exterior').map(node => <option key={node.id} value={node.id}
+              disabled={doc.entities.some(entity => entity.components.some(c => c.type === 'nexus:resourceNode' && c.props.nodeId === node.id))}>{node.labelEs}</option>)}
+          </select>
           <select aria-label="Modelo a añadir" value={modelAssetId} onChange={event => setModelAssetId(event.target.value)} className="max-w-52 rounded border border-white/10 bg-slate-900 px-2 text-xs text-white">
             {modelCatalog.assets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
           </select>
@@ -465,6 +457,18 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
       </div>
 
       <p className="px-4 py-2 text-[11px] text-slate-400">Historial local: hasta 50 cambios. Deshacer no revierte publicaciones ni salas activas. Confirma campos numéricos con Enter o al salir del campo.</p>
+      <label className="block border-b border-white/10 px-4 py-3 text-xs text-slate-300">Importar escena JSON o WorldData antiguo (máximo 512 KiB)
+        <input type="file" accept=".json,application/json" className="mt-2 block" onChange={event => {
+          const file = event.target.files?.[0]; event.target.value = '';
+          if (!file) return;
+          if (file.size > 512 * 1024) { setApplyMsg('Archivo demasiado grande: máximo 512 KiB.'); return; }
+          void file.text().then(text => {
+            const imported = importSceneDocument(JSON.parse(text), modelCatalog.assets);
+            if (!window.confirm(`¿Reemplazar el borrador local por el mundo ${imported.document.worldId}? Puedes deshacer. ${imported.warnings.join(' ')}`)) return;
+            setDoc(imported.document); setSelectedId(null); setApplyMsg(imported.warnings.join(' ') || 'Escena importada. Aún no se ha guardado ni publicado.');
+          }).catch(error => setApplyMsg(error instanceof Error ? error.message : 'Importación inválida'));
+        }} />
+      </label>
 
       <section aria-label="Subir modelo" aria-busy={modelCatalog.busy} className="border-y border-cyan-500/20 bg-cyan-950/10 px-4 py-3 text-xs text-slate-300">
         <label className="block font-semibold text-cyan-200">Subir y registrar GLB permanente
@@ -498,6 +502,7 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
         </div> : null}
       </section>
 
+      <SceneWorldAccessPanel key={doc.worldId} worldId={doc.worldId} />
       <AdminScenePublicationPanel document={doc} onLoad={saved => {
         setDoc(saved);
         setSelectedId(saved.entities[0]?.id ?? null);
@@ -664,8 +669,10 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
               {selectedGeometry ? <>
                   <div className="flex flex-wrap gap-2">
                     <button type="button" className={adminBtnSecondary} onClick={() => {
+                      try {
                       const copy = duplicateSceneSubtree(doc, selected.id, () => `entity-${crypto.randomUUID()}`);
                       setDoc(copy.document); setSelectedId(copy.selectedId);
+                      } catch { setTransformError('No se puede duplicar un recurso registrado: cada nodeId tiene una única posición por escena.'); }
                     }}>Duplicar {selectedGroup ? 'grupo completo' : 'objeto'}</button>
                     <button type="button" className={adminBtnDanger}
                       onClick={() => {
@@ -675,6 +682,11 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
                       }}>Eliminar {selectedGroup ? 'grupo completo' : 'objeto'}</button>
                   </div>
               </> : null}
+              <SceneInteractionInspector key={`${selected.id}-interaction`} entity={selected} onChange={(type, patch) => {
+                try { setDoc(parseSceneDocumentV0_1({ ...doc, entities: doc.entities.map(entity => entity.id === selected.id
+                  ? { ...entity, components: entity.components.map(c => c.type === type ? { ...c, props: { ...c.props, ...patch } } : c) } : entity) })); setTransformError(null); }
+                catch { setTransformError('Interacción inválida: revisa radio, destino y escala acumulada.'); }
+              }} />
               {selectedModel ? <SceneModelInspector key={selected.id} model={selectedModel} scale={selected.transform.scale} assets={modelCatalog.assets} onChange={props => {
                 try {
                   setDoc(parseSceneDocumentV0_1({ ...doc, entities: doc.entities.map(entity => entity.id === selected.id
@@ -701,7 +713,7 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
               )}
               <div>
                 <span className="text-slate-500">Escala</span>
-                {selectedGroup ? <SceneNumberInput key={`${selected.id}-uniform-scale`} label="Escala uniforme del grupo"
+                {selectedGroup || selectedInteraction ? <SceneNumberInput key={`${selected.id}-uniform-scale`} label="Escala uniforme"
                   value={selected.transform.scale[0]} min={0.01} max={1000}
                   onCommit={value => setTransform({ scale: [value, value, value] })} /> : selectedGeometry ? <div className="mt-1 grid grid-cols-3 gap-2">
                   {(['X', 'Y', 'Z'] as const).map((label, axis) => <SceneNumberInput key={`${selected.id}-scale-${axis}`}

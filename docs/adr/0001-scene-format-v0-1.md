@@ -44,6 +44,7 @@ El plan [Motor admin estilo Unity](../plans/2026-04-04-admin-unity-style-web-eng
 | `nexus:triggerSphere` | `{ "radius": number > 0 }` | **Sí** | Opcional |
 | `nexus:box` | `size: [x,y,z]`, `color: #rrggbb`, `solid: boolean`, `mapId: string`; defaults `[1,1,1]`, `#a78bfa`, `true`, `exterior` | Schema compartido | Mesh + collider estático Cannon si `solid` |
 | `nexus:group` | `{}`; único componente, escala uniforme positiva | Schema compartido: padres, profundidad y límites mundiales | Transformación heredada por grupos, cajas y modelos; sin cuerpo físico |
+| `nexus:portal` | `targetPosition: [x,y,z]`, `yaw`; requiere triggerSphere | Destino de escena + alcance 3D + cooldown | Solicitud por E y pose confirmada por servidor |
 | `nexus:model` | `assetId`, `mapId`, `colliders: [{size, offset}]` | Schema compartido + existencia del asset registrado/subido | GLTF estático + cajas de colisión configuradas |
 | `game:*` | Definido por el juego privado | **Sí** (plugins del juego) | Según el juego |
 
@@ -64,6 +65,8 @@ Este incremento sustituye la restricción histórica de entidades raíz para caj
 El schema comprueba límites tanto locales como acumulados, y profundidad máxima de 64 entidades contando la raíz. Editor, Play y runtime resuelven las mismas transformaciones mundiales mediante `resolveSceneWorldEntities`; las físicas incluyen los offsets de collider escalados y rotados. Los grupos solo tienen marcador en el editor. Ver `docs/plans/2026-09-27-scene-hierarchy-design.md` y fixture `content/scenes/groups.v0_1.json`.
 
 ## Referencias / References
+
+Actualización 2026-09-28: recursos/triggers/portales también admiten padres grupo y escala uniforme. Cada recurso requiere un trigger y su nodeId es único por escena. `triggerSphere` admite radio 0.1–100, etiqueta y mapId; radio mundial máximo 100. Un trigger solo muestra un aviso; combinado con resource recoge del registro servidor, combinado con portal traslada dentro del mismo mapa. No se combinan resource y portal. El conjunto público se valida además con `server/scene/scenePlayable.ts`; ver el cierre de fase 3 para compatibilidad e importación legacy.
 
 - `packages/content-schema/src/sceneV0_1.ts`
 - `scripts/validate-scene.ts` — `npm run validate-scene` (incluido en `npm run check:phase1`)

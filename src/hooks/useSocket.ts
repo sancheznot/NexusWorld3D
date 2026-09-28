@@ -139,6 +139,7 @@ export const useSocket = () => {
       updateLocalPlayer({
         id: myId,
         username: self.username || usePlayerStore.getState().player?.username,
+        worldId: self.worldId,
         mapId: self.mapId,
       });
       if (self.mapId) {
@@ -430,6 +431,10 @@ export const useSocket = () => {
       const myId = colyseusClient.getSessionId();
       if (myId && data.playerId === myId && data.mapId) {
         updateLocalPlayer({ mapId: data.mapId as Player["mapId"] });
+        updatePosition(data.position);
+        updateRotation(data.rotation);
+        updateLocalPlayer({ position: data.position, rotation: data.rotation });
+        snapPhysicsToServerPose(data.position, data.rotation);
         colyseusClient.emit("local:map-sync", { mapId: data.mapId });
       }
       updateWorldPlayer(data.playerId, {

@@ -11,6 +11,7 @@ import { persistedSceneFilePath, writeSceneDocumentV0_1ToDisk, tryLoadSceneDocum
 import { NexusWorldRoom } from '../server/rooms/NexusWorldRoom';
 import { issueWorldTicket } from '../src/lib/auth/worldIdentity';
 import type { Client } from 'colyseus';
+import { saveWorldAccess } from '../server/scene/publicWorlds';
 
 function scene() {
   return parseSceneDocumentV0_1({ schemaVersion: 1, worldId: 'scene-test', entities: [{
@@ -70,6 +71,7 @@ test('authenticated worlds load only their own scene after the room identity is 
   try {
     for (const worldId of ['world-A', 'world-B']) {
       writeSceneDocumentV0_1ToDisk({ ...scene(), worldId });
+      saveWorldAccess({ worldId, name: worldId, public: true });
     }
     for (const worldId of ['world-A', 'world-B']) {
       const room = new NexusWorldRoom();

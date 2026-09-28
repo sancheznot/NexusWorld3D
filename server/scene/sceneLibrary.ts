@@ -5,6 +5,8 @@ import { parseSceneDocumentV0_1, type SceneDocumentV0_1 } from '@nexusworld3d/co
 import { persistedSceneFilePath, tryLoadSceneDocumentV0_1FromDisk, writeSceneDocumentV0_1ToDisk } from './persistSceneDocumentV0_1';
 import { validateSceneDocumentSemanticsV0_1 } from './validateSceneDocumentSemanticsV0_1';
 import type { SceneLibraryState } from '@/types/sceneLibrary.types';
+import { readWorldAccess } from './publicWorlds';
+import { assertScenePlayable } from './scenePlayable';
 
 const revisionPattern = /^[a-f0-9]{64}$/;
 export class SceneLibraryError extends Error {
@@ -75,6 +77,7 @@ export function executeSceneLibraryCommand(raw: unknown): SceneLibraryState {
   } else document = validate(body.document, worldId);
   if (body.action === 'save-draft') atomicWrite(paths(worldId).draft, document);
   else {
+    if (readWorldAccess(worldId)?.public) assertScenePlayable(document);
     if (state.published) archive(state.published);
     archive(document);
     writeSceneDocumentV0_1ToDisk(document);

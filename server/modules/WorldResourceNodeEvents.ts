@@ -47,6 +47,7 @@ export type WorldResourceNodeDeps = {
   awardExperience?: (playerId: string, baseXp: number) => void;
   /** ES: Escena v0.1 en sala (override de posición/radio para `nexus:resourceNode`). EN: In-room v0.1 scene (position/radius overrides). */
   getSceneDocument?: () => import("@nexusworld3d/content-schema").SceneDocumentV0_1 | null;
+  sceneOnly?: () => boolean;
 };
 
 export class WorldResourceNodeEvents {
@@ -94,6 +95,10 @@ export class WorldResourceNodeEvents {
 
         const doc = this.deps.getSceneDocument?.() ?? null;
         const override = findResourceNodeOverrideInDocument(doc, nodeId);
+        if (this.deps.sceneOnly?.() && !override) {
+          client.send(WorldMessages.HarvestNodeResult, { ok: false, nodeId, message: 'Recurso no incluido en esta escena' });
+          return;
+        }
         const node: WorldResourceNodeDef = override
           ? {
               ...baseNode,
@@ -113,7 +118,7 @@ export class WorldResourceNodeEvents {
 
         const dx = pos.x - node.position.x;
         const dz = pos.z - node.position.z;
-        const dist = Math.hypot(dx, dz);
+        const dist = Math.hypot(dx, pos.y - node.position.y, dz);
         if (dist > node.radius + DIST_SLACK) {
           client.send(WorldMessages.HarvestNodeResult, {
             ok: false,

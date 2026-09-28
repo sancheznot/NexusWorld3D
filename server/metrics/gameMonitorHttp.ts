@@ -8,6 +8,7 @@ import { matchMaker } from "colyseus";
 import { executeSceneLibraryCommand, SceneLibraryError } from '@server/scene/sceneLibrary';
 import { listUploadedSceneModels, registerUploadedSceneModel, readUploadedSceneModel } from '@server/scene/uploadedSceneModels';
 import { MAX_SCENE_ASSET_BYTES } from '@server/scene/validateUploadedGlb';
+import { listPublicWorlds, readPublicWorld, readWorldAccess, saveWorldAccess } from '@server/scene/publicWorlds';
 import {
   broadcastGameMonitorStats,
   getGameMonitorLogs,
@@ -189,6 +190,20 @@ export async function tryHandleGameMonitorRequest(
       const message = error instanceof Error ? error.message : 'asset_failed';
       sendJson(res, message === 'payload_too_large' ? 413 : 400, { error: message });
     }
+    return true;
+  }
+
+  if (url === `${PREFIX}/world-access` || url === `${PREFIX}/public-worlds`) {
+    try {
+      const worldId = new URL(req.url!, 'http://localhost').searchParams.get('worldId');
+      if (url.endsWith('/public-worlds') && req.method === 'GET') {
+        sendJson(res, 200, { worlds: worldId ? [readPublicWorld(worldId)].filter(Boolean) : listPublicWorlds() });
+      } else if (url.endsWith('/world-access') && req.method === 'GET' && worldId) {
+        sendJson(res, 200, { world: readWorldAccess(worldId) });
+      } else if (url.endsWith('/world-access') && req.method === 'POST') {
+        sendJson(res, 200, { world: saveWorldAccess(await readJsonBody(req, 4096)) });
+      } else sendJson(res, 405, { error: 'method_not_allowed' });
+    } catch (error) { sendJson(res, 400, { error: error instanceof Error ? error.message : 'world_access_failed' }); }
     return true;
   }
 

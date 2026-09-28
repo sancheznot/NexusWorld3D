@@ -94,3 +94,15 @@ test('early scene snapshots replay and leaving clears scene colliders source sta
     assert.equal(replays, 1);
   } finally { unsubscribe(); }
 });
+
+test('pending joins to different world IDs never reuse the previous world request', async t => {
+  const pending: Array<(response: Response) => void> = [];
+  t.mock.method(globalThis, 'fetch', () => new Promise<Response>(resolve => pending.push(resolve)));
+  const first = colyseusClient.connect(undefined, { worldId: 'one' });
+  const second = colyseusClient.connect(undefined, { worldId: 'two' });
+  assert.notEqual(first, second); assert.equal(pending.length, 2);
+  colyseusClient.disconnect();
+  pending[0](new Response(JSON.stringify({ ticket: null, worldId: 'one' })));
+  pending[1](new Response(JSON.stringify({ ticket: null, worldId: 'two' })));
+  await assert.rejects(first, /cancelled/i); await assert.rejects(second, /cancelled/i);
+});
