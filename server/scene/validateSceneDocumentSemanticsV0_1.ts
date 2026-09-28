@@ -4,6 +4,7 @@
  */
 
 import { getSceneModelProps, type SceneDocumentV0_1 } from "@nexusworld3d/content-schema";
+import { getUploadedSceneModel } from './uploadedSceneModels';
 import { getWorldResourceNodeById } from "@/constants/worldResourceNodes";
 import {
   getContentManifest,
@@ -30,7 +31,7 @@ export function validateSceneDocumentSemanticsV0_1(
       if (c.type === 'nexus:box') continue;
       if (c.type === 'nexus:model') {
         const props = getSceneModelProps(ent);
-        if (!props || !getContentManifest()!.modelAssets.some(asset => asset.id === props.assetId)) {
+        if (!props || (!getContentManifest()!.modelAssets.some(asset => asset.id === props.assetId) && !getUploadedSceneModel(props.assetId))) {
           return { ok: false, error: `entity "${ent.id}": unknown model asset id` };
         }
         continue;

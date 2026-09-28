@@ -9,6 +9,7 @@ import { parseSceneDocumentV0_1, getSceneBoxProps, getSceneModelProps } from "@n
 import SceneModelVisual from '../world/SceneModelVisual';
 import SceneModelInspector from './SceneModelInspector';
 import { sceneModelAssets } from '@/lib/assets/sceneModelAssets';
+import { useSceneModelCatalog } from '@/hooks/useSceneModelCatalog';
 import { adminBtnDanger, adminBtnPrimary, adminBtnSecondary, adminCard } from "@/components/admin/admin-ui";
 import AdminScenePublicationPanel from './AdminScenePublicationPanel';
 import dynamic from 'next/dynamic';
@@ -167,6 +168,7 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
   const { doc, setDoc, selectedId, setSelectedId, replace, undo, redo, canUndo, canRedo } = useSceneEditorHistory(initialDocument);
   const [transformError, setTransformError] = useState<string | null>(null);
   const [modelAssetId, setModelAssetId] = useState(sceneModelAssets[0]?.id ?? '');
+  const modelCatalog = useSceneModelCatalog();
   const [liveRoomIds, setLiveRoomIds] = useState<string[]>([]);
   const [targetRoomId, setTargetRoomId] = useState("");
   const [applyMsg, setApplyMsg] = useState<string | null>(null);
@@ -408,10 +410,10 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
         </div>
         <div className="flex flex-wrap gap-2">
           <select aria-label="Modelo a añadir" value={modelAssetId} onChange={event => setModelAssetId(event.target.value)} className="max-w-52 rounded border border-white/10 bg-slate-900 px-2 text-xs text-white">
-            {sceneModelAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
+            {modelCatalog.assets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
           </select>
           <button type="button" disabled={!modelAssetId} className={adminBtnSecondary} onClick={() => {
-            const asset = sceneModelAssets.find(asset => asset.id === modelAssetId);
+            const asset = modelCatalog.assets.find(asset => asset.id === modelAssetId);
             if (!asset) return;
             const id = `model-${crypto.randomUUID()}`;
             setDoc(current => ({ ...current, entities: [...current.entities, { id, parentId: null,
@@ -450,6 +452,20 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
       </div>
 
       <p className="px-4 py-2 text-[11px] text-slate-400">Historial local: hasta 50 cambios. Deshacer no revierte publicaciones ni salas activas. Confirma campos numéricos con Enter o al salir del campo.</p>
+
+      <section aria-label="Subir modelo" aria-busy={modelCatalog.busy} className="border-y border-cyan-500/20 bg-cyan-950/10 px-4 py-3 text-xs text-slate-300">
+        <label className="block font-semibold text-cyan-200">Subir y registrar GLB permanente
+          <input type="file" accept=".glb,model/gltf-binary" disabled={modelCatalog.busy} className="mt-2 block w-full text-xs file:mr-3 file:rounded file:border-0 file:bg-cyan-900 file:px-3 file:py-2 file:text-cyan-100"
+            onChange={event => {
+              const file = event.target.files?.[0]; event.target.value = '';
+              if (file) void modelCatalog.upload(file).then(asset => { if (asset) setModelAssetId(asset.id); });
+            }} />
+        </label>
+        <p className="mt-2 text-slate-400">Archivos públicos al subir: no incluyas contenido privado. Máximo 16 MiB, GLB 2.0 estático con texturas PNG/JPEG embebidas, sin extensiones, animaciones ni archivos externos. Después pulsa «Añadir modelo» y configura sus colliders; inicialmente es atravesable.</p>
+        <button type="button" className={`${adminBtnSecondary} mt-2`} disabled={modelCatalog.busy} onClick={() => void modelCatalog.refresh()}>Actualizar catálogo</button>
+        <p role="status" className="mt-1 text-cyan-200">{modelCatalog.busy ? 'Procesando catálogo/modelo…' : modelCatalog.message}</p>
+        {modelCatalog.error ? <p role="alert" className="mt-2 text-amber-200">{modelCatalog.error}</p> : null}
+      </section>
 
       <section aria-label="Punto de aparición" className="border-y border-emerald-500/20 bg-emerald-950/10 px-4 py-3 text-xs text-slate-300">
         <label className="font-semibold text-emerald-200"><input type="checkbox" checked={Boolean(doc.spawn)} onChange={event => {
@@ -642,7 +658,7 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
                       }}>Eliminar objeto</button>
                   </div>
               </> : null}
-              {selectedModel ? <SceneModelInspector key={selected.id} model={selectedModel} scale={selected.transform.scale} onChange={props => {
+              {selectedModel ? <SceneModelInspector key={selected.id} model={selectedModel} scale={selected.transform.scale} assets={modelCatalog.assets} onChange={props => {
                 try {
                   setDoc(parseSceneDocumentV0_1({ ...doc, entities: doc.entities.map(entity => entity.id === selected.id
                     ? { ...entity, components: entity.components.map(c => c.type === 'nexus:model' ? { ...c, props } : c) } : entity) }));

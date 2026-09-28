@@ -2,3 +2,4 @@
 # EN: Runtime-written scenes from the server (NEXUS_SCENE_PERSIST_ENABLE).
 *.json
 !.gitignore
+/model-assets-v1/

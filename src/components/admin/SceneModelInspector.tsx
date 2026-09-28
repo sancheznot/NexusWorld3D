@@ -1,22 +1,22 @@
 "use client";
 
-import type { SceneModelProps, SceneEntityV0_1 } from '@nexusworld3d/content-schema';
-import { sceneModelAssets } from '@/lib/assets/sceneModelAssets';
+import type { SceneModelProps, SceneEntityV0_1, SceneModelAsset } from '@nexusworld3d/content-schema';
 import SceneNumberInput from './SceneNumberInput';
 import { adminBtnSecondary, adminBtnDanger } from './admin-ui';
 
-export default function SceneModelInspector({ model, scale, onChange }: {
-  model: SceneModelProps; scale: SceneEntityV0_1['transform']['scale']; onChange: (props: SceneModelProps) => void;
+export default function SceneModelInspector({ model, scale, onChange, assets }: {
+  model: SceneModelProps; scale: SceneEntityV0_1['transform']['scale']; onChange: (props: SceneModelProps) => void; assets: SceneModelAsset[];
 }) {
   return <fieldset className="space-y-3 text-xs">
     <legend className="text-cyan-200">Modelo y colliders</legend>
     <label className="block">Asset registrado
       <select value={model.assetId} className="mt-1 w-full rounded bg-slate-900 p-2" onChange={event => {
-        const asset = sceneModelAssets.find(asset => asset.id === event.target.value);
+        const asset = assets.find(asset => asset.id === event.target.value);
         if (asset && window.confirm('¿Cambiar el modelo y reemplazar sus colliders por los predeterminados del asset?')) {
           onChange({ ...model, assetId: asset.id, colliders: structuredClone(asset.colliders) });
         }
-      }}>{sceneModelAssets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select>
+      }}>{!assets.some(asset => asset.id === model.assetId) ? <option value={model.assetId}>{model.assetId} (catálogo pendiente)</option> : null}
+        {assets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select>
     </label>
     <p className="text-slate-400">Cajas en coordenadas locales del modelo. Sin cajas = decoración atravesable. La selección muestra sus contornos cian.</p>
     {model.colliders.map((collider, index) => <fieldset key={index} className="space-y-2 rounded border border-white/10 p-2">

@@ -88,3 +88,9 @@ Por petición del usuario se cierra este bloque para commit local, sin abrir nue
 Implementado el recorrido por asset ID: selector → instancia transformable → cajas de colisión editables → borrador/publicación → Play/runtime, con loader común y limpieza por instancia. Fixture glTF de puerta redistribuible: apertura transitable y pilares sólidos verificados a 30/144 FPS. Detalles y límites en `2026-09-27-scene-models-colliders.md`.
 
 Verificación: **96 pruebas**, **2 integraciones**, TypeScript/check:phase1, build aislado y lint sin errores. Revisión visual aplazada. Quedan **registro/subida completamente desde web**, jerarquías, ejecución de otros componentes y acceso público a mundos; mallas físicas exactas, animaciones y optimización masiva no forman parte de este bloque. No marcar fase 3 completa.
+
+## Subida y registro web de GLB — 2026-09-27
+
+Completado el registro desde el administrador para GLB estáticos autocontenidos de hasta 16 MiB. Catálogo duradero por hash, autenticación admin/interna, descarga pública inmutable, deduplicación y límites de complejidad. No requiere editar el manifiesto ni reconstruir. Los modelos nuevos son atravesables hasta configurar sus colliders; subir no publica la escena. Detalles operativos y límites en `2026-09-27-scene-model-uploads.md`.
+
+Verificación: **101 pruebas**, **2 integraciones**, TypeScript/check:phase1 y build aislado correctos. Revisión visual sigue aplazada. El pendiente histórico de registro web queda cubierto para este formato limitado; jerarquías, otros componentes y acceso público a nuevos mundos mantienen abierta la fase 3. No se cierran fases 4–6.

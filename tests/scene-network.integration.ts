@@ -6,6 +6,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import modelFixture from '../content/scenes/models.v0_1.json';
+import { uploadGlbFixture } from './helpers/uploadGlbFixture';
+import { registerUploadedSceneModel } from '../server/scene/uploadedSceneModels';
 
 if (process.env.NEXUS_RUN_ISOLATED_DB_TESTS !== '1') throw new Error('Integration tests require explicit isolated opt-in');
 delete process.env.DATABASE_URL;
@@ -80,6 +82,9 @@ test('scene publish reaches two WebSocket clients and survives a full server pro
     });
   });
   try {
+    const uploaded = await registerUploadedSceneModel(uploadGlbFixture(), 'network-model.glb');
+    document.entities.push({ ...structuredClone(modelFixture.entities[0]), id: 'uploaded-doorway',
+      components: [{ type: 'nexus:model', props: { ...modelFixture.entities[0].components[0].props, assetId: uploaded.id } }] });
     server = await startSceneServer(directory);
     const client = new Client(`ws://127.0.0.1:${server.port}`);
     const options = { protocolVersion: PROTOCOL_VERSION };

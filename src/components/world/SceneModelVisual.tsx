@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { LoadingManager, Quaternion, type Group } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Html } from '@react-three/drei';
@@ -9,7 +9,7 @@ import { resolveSceneModelAsset } from '@/lib/assets/sceneModelAssets';
 import { trackSceneModelLoad } from '@/lib/three/disposeSceneModel';
 
 function LoadedModel({ assetId }: { assetId: string }) {
-  const asset = resolveSceneModelAsset(assetId);
+  const asset = useMemo(() => resolveSceneModelAsset(assetId), [assetId]);
   const [model, setModel] = useState<Group | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -20,7 +20,7 @@ function LoadedModel({ assetId }: { assetId: string }) {
       const resolved = new URL(url, window.location.href);
       // GLB embedded images are converted to same-origin object URLs by GLTFLoader.
       if (resolved.protocol === 'blob:' && resolved.origin === window.location.origin) return url;
-      if (resolved.origin !== window.location.origin || !resolved.pathname.startsWith('/scene-assets/')) throw new Error('Model dependency outside approved assets');
+      if (resolved.origin !== window.location.origin || (!resolved.pathname.startsWith('/scene-assets/') && resolved.pathname !== asset.url)) throw new Error('Model dependency outside approved assets');
       return resolved.href;
     });
     const loader = new GLTFLoader(manager);

@@ -6,6 +6,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { matchMaker } from "colyseus";
 import { executeSceneLibraryCommand, SceneLibraryError } from '@server/scene/sceneLibrary';
+import { listUploadedSceneModels, registerUploadedSceneModel, readUploadedSceneModel } from '@server/scene/uploadedSceneModels';
+import { MAX_SCENE_ASSET_BYTES } from '@server/scene/validateUploadedGlb';
 import {
   broadcastGameMonitorStats,
   getGameMonitorLogs,
@@ -21,18 +23,22 @@ import {
 
 const MAX_SCENE_POST_BYTES = 512 * 1024;
 
-async function readJsonBody(req: IncomingMessage, maxBytes: number): Promise<unknown> {
+async function readBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
   const chunks: Buffer[] = [];
   let total = 0;
-  for await (const chunk of req) {
+  for await (const chunk of req.iterator({ destroyOnReturn: false })) {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     total += buf.length;
     if (total > maxBytes) {
+      req.resume();
       throw new Error("payload_too_large");
     }
     chunks.push(buf);
   }
-  const raw = Buffer.concat(chunks).toString("utf8").trim();
+  return Buffer.concat(chunks);
+}
+async function readJsonBody(req: IncomingMessage, maxBytes: number): Promise<unknown> {
+  const raw = (await readBody(req, maxBytes)).toString("utf8").trim();
   if (!raw) return {};
   return JSON.parse(raw) as unknown;
 }
@@ -164,6 +170,25 @@ export async function tryHandleGameMonitorRequest(
 
   if (!isAuthorized(req)) {
     sendJson(res, 401, { error: "Unauthorized" });
+    return true;
+  }
+
+  if (url === `${PREFIX}/scene-assets` || url.startsWith(`${PREFIX}/scene-assets/`)) {
+    try {
+      if (url === `${PREFIX}/scene-assets` && req.method === 'GET') {
+        sendJson(res, 200, { assets: await listUploadedSceneModels() });
+      } else if (url === `${PREFIX}/scene-assets` && req.method === 'POST') {
+        const name = new URL(req.url!, 'http://localhost').searchParams.get('name') || 'Modelo GLB';
+        sendJson(res, 201, { asset: await registerUploadedSceneModel(await readBody(req, MAX_SCENE_ASSET_BYTES), name) });
+      } else if (req.method === 'GET') {
+        const bytes = await readUploadedSceneModel(url.slice(`${PREFIX}/scene-assets/`.length));
+        if (!bytes) sendJson(res, 404, { error: 'asset_not_found' });
+        else { res.writeHead(200, { 'Content-Type': 'model/gltf-binary', 'Content-Length': bytes.length, 'X-Content-Type-Options': 'nosniff' }); res.end(bytes); }
+      } else sendJson(res, 405, { error: 'method_not_allowed' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'asset_failed';
+      sendJson(res, message === 'payload_too_large' ? 413 : 400, { error: message });
+    }
     return true;
   }
 

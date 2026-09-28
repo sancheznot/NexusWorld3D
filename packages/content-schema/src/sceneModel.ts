@@ -11,7 +11,7 @@ export const sceneModelAssetSchema = z.object({
   id: z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/),
   name: z.string().min(1).max(120),
   // Curated same-origin files only. No arbitrary URLs, traversal or temporary uploads.
-  url: z.string().regex(/^\/scene-assets\/(?:[a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_-]+\.(?:glb|gltf)$/),
+  url: z.string().regex(/^(?:\/scene-assets\/(?:[a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_-]+\.(?:glb|gltf)|\/api\/public\/scene-models\/upload-[a-f0-9]{64})$/),
   colliders: z.array(colliderSchema).max(32).default([]),
 }).strict();
 export const sceneModelPropsSchema = z.object({
