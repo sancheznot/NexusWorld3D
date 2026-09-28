@@ -23,4 +23,5 @@ export {
 } from "./sceneResourceNodeOverride";
 
 export { sceneBoxPropsSchema, getSceneBoxProps } from './sceneBox';
+export { isSceneGroup, resolveSceneWorldEntities, composeSceneTransform, sceneTransformRelativeTo, MAX_SCENE_HIERARCHY_DEPTH } from './sceneHierarchy';
 export { sceneModelAssetSchema, sceneModelPropsSchema, getSceneModelProps, type SceneModelProps, type SceneModelAsset } from './sceneModel';

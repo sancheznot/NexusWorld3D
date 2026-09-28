@@ -80,9 +80,12 @@ test('scene layer rebuilds colliders on document/map changes and clears them on 
   const previousMap = useGameWorldStore.getState().activeMapId;
   const store = create(() => ({ scene: new Scene() })) as unknown as RootStore;
   const document = parseSceneDocumentV0_1({ schemaVersion: 1, worldId: 'test', entities: [{
-    id: 'wall', parentId: null,
+    id: 'wall', parentId: 'group',
     transform: { position: [3, 1, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
     components: [{ type: 'nexus:box', props: { size: [1, 2, 3], solid: true, mapId: 'exterior' } }],
+  }, { id: 'group', parentId: null,
+    transform: { position: [10, 0, 0], rotation: [0, 0, 0, 1], scale: [2, 2, 2] },
+    components: [{ type: 'nexus:group', props: {} }],
   }] });
   let renderer: ReactTestRenderer | undefined;
   try {
@@ -93,14 +96,22 @@ test('scene layer rebuilds colliders on document/map changes and clears them on 
     });
     const physics = getPhysicsInstance()!;
     assert.equal(physics.getWorld().bodies.length, 3, 'ground, player and scene wall');
+    const meshes = renderer!.root.findAll(node => node.type === 'mesh');
+    assert.equal(meshes.length, 1, 'group marker is editor-only');
+    assert.deepEqual(meshes[0].props.position, [16, 2, 0]);
+    assert.deepEqual(meshes[0].props.scale, [2, 2, 2]);
+    assert.deepEqual(physics.getWorld().bodies.at(-1)!.position.toArray(), [16, 2, 0]);
     await act(async () => { useGameWorldStore.getState().setActiveMapId('hotel-interior'); });
     assert.equal(physics.getWorld().bodies.length, 2);
     await act(async () => { useGameWorldStore.getState().setActiveMapId('exterior'); });
     assert.equal(physics.getWorld().bodies.length, 3);
     await act(async () => {
-      useSceneAuthoringStore.getState().setApplied({ document: structuredClone(document), appliedAt: 2, roomId: 'test' });
+      const moved = structuredClone(document); moved.entities[1].transform.position[0] = 20;
+      useSceneAuthoringStore.getState().setApplied({ document: moved, appliedAt: 2, roomId: 'test' });
     });
     assert.equal(physics.getWorld().bodies.length, 3, 'replacement did not duplicate the wall');
+    assert.deepEqual(renderer!.root.findAll(node => node.type === 'mesh')[0].props.position, [26, 2, 0]);
+    assert.deepEqual(physics.getWorld().bodies.at(-1)!.position.toArray(), [26, 2, 0]);
     await act(async () => { useSceneAuthoringStore.getState().clear(); });
     assert.equal(physics.getWorld().bodies.length, 2);
     await act(async () => { renderer!.unmount(); });

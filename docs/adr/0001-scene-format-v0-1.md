@@ -43,6 +43,8 @@ El plan [Motor admin estilo Unity](../plans/2026-04-04-admin-unity-style-web-eng
 | `nexus:resourceNode` | `{ "nodeId": string }` — id conocido en registro de nodos / `WORLD_RESOURCE_NODES` | **Sí** (autoritativo) | Opcional (preview UI) |
 | `nexus:triggerSphere` | `{ "radius": number > 0 }` | **Sí** | Opcional |
 | `nexus:box` | `size: [x,y,z]`, `color: #rrggbb`, `solid: boolean`, `mapId: string`; defaults `[1,1,1]`, `#a78bfa`, `true`, `exterior` | Schema compartido | Mesh + collider estático Cannon si `solid` |
+| `nexus:group` | `{}`; único componente, escala uniforme positiva | Schema compartido: padres, profundidad y límites mundiales | Transformación heredada por grupos, cajas y modelos; sin cuerpo físico |
+| `nexus:model` | `assetId`, `mapId`, `colliders: [{size, offset}]` | Schema compartido + existencia del asset registrado/subido | GLTF estático + cajas de colisión configuradas |
 | `game:*` | Definido por el juego privado | **Sí** (plugins del juego) | Según el juego |
 
 **Nota / Note:** nuevos tipos `nexus:*` deben añadirse aquí y en tests/`validate-scene` fixtures cuando cambien reglas.
@@ -54,6 +56,12 @@ El plan [Motor admin estilo Unity](../plans/2026-04-04-admin-unity-style-web-eng
 El cliente usa posición, quaternion, tamaño y escala del documento tanto para geometría como para colisión, y filtra por mapa. No hay cuerpos dinámicos, colliders compuestos ni jerarquías físicas en este incremento. No introduce simulación física en servidor.
 
 Con persistencia habilitada y permitida para la plantilla de sala, un error de escritura ahora rechaza apply/merge antes de mutar el estado o emitir el broadcast. Con persistencia deshabilitada sigue siendo una aplicación solo en memoria, no una publicación durable.
+
+### Grupos y modelos (2026-09-27)
+
+Este incremento sustituye la restricción histórica de entidades raíz para cajas/modelos. `nexus:group` permite grupos anidados con escala uniforme; cajas/modelos conservan escala por eje. Todos los padres deben ser grupos y los demás componentes permanecen en raíz. Se rechazan jerarquías genéricas antes aceptadas sin ejecución coherente. No hay migración automática de archivos existentes.
+
+El schema comprueba límites tanto locales como acumulados, y profundidad máxima de 64 entidades contando la raíz. Editor, Play y runtime resuelven las mismas transformaciones mundiales mediante `resolveSceneWorldEntities`; las físicas incluyen los offsets de collider escalados y rotados. Los grupos solo tienen marcador en el editor. Ver `docs/plans/2026-09-27-scene-hierarchy-design.md` y fixture `content/scenes/groups.v0_1.json`.
 
 ## Referencias / References
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { sceneBoxPropsSchema } from './sceneBox';
 import { sceneModelPropsSchema } from './sceneModel';
+import { isSceneGroup, resolveSceneWorldEntities } from './sceneHierarchy';
 
 const componentTypeRegex = /^(nexus|game):[a-zA-Z0-9._-]+$/;
 
@@ -66,6 +67,7 @@ export const sceneDocumentV0_1Schema = z
       seen.add(ids[i]);
     }
     const idSet = new Set(ids);
+    const byId = new Map(data.entities.map(entity => [entity.id, entity]));
     for (let i = 0; i < data.entities.length; i++) {
       const p = data.entities[i].parentId;
       if (p != null && !idSet.has(p)) {
@@ -74,6 +76,7 @@ export const sceneDocumentV0_1Schema = z
           message: `Unknown parentId "${p}" for entity "${data.entities[i].id}"`,
           path: ["entities", i, "parentId"],
         });
+        return;
       }
     }
     // Iterative ancestry walk: reject self-parenting and cycles without recursive overflow.
@@ -93,28 +96,56 @@ export const sceneDocumentV0_1Schema = z
       for (const id of path) complete.add(id);
       const boxes = entity.components.filter(c => c.type === 'nexus:box');
       const models = entity.components.filter(c => c.type === 'nexus:model');
+      const groups = entity.components.filter(c => c.type === 'nexus:group');
+      if (entity.parentId !== null && (!isSceneGroup(byId.get(entity.parentId)!) ||
+          ![...boxes, ...models, ...groups].length || entity.components.some(c => !['nexus:box', 'nexus:model', 'nexus:group'].includes(c.type)))) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Only groups may parent groups, boxes or models; other components must remain at root', path: ['entities'] });
+      }
+      if (groups.length && (groups.length !== 1 || entity.components.length !== 1 || Object.keys(groups[0].props).length !== 0 ||
+          entity.transform.position.some(p => Math.abs(p) > 1e6) || entity.transform.scale.some(s => s < 0.01 || s > 1000) ||
+          entity.transform.scale.some(s => s !== entity.transform.scale[0]))) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Groups require one empty nexus:group component and positive uniform bounded scale', path: ['entities'] });
+      }
       if (models.length) {
         const model = sceneModelPropsSchema.safeParse(models[0].props);
-        if (models.length !== 1 || boxes.length || entity.parentId !== null || !model.success ||
+        if (models.length !== 1 || boxes.length || !model.success ||
             entity.components.some(c => c.type === 'nexus:resourceNode') ||
             entity.transform.position.some(p => Math.abs(p) > 1e6) ||
             entity.transform.scale.some(s => s < 0.01 || s > 1000) ||
             (model.success && model.data.colliders.some(c => c.size.some((s, i) => s * entity.transform.scale[i] > 1000) ||
               c.offset.some((s, i) => Math.abs(s * entity.transform.scale[i]) > 1000)))) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Entity "${entity.id}": invalid root model or collider dimensions`, path: ['entities'] });
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Entity "${entity.id}": invalid model or collider dimensions`, path: ['entities'] });
         }
       }
       if (!boxes.length) continue;
       const props = sceneBoxPropsSchema.safeParse(boxes[0].props);
-      if (boxes.length !== 1 || entity.parentId !== null || !props.success ||
+      if (boxes.length !== 1 || !props.success ||
           entity.components.some(c => c.type === 'nexus:resourceNode') ||
           entity.transform.position.some(p => Math.abs(p) > 1e6) ||
           entity.transform.scale.some(s => s < 0.01 || s > 1000) ||
           (props.success && props.data.size.some((s, i) => s * entity.transform.scale[i] > 1000))) {
         ctx.addIssue({ code: z.ZodIssueCode.custom,
-          message: `Entity "${entity.id}": nexus:box requires one root component, valid props and positive bounded dimensions`,
+          message: `Entity "${entity.id}": nexus:box requires one component, valid props and positive bounded dimensions`,
           path: ['entities'] });
       }
+    }
+    try {
+      for (const entity of resolveSceneWorldEntities(data.entities)) {
+        const box = entity.components.find(c => c.type === 'nexus:box');
+        const model = entity.components.find(c => c.type === 'nexus:model');
+        if (!box && !model && !isSceneGroup(entity)) continue;
+        const scale = entity.transform.scale;
+        const boxProps = box && sceneBoxPropsSchema.safeParse(box.props);
+        const modelProps = model && sceneModelPropsSchema.safeParse(model.props);
+        if (entity.transform.position.some(p => !Number.isFinite(p) || Math.abs(p) > 1e6) ||
+            scale.some(s => !Number.isFinite(s) || s < 0.01 || s > 1000) ||
+            (boxProps?.success && boxProps.data.size.some((s, i) => s * scale[i] > 1000)) ||
+            (modelProps?.success && modelProps.data.colliders.some(c => c.size.some((s, i) => s * scale[i] > 1000) || c.offset.some((s, i) => Math.abs(s * scale[i]) > 1000)))) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Entity "${entity.id}": world transform or collider exceeds bounds`, path: ['entities'] });
+        }
+      }
+    } catch (error) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: error instanceof Error ? error.message : 'Invalid hierarchy', path: ['entities'] });
     }
   });
 

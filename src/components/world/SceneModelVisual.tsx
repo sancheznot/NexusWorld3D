@@ -33,7 +33,7 @@ function LoadedModel({ assetId }: { assetId: string }) {
   </group>;
 }
 
-/** Shared by editor, local Play and public runtime. Root models only. */
+/** Shared by editor, local Play and public runtime. Receives a resolved world transform. */
 export default function SceneModelVisual({ entity, showColliders = false, onSelect }: {
   entity: SceneEntityV0_1; showColliders?: boolean; onSelect?: (id: string) => void;
 }) {

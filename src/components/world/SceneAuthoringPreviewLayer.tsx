@@ -1,6 +1,6 @@
 "use client";
 
-import { entityHasResourceNodeComponent, getSceneBoxProps, getSceneModelProps } from "@nexusworld3d/content-schema";
+import { entityHasResourceNodeComponent, getSceneBoxProps, getSceneModelProps, isSceneGroup, resolveSceneWorldEntities } from "@nexusworld3d/content-schema";
 import SceneModelVisual from './SceneModelVisual';
 import React, { useEffect, useMemo } from "react";
 import * as THREE from "three";
@@ -17,15 +17,15 @@ export default function SceneAuthoringPreviewLayer() {
   const document = useSceneAuthoringStore((s) => s.document);
   const mapId = useGameWorldStore(s => s.activeMapId);
   const physics = useCannonPhysics(true);
+  const entities = useMemo(() => document ? resolveSceneWorldEntities(document.entities) : [], [document]);
   useEffect(() => {
     if (!document || !physics.current) return;
     return mountSceneBoxColliders(physics.current, document, mapId);
   }, [document, mapId, physics]);
 
   const items = useMemo(() => {
-    if (!document?.entities?.length) return [];
-    return document.entities
-      .filter((ent) => !getSceneModelProps(ent) && !entityHasResourceNodeComponent(ent) &&
+    return entities
+      .filter((ent) => !isSceneGroup(ent) && !getSceneModelProps(ent) && !entityHasResourceNodeComponent(ent) &&
         (!getSceneBoxProps(ent) || getSceneBoxProps(ent)!.mapId === mapId))
       .map((ent) => {
         const [x, y, z] = ent.transform.position;
@@ -33,11 +33,11 @@ export default function SceneAuthoringPreviewLayer() {
         const [sx, sy, sz] = ent.transform.scale;
         return { id: ent.id, x, y, z, q, sx, sy, sz, box: getSceneBoxProps(ent) };
       });
-  }, [document, mapId]);
+  }, [entities, mapId]);
 
   return (
     <group name="scene-authoring-preview">
-      {document?.entities.filter(entity => getSceneModelProps(entity)?.mapId === mapId).map(entity => <SceneModelVisual key={entity.id} entity={entity} />)}
+      {entities.filter(entity => getSceneModelProps(entity)?.mapId === mapId).map(entity => <SceneModelVisual key={entity.id} entity={entity} />)}
       {items.map((it) => (
         <mesh
           key={it.id}

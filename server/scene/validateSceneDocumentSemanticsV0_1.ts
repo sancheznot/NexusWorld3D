@@ -28,7 +28,7 @@ export function validateSceneDocumentSemanticsV0_1(
   for (const ent of doc.entities) {
     for (const c of ent.components) {
       // Shape and transform constraints belong to the shared document schema.
-      if (c.type === 'nexus:box') continue;
+      if (c.type === 'nexus:box' || c.type === 'nexus:group') continue;
       if (c.type === 'nexus:model') {
         const props = getSceneModelProps(ent);
         if (!props || (!getContentManifest()!.modelAssets.some(asset => asset.id === props.assetId) && !getUploadedSceneModel(props.assetId))) {

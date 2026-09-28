@@ -5,7 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { Grid, OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import type { SceneDocumentV0_1, SceneEntityV0_1 } from "@nexusworld3d/content-schema";
-import { parseSceneDocumentV0_1, getSceneBoxProps, getSceneModelProps } from "@nexusworld3d/content-schema";
+import { parseSceneDocumentV0_1, getSceneBoxProps, getSceneModelProps, isSceneGroup, resolveSceneWorldEntities } from "@nexusworld3d/content-schema";
 import SceneModelVisual from '../world/SceneModelVisual';
 import SceneModelInspector from './SceneModelInspector';
 import { sceneModelAssets } from '@/lib/assets/sceneModelAssets';
@@ -16,6 +16,7 @@ import dynamic from 'next/dynamic';
 import { useSceneEditorHistory } from '@/hooks/useSceneEditorHistory';
 import { sceneRotationDegrees, sceneRotationQuaternion, updateSceneTransform } from '@/lib/sceneEditorTransforms';
 import SceneNumberInput from './SceneNumberInput';
+import { createSceneGroup, duplicateSceneSubtree, removeSceneSubtree, reparentSceneEntity, sceneSubtreeIds } from '@/lib/sceneEditorHierarchy';
 
 const AdminScenePlayPreview = dynamic(() => import('./AdminScenePlayPreview'), { ssr: false });
 
@@ -27,10 +28,6 @@ type Props = {
 
 function cloneDoc(d: SceneDocumentV0_1): SceneDocumentV0_1 {
   return structuredClone(d);
-}
-
-function entityChildren(entities: SceneEntityV0_1[], parentId: string): SceneEntityV0_1[] {
-  return entities.filter((e) => e.parentId === parentId);
 }
 
 function EntityBox({
@@ -64,6 +61,7 @@ function EntityBox({
     >
       <boxGeometry args={box?.size ?? [1, 1, 1]} />
       <meshStandardMaterial
+        wireframe={isSceneGroup(entity)}
         color={selected ? "#22d3ee" : box?.color ?? "#475569"}
         metalness={0.2}
         roughness={0.75}
@@ -85,6 +83,7 @@ function SceneContent({
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const worldEntities = useMemo(() => resolveSceneWorldEntities(entities), [entities]);
   return (
     <>
       <ambientLight intensity={0.35} />
@@ -101,7 +100,7 @@ function SceneContent({
         fadeDistance={48}
         fadeStrength={1}
       />
-      {entities.map((ent) => (
+      {worldEntities.map((ent) => (
         <EntityBox
           key={ent.id}
           entity={ent}
@@ -119,22 +118,19 @@ function SceneContent({
 }
 
 function HierarchyTree({
-  entities,
+  childrenByParent,
   parentId,
   depth,
   selectedId,
   onSelect,
 }: {
-  entities: SceneEntityV0_1[];
+  childrenByParent: Map<string | null, SceneEntityV0_1[]>;
   parentId: string | null;
   depth: number;
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
-  const nodes =
-    parentId === null
-      ? entities.filter((e) => e.parentId === null)
-      : entityChildren(entities, parentId);
+  const nodes = childrenByParent.get(parentId) ?? [];
 
   return (
     <ul className={`space-y-0.5 ${depth > 0 ? "ml-3 border-l border-white/10 pl-2" : ""}`}>
@@ -149,10 +145,10 @@ function HierarchyTree({
                 : "text-slate-300 hover:bg-white/5 hover:text-white"
             }`}
           >
-            {ent.id}
+            {isSceneGroup(ent) ? '▧ ' : ''}{ent.id}
           </button>
           <HierarchyTree
-            entities={entities}
+            childrenByParent={childrenByParent}
             parentId={ent.id}
             depth={depth + 1}
             selectedId={selectedId}
@@ -220,7 +216,17 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
   );
   const selectedBox = selected ? getSceneBoxProps(selected) : null;
   const selectedModel = selected ? getSceneModelProps(selected) : null;
-  const selectedGeometry = selectedBox || selectedModel;
+  const selectedGroup = selected ? isSceneGroup(selected) : false;
+  const selectedGeometry = selectedBox || selectedModel || selectedGroup;
+  const selectedSubtree = useMemo(() => selectedId ? sceneSubtreeIds(doc, selectedId) : new Set<string>(), [doc, selectedId]);
+  const childrenByParent = useMemo(() => {
+    const index = new Map<string | null, SceneEntityV0_1[]>();
+    for (const entity of doc.entities) {
+      const children = index.get(entity.parentId) ?? [];
+      children.push(entity); index.set(entity.parentId, children);
+    }
+    return index;
+  }, [doc.entities]);
   const selectedDegrees = selected ? sceneRotationDegrees(selected.transform.rotation) : [0, 0, 0];
   const setTransform = (patch: Partial<SceneEntityV0_1['transform']>) => {
     if (!selected) return;
@@ -230,9 +236,12 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
     } catch { setTransformError('Transformación inválida: revisa los límites de posición, escala y tamaño final.'); }
   };
   const updateBox = (props: Record<string, unknown>) => {
-    setDoc(current => ({ ...current, entities: current.entities.map(entity =>
+    try {
+    setDoc(parseSceneDocumentV0_1({ ...doc, entities: doc.entities.map(entity =>
       entity.id !== selectedId ? entity : { ...entity, components: entity.components.map(component =>
         component.type !== 'nexus:box' ? component : { ...component, props: { ...component.props, ...props } }) }) }));
+    setTransformError(null);
+    } catch { setTransformError('Dimensiones inválidas: revisa también la escala de los grupos padres.'); }
   };
 
   const reset = useCallback(() => {
@@ -409,6 +418,10 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
           <p className="font-mono text-[11px] text-slate-500">{filename}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button type="button" className={adminBtnSecondary} onClick={() => {
+            const id = `group-${crypto.randomUUID()}`;
+            setDoc(createSceneGroup(doc, id)); setSelectedId(id);
+          }}>Crear grupo</button>
           <select aria-label="Modelo a añadir" value={modelAssetId} onChange={event => setModelAssetId(event.target.value)} className="max-w-52 rounded border border-white/10 bg-slate-900 px-2 text-xs text-white">
             {modelCatalog.assets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
           </select>
@@ -565,7 +578,7 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
             <p className="text-xs text-slate-500">Sin entidades / No entities</p>
           ) : (
             <HierarchyTree
-              entities={doc.entities}
+              childrenByParent={childrenByParent}
               parentId={null}
               depth={0}
               selectedId={selectedId}
@@ -609,13 +622,22 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
                 <p className="break-all font-mono text-cyan-200/90">{selected.id}</p>
               </div>
               <div>
-                <span className="text-slate-500">parentId</span>
-                <p className="font-mono text-slate-400">
-                  {selected.parentId === null ? "null" : selected.parentId}
-                </p>
+                <label className="block text-slate-400">Grupo padre
+                  <select aria-label="Grupo padre" disabled={!selectedGeometry} value={selected.parentId ?? ''}
+                    className="mt-1 w-full rounded border border-white/10 bg-slate-900 p-2 font-mono text-xs"
+                    onChange={event => {
+                      try { setDoc(reparentSceneEntity(doc, selected.id, event.target.value || null)); setTransformError(null); }
+                      catch { setTransformError('No se puede cambiar de grupo: revisa ciclos, profundidad y límites de escala local/mundial.'); }
+                    }}>
+                    <option value="">Raíz de la escena</option>
+                    {doc.entities.filter(entity => isSceneGroup(entity) && !selectedSubtree.has(entity.id)).map(entity =>
+                      <option key={entity.id} value={entity.id}>{entity.id}</option>)}
+                  </select>
+                </label>
+                <p className="mt-1 text-[10px] text-slate-500">Cambiar de padre conserva la pose mundial. Los campos siguientes son locales al grupo.</p>
               </div>
               <div>
-                <span className="text-slate-500">position (editable)</span>
+                <span className="text-slate-500">Posición local</span>
                 <div className="mt-1 grid grid-cols-3 gap-2">
                   {(['X', 'Y', 'Z'] as const).map((label, axis) => <SceneNumberInput key={`${selected.id}-position-${axis}`}
                     label={label} value={selected.transform.position[axis]} min={selectedGeometry ? -1e6 : undefined} max={selectedGeometry ? 1e6 : undefined}
@@ -642,20 +664,15 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
               {selectedGeometry ? <>
                   <div className="flex flex-wrap gap-2">
                     <button type="button" className={adminBtnSecondary} onClick={() => {
-                      const copy = structuredClone(selected);
-                      copy.id = `entity-${crypto.randomUUID()}`;
-                      copy.transform.position[0] = Math.min(1e6, copy.transform.position[0] + 2);
-                      setDoc(current => ({ ...current, entities: [...current.entities, copy] }));
-                      setSelectedId(copy.id);
-                    }}>Duplicar objeto</button>
+                      const copy = duplicateSceneSubtree(doc, selected.id, () => `entity-${crypto.randomUUID()}`);
+                      setDoc(copy.document); setSelectedId(copy.selectedId);
+                    }}>Duplicar {selectedGroup ? 'grupo completo' : 'objeto'}</button>
                     <button type="button" className={adminBtnDanger}
-                      disabled={doc.entities.some(entity => entity.parentId === selected.id)}
-                      title="Solo se pueden eliminar objetos sin entidades hijas"
                       onClick={() => {
-                        if (!window.confirm('¿Eliminar este objeto del borrador?')) return;
-                        setDoc(current => ({ ...current, entities: current.entities.filter(entity => entity.id !== selected.id) }));
+                        if (!window.confirm(`¿Eliminar ${selectedSubtree.size} entidad(es), incluidos sus hijos, del borrador? Puedes deshacerlo.`)) return;
+                        setDoc(removeSceneSubtree(doc, selected.id));
                         setSelectedId(null);
-                      }}>Eliminar objeto</button>
+                      }}>Eliminar {selectedGroup ? 'grupo completo' : 'objeto'}</button>
                   </div>
               </> : null}
               {selectedModel ? <SceneModelInspector key={selected.id} model={selectedModel} scale={selected.transform.scale} assets={modelCatalog.assets} onChange={props => {
@@ -684,7 +701,9 @@ export default function AdminSceneViewEditor({ filename, initialDocument, onClos
               )}
               <div>
                 <span className="text-slate-500">Escala</span>
-                {selectedGeometry ? <div className="mt-1 grid grid-cols-3 gap-2">
+                {selectedGroup ? <SceneNumberInput key={`${selected.id}-uniform-scale`} label="Escala uniforme del grupo"
+                  value={selected.transform.scale[0]} min={0.01} max={1000}
+                  onCommit={value => setTransform({ scale: [value, value, value] })} /> : selectedGeometry ? <div className="mt-1 grid grid-cols-3 gap-2">
                   {(['X', 'Y', 'Z'] as const).map((label, axis) => <SceneNumberInput key={`${selected.id}-scale-${axis}`}
                     label={label} value={selected.transform.scale[axis]} min={0.01} max={selectedBox ? Math.min(1000, 1000 / selectedBox.size[axis])
                       : Math.min(1000, ...(selectedModel?.colliders.flatMap(c => [1000 / c.size[axis], c.offset[axis] ? 1000 / Math.abs(c.offset[axis]) : 1000]) ?? []))}

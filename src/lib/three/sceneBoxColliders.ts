@@ -1,5 +1,5 @@
 import { Body, Box, Vec3 } from 'cannon-es';
-import { getSceneBoxProps, getSceneModelProps, type SceneDocumentV0_1 } from '@nexusworld3d/content-schema';
+import { getSceneBoxProps, getSceneModelProps, resolveSceneWorldEntities, type SceneDocumentV0_1 } from '@nexusworld3d/content-schema';
 import { CollisionGroups, CollisionMasks } from '@/constants/collisionGroups';
 import type { CannonPhysics } from './cannonPhysics';
 
@@ -7,10 +7,9 @@ import type { CannonPhysics } from './cannonPhysics';
 export function mountSceneBoxColliders(physics: CannonPhysics, doc: SceneDocumentV0_1, mapId: string) {
   const world = physics.getWorld();
   const bodies: Body[] = [];
-  for (const entity of doc.entities) {
+  for (const entity of resolveSceneWorldEntities(doc.entities)) {
     const props = getSceneBoxProps(entity);
     const model = getSceneModelProps(entity);
-    if (entity.parentId !== null) continue;
     const colliders = model?.mapId === mapId ? model.colliders : props?.solid && props.mapId === mapId
       ? [{ size: props.size, offset: [0, 0, 0] }] : [];
     for (const collider of colliders) {

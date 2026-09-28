@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "worldId": "framework-demo",
+  "entities": [
+    {
+      "id": "entrance-group", "parentId": null,
+      "transform": { "position": [8, 0, -5], "rotation": [0, 0.3826834323650898, 0, 0.9238795325112867], "scale": [1.5, 1.5, 1.5] },
+      "components": [{ "type": "nexus:group", "props": {} }]
+    },
+    {
+      "id": "doorway", "parentId": "entrance-group",
+      "transform": { "position": [0, 0, 0], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] },
+      "components": [{ "type": "nexus:model", "props": { "assetId": "demo-doorway", "mapId": "exterior", "colliders": [
+        { "size": [1, 4, 1], "offset": [-2.5, 2, 0] },
+        { "size": [1, 4, 1], "offset": [2.5, 2, 0] },
+        { "size": [6, 1, 1], "offset": [0, 4.5, 0] }
+      ] } }]
+    },
+    {
+      "id": "side-wall", "parentId": "entrance-group",
+      "transform": { "position": [5, 2, 0], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] },
+      "components": [{ "type": "nexus:box", "props": { "size": [4, 4, 1], "solid": true, "color": "#64748b", "mapId": "exterior" } }]
+    }
+  ]
+}

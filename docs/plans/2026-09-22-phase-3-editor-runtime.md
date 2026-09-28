@@ -94,3 +94,11 @@ Verificación: **96 pruebas**, **2 integraciones**, TypeScript/check:phase1, bui
 Completado el registro desde el administrador para GLB estáticos autocontenidos de hasta 16 MiB. Catálogo duradero por hash, autenticación admin/interna, descarga pública inmutable, deduplicación y límites de complejidad. No requiere editar el manifiesto ni reconstruir. Los modelos nuevos son atravesables hasta configurar sus colliders; subir no publica la escena. Detalles operativos y límites en `2026-09-27-scene-model-uploads.md`.
 
 Verificación: **101 pruebas**, **2 integraciones**, TypeScript/check:phase1 y build aislado correctos. Revisión visual sigue aplazada. El pendiente histórico de registro web queda cubierto para este formato limitado; jerarquías, otros componentes y acceso público a nuevos mundos mantienen abierta la fase 3. No se cierran fases 4–6.
+
+## Jerarquías de grupos con colisiones coherentes — 2026-09-27
+
+Implementado el alcance elegido por el usuario: grupos anidados con escala uniforme, cajas/modelos con escala por eje, transformaciones locales y resolución mundial compartida entre editor/Play/runtime/físicas. Editor: crear grupo, cambiar padre conservando pose mundial, duplicar/borrar subárbol y deshacer/rehacer. Límites acumulados, ciclos y profundidad se validan antes de aceptar la escena. Los grupos no generan colisiones ni geometría de juego.
+
+Verificación: **108 pruebas**, **2 integraciones aisladas**, TypeScript/check:phase1, build de producción aislado y lint sin errores (82 advertencias preexistentes). Las integraciones incluyen jerarquías y modelos subidos tras reinicio completo. Detalles y compatibilidad en `2026-09-27-scene-hierarchy-design.md`. No se ejecutó revisión visual ni benchmark GPU.
+
+Pendientes de fase 3: ejecución/autoría del resto de componentes y acceso público a nuevos mundos. Recursos/triggers/componentes personalizados no se pueden anidar todavía; las mallas deformadas, físicas de malla y cuerpos dinámicos quedan fuera de este bloque. Fases 4–6 siguen abiertas.

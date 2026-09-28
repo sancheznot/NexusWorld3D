@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import modelFixture from '../content/scenes/models.v0_1.json';
 import { uploadGlbFixture } from './helpers/uploadGlbFixture';
 import { registerUploadedSceneModel } from '../server/scene/uploadedSceneModels';
+import { parseSceneDocumentV0_1 } from '@nexusworld3d/content-schema';
 
 if (process.env.NEXUS_RUN_ISOLATED_DB_TESTS !== '1') throw new Error('Integration tests require explicit isolated opt-in');
 delete process.env.DATABASE_URL;
@@ -69,12 +70,15 @@ test('scene publish reaches two WebSocket clients and survives a full server pro
   const { Client } = await import('colyseus.js');
   const { PROTOCOL_VERSION, SceneMessages } = await import('../packages/protocol/src');
   let server: Awaited<ReturnType<typeof startSceneServer>> | undefined;
-  const document = { schemaVersion: 1, worldId: frameworkDefaultWorldId,
+  const document = parseSceneDocumentV0_1({ schemaVersion: 1, worldId: frameworkDefaultWorldId,
     spawn: { mapId: 'exterior', position: [12, 4, -8], yaw: 0.75 }, entities: [{
-    id: 'wall', parentId: null,
+    id: 'wall', parentId: 'scene-group',
     transform: { position: [3, 3, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
     components: [{ type: 'nexus:box', props: { size: [0.5, 6, 10], solid: true } }],
-  }, ...modelFixture.entities] };
+  }, { id: 'scene-group', parentId: null,
+    transform: { position: [8, 0, -5], rotation: [0, Math.SQRT1_2, 0, Math.SQRT1_2], scale: [2, 2, 2] },
+    components: [{ type: 'nexus:group', props: {} }],
+  }, ...modelFixture.entities] });
   const waitScene = (room: import('colyseus.js').Room) => new Promise<unknown>((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error('scene broadcast timeout')), 3000);
     room.onMessage(SceneMessages.AppliedDocumentV0_1, payload => {
@@ -83,8 +87,10 @@ test('scene publish reaches two WebSocket clients and survives a full server pro
   });
   try {
     const uploaded = await registerUploadedSceneModel(uploadGlbFixture(), 'network-model.glb');
-    document.entities.push({ ...structuredClone(modelFixture.entities[0]), id: 'uploaded-doorway',
-      components: [{ type: 'nexus:model', props: { ...modelFixture.entities[0].components[0].props, assetId: uploaded.id } }] });
+    document.entities.push(parseSceneDocumentV0_1({ ...document, entities: [...document.entities,
+      { ...structuredClone(modelFixture.entities[0]), id: 'uploaded-doorway', parentId: 'scene-group',
+        components: [{ type: 'nexus:model', props: { ...modelFixture.entities[0].components[0].props, assetId: uploaded.id } }] },
+    ] }).entities.at(-1)!);
     server = await startSceneServer(directory);
     const client = new Client(`ws://127.0.0.1:${server.port}`);
     const options = { protocolVersion: PROTOCOL_VERSION };

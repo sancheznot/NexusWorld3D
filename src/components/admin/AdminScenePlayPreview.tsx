@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import type { Mesh } from 'three';
-import { getSceneBoxProps, getSceneModelProps, type SceneDocumentV0_1 } from '@nexusworld3d/content-schema';
+import { getSceneBoxProps, getSceneModelProps, resolveSceneWorldEntities, type SceneDocumentV0_1 } from '@nexusworld3d/content-schema';
 import SceneModelVisual from '../world/SceneModelVisual';
 import { createScenePlaySession } from '@/lib/three/scenePlaySession';
 import { adminBtnDanger } from './admin-ui';
 
 function Simulation({ document }: { document: SceneDocumentV0_1 }) {
+  const entities = useMemo(() => resolveSceneWorldEntities(document.entities), [document]);
   const session = useRef<ReturnType<typeof createScenePlaySession> | null>(null);
   const avatar = useRef<Mesh>(null);
   const keys = useRef(new Set<string>());
@@ -65,10 +66,10 @@ function Simulation({ document }: { document: SceneDocumentV0_1 }) {
     <directionalLight position={[10, 20, 8]} intensity={1.2} />
     <mesh rotation={[-Math.PI / 2, 0, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#172033" /></mesh>
     <gridHelper args={[200, 100, '#334155', '#253047']} position={[0, 0.01, 0]} />
-    {document.entities.map(entity => {
+    {entities.map(entity => {
       if (getSceneModelProps(entity)?.mapId === 'exterior') return <SceneModelVisual key={entity.id} entity={entity} />;
       const box = getSceneBoxProps(entity);
-      if (!box || box.mapId !== 'exterior' || entity.parentId !== null) return null;
+      if (!box || box.mapId !== 'exterior') return null;
       const rotation = entity.transform.rotation;
       const magnitude = Math.hypot(...rotation);
       return <mesh key={entity.id} position={entity.transform.position} scale={entity.transform.scale}
