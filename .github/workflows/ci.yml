@@ -25,6 +25,8 @@ jobs:
         run: npm test
       - name: Standalone packaged consumer
         run: npm run check:consumer
+      - name: Standalone 3D multiplayer demo
+        run: npm run check:demo
       - name: Global lint
         run: npm run lint
       - name: Required demo assets

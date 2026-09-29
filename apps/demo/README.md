@@ -1,5 +1,27 @@
 # Framework demo / Demo del framework
 
+## Demo independiente — fase 4
+
+La demo nueva está en `standalone/`. Se exporta con tarballs compilados, sin Next, React, assets privados, DB ni aliases del repositorio:
+
+```sh
+# Desde la raíz; la carpeta de destino debe ser nueva y su padre debe existir.
+npm run export:demo -- /tmp/mi-nexus-demo
+cd /tmp/mi-nexus-demo
+npm install --ignore-scripts
+npm run build
+npm test
+npm start
+```
+
+Abre `http://127.0.0.1:3100`. Dos pestañas comparten el mundo; WASD/flechas y espacio. `scene.json` define suelo, obstáculos y spawn. El servidor controla física y movimiento; el cliente interpola snapshots. Ctrl+C cierra el servidor. No ejecutar `npm install` directamente en la plantilla `standalone/`: sus paquetes locales todavía no están publicados en npm; el exportador los incluye en `vendor/`.
+
+`npm run check:demo` instala, compila y prueba en una carpeta temporal externa, con dos clientes WebSocket reales, sin dejar un servidor escuchando. La carpeta se elimina tras éxito y se conserva si falla. La demo no incluye persistencia de jugadores, controles móviles ni garantías de producción. Ver `standalone/README.md`.
+
+## Modo legacy integrado en la aplicación
+
+Los scripts anteriores de `apps/demo` se conservan por compatibilidad. Lo siguiente describe ese modo integrado, no la demo exportable.
+
 **ES.** No hay una segunda copia de Next.js: **`apps/demo`** solo delega scripts a la **raíz del repo** (`npm --prefix ../..`). Tras instalar dependencias en la raíz, puedes arrancar el modo demo desde aquí o desde la raíz.
 
 **EN.** There is no duplicate Next.js app: **`apps/demo`** only forwards scripts to the **repository root**. After installing at the repo root, start the demo from here or from root.

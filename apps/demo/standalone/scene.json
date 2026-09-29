@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "worldId": "standalone-lab",
+  "spawn": { "mapId": "exterior", "position": [0, 2, 6], "yaw": 0 },
+  "entities": [
+    { "id": "floor", "parentId": null, "transform": { "position": [0, -0.5, 0], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] }, "components": [{ "type": "nexus:box", "props": { "size": [30, 1, 30], "color": "#b7c9b1", "solid": true } }] },
+    { "id": "wall", "parentId": null, "transform": { "position": [0, 1.5, 0], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] }, "components": [{ "type": "nexus:box", "props": { "size": [6, 3, 1], "color": "#416355", "solid": true } }] },
+    { "id": "step", "parentId": null, "transform": { "position": [-6, 0.3, 1], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] }, "components": [{ "type": "nexus:box", "props": { "size": [3, 0.6, 3], "color": "#dcaf76", "solid": true } }] },
+    { "id": "platform", "parentId": null, "transform": { "position": [-6, 0.8, -2], "rotation": [0, 0, 0, 1], "scale": [1, 1, 1] }, "components": [{ "type": "nexus:box", "props": { "size": [3, 1.6, 3], "color": "#ba8057", "solid": true } }] },
+    { "id": "pillar", "parentId": null, "transform": { "position": [6, 1, -3], "rotation": [0, 0.3826834324, 0, 0.9238795325], "scale": [1, 1, 1] }, "components": [{ "type": "nexus:box", "props": { "size": [2, 2, 2], "color": "#416355", "solid": true } }] }
+  ]
+}

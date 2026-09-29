@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nexus — Laboratorio independiente</title>
+  <style>
+    :root{color-scheme:light;--paper:#f2f0e7;--ink:#233c30;--line:#bfc6b6;--accent:#dc5824}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Georgia,serif}
+    header,footer{padding:22px 4vw;display:flex;align-items:center;justify-content:space-between;gap:20px}header{border-bottom:1px solid var(--line)}
+    .label,button,footer,.metrics{font-family:'Courier New',monospace;font-size:12px;letter-spacing:.06em}.label{text-transform:uppercase}.brand{font-size:21px;font-weight:bold;letter-spacing:.16em}
+    main{padding:30px 4vw 0}.intro{display:flex;justify-content:space-between;align-items:end;gap:20px;margin-bottom:24px}h1{font-size:clamp(32px,5vw,62px);font-weight:normal;line-height:1.05;margin:8px 0}p{max-width:540px;line-height:1.6;margin:8px 0}
+    button{border:1px solid var(--ink);background:var(--ink);color:var(--paper);padding:16px 24px;cursor:pointer;white-space:nowrap}button:hover{background:#385b46}button:focus-visible{outline:3px solid var(--accent);outline-offset:4px}button:disabled{opacity:.6;cursor:wait}
+    .stage{position:relative;border:1px solid var(--line);background:#e6e8da}#viewport{height:clamp(300px,57vh,700px);width:100%;overflow:hidden}canvas{display:block}.empty{position:absolute;inset:0;display:grid;place-content:center;text-align:center;pointer-events:none;color:#5b715e}.empty strong{font-size:70px;font-weight:normal}.stage:has(canvas) .empty{display:none}
+    .metrics{display:flex;justify-content:space-between;gap:20px;padding:14px 18px;border-top:1px solid var(--line);background:var(--paper)}#status{letter-spacing:0}footer{align-items:start;color:#526354;line-height:1.8}.note{max-width:440px;text-align:right}kbd{border:1px solid var(--line);padding:2px 5px;color:var(--ink)}
+    @media(max-width:650px){.intro{align-items:start;flex-direction:column}.metrics,footer{flex-direction:column}.note{text-align:left}header{padding-top:16px;padding-bottom:16px}main{padding-top:20px}}
+  </style>
+</head>
+<body>
+  <header><span class="brand">NEXUS</span><span class="label">Runtime independiente / 001</span></header>
+  <main>
+    <section class="intro"><div><span class="label">Laboratorio de mundo · 3D</span><h1>Un mundo. Sin ataduras.</h1><p>Escena, colisiones y jugadores conectados. Esta demo funciona fuera del repositorio principal, utilizando los paquetes del framework.</p></div><button id="enter" type="button">Entrar al laboratorio</button></section>
+    <section class="stage" aria-label="Mundo 3D multijugador"><div id="viewport"></div><div class="empty"><span class="label">Escena lista</span><strong>01 /</strong><span>Entra para explorar el laboratorio</span></div><div class="metrics"><span id="status" role="status" aria-live="polite">Servidor local · esperando conexión</span><span>Jugadores <strong id="count">—</strong></span></div></section>
+  </main>
+  <footer><div><kbd>W A S D</kbd> o flechas · mover<br><kbd>Espacio</kbd> · saltar<br>Abre otra pestaña para conectar un segundo jugador.</div><div class="note">Demo de escritorio · sin cuentas ni base de datos.<br>El servidor simula la física. No incluye predicción de cliente ni persistencia del jugador.</div></footer>
+  <script type="module" src="/client.js"></script>
+</body>
+</html>

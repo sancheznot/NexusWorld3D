@@ -33,3 +33,17 @@ Evidencia del bloque 2: **126 pruebas**, `check:phase1`, consumidor externo (inc
 ## Evidencia del bloque 1
 
 `check:consumer` pasa: cuatro tarballs instalados en un directorio temporal, ejecución Node ESM/CommonJS y compilación del consumidor con Node16/NodeNext. `check:phase1` y las 117 pruebas de regresión pasan; lint conserva 82 advertencias previas, cero errores. La instalación externa avisa de una dependencia transitiva obsoleta (`uuid@8`); no se modificaron dependencias del juego ni se certifica una auditoría de seguridad por este smoke. No se desplegó ni publicó ningún paquete en un registro.
+
+## Bloque 3: demo 3D multijugador independiente
+
+`apps/demo/standalone` es una aplicación pequeña de Node/Colyseus + cliente Three.js. `npm run export:demo -- <carpeta-nueva>` incluye los cuatro paquetes compilados en `vendor/` y dependencias relativas `file:`. La copia puede moverse a otra máquina e instalarse sin la raíz. El exportador nunca sobrescribe un directorio existente. Los antiguos scripts delegados se conservan como modo legacy, claramente separados.
+
+La escena JSON canónica define suelo, cajas, transformaciones y spawn. El adaptador Cannon monta colliders mediante `mountSceneRuntime`; el servidor aplica inputs validados, simula física a paso fijo y distribuye snapshots a dos o más clientes. No acepta posiciones del cliente. El plugin de controles usa el ciclo de vida empaquetado. El navegador interpola, representa las entidades resueltas y libera render/listeners al salir. No hay dependencia de catálogos, mapas, React, Next, cuentas ni servicios privados.
+
+`check:demo` exporta fuera del repo, instala sin scripts, compila el bundle y ejecuta tests de resolución de artefactos, física y dos WebSockets reales. CI ejecuta este gate. Tests de física: muro, salto, respawn y teardown; red: protocolo, snapshots compartidos, movimiento, rechazo de ejes/posición falsificados y salida. El servidor de prueba se cierra y la carpeta temporal se elimina tras éxito.
+
+Alcance: ocho clientes locales como límite de ejemplo, no benchmark; cajas como único componente visual soportado por la demo; sin predicción/reconciliación, persistencia de jugadores, cuentas, soporte móvil ni exposición pública endurecida. El bind por defecto es loopback. La revisión visual se mantiene aplazada. El documento de escena persiste como archivo; el estado de jugadores no.
+
+Se satisface la prueba de consumo de una demo fuera del workspace, pero no se declara terminada toda la extracción del juego: render/modelos genéricos, gameplay restante y aislamiento de los registros globales siguen como deuda de fase 4. Fases 5 y 6 continúan abiertas.
+
+Evidencia del bloque 3: **127 pruebas de la raíz + 3 pruebas de la demo exportada**, build web independiente y `check:phase1` pasan. Lint mantiene cero errores y 82 advertencias previas. El bundle minificado de esta demo ronda 704 KiB antes de compresión; es un tamaño observado, no un presupuesto ni un benchmark de fase 6.

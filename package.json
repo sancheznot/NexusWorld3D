@@ -32,6 +32,8 @@
     "build": "next build",
     "build:packages": "node scripts/build-framework-packages.mjs",
     "check:consumer": "node scripts/check-framework-consumer.mjs",
+    "export:demo": "node scripts/export-standalone-demo.mjs",
+    "check:demo": "node scripts/export-standalone-demo.mjs --check",
     "start": "tsx server/combined.ts",
     "start:all": "npm run start",
     "docker:up": "bash scripts/compose-with-env.sh -f docker-compose.yml up --build",
