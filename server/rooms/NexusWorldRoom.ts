@@ -329,7 +329,7 @@ export class NexusWorldRoom extends Room {
       },
     };
 
-    attachNexusRoomPlugins(this, [
+    this.resourceDisposables.push(attachNexusRoomPlugins(this, [
       createWorldResourceNodesPlugin({
         inventory: this.inventoryEvents,
         getPlayerMapId: (clientId: string) => this.getPlayerMapId(clientId),
@@ -339,13 +339,13 @@ export class NexusWorldRoom extends Room {
         getSceneDocument: () => this.sceneDocumentV0_1,
         sceneOnly: () => this.roomWorldId !== null && this.roomWorldId !== nexusWorld3DConfig.worlds.default,
       }),
-    ]);
+    ]));
 
-    attachContextRoomPlugins(this, roomPluginCtx, [
+    this.resourceDisposables.push(attachContextRoomPlugins(this, roomPluginCtx, [
       createFrameworkDemoCubePlugin({
         inventory: this.inventoryEvents,
       }),
-    ]);
+    ]));
 
     this.housingEvents = new HousingEvents(this, {
       inventory: this.inventoryEvents,
@@ -857,7 +857,7 @@ export class NexusWorldRoom extends Room {
     for (const sessionId of this.identities.keys()) this.releaseIdentity(sessionId);
     unregisterNexusWorldRoomSceneAuthoring(this.roomId);
     unregisterNexusWorldRoomInspect(this.roomId);
-    for (const dispose of this.resourceDisposables) {
+    for (const dispose of this.resourceDisposables.splice(0).reverse()) {
       try {
         dispose();
       } catch (e) {

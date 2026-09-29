@@ -9,6 +9,7 @@
   },
   "types": "./src/index.ts",
   "dependencies": {
+    "@nexusworld3d/content-schema": "*",
     "@nexusworld3d/protocol": "*"
   }
 }

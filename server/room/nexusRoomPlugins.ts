@@ -15,8 +15,10 @@ export function createWorldResourceNodesPlugin(
 ): NexusRoomPlugin {
   return {
     id: "core:world-resource-nodes",
+    version: '0.1.0',
     attach(room) {
-      new WorldResourceNodeEvents(room, deps);
+      const events = new WorldResourceNodeEvents(room, deps);
+      return () => events.dispose();
     },
   };
 }

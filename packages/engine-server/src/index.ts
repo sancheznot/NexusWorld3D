@@ -1,4 +1,6 @@
 import type { Room } from "colyseus";
+import { installRuntimePlugins, type PluginMetadata } from './pluginLifecycle';
+export { installRuntimePlugins, PluginCleanupError, type PluginMetadata, type RuntimePlugin } from './pluginLifecycle';
 
 export {
   type FrameworkRoomPluginContext,
@@ -60,16 +62,16 @@ export {
  *
  * Plugins del núcleo: id `core:*`; juegos privados: `game:*` (convención).
  */
-export interface NexusRoomPlugin {
-  readonly id: string;
-  attach(room: Room): void;
+export interface NexusRoomPlugin extends PluginMetadata {
+  attach(room: Room): void | (() => void);
 }
 
 export function attachNexusRoomPlugins(
   room: Room,
   plugins: NexusRoomPlugin[]
-): void {
-  for (const p of plugins) {
-    p.attach(room);
-  }
+): () => void {
+  return installRuntimePlugins(room, plugins.map(plugin => ({
+    id: plugin.id, version: plugin.version, requires: plugin.requires,
+    setup: (target: Room) => plugin.attach(target),
+  })));
 }

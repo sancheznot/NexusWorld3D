@@ -24,8 +24,9 @@ export function createFrameworkDemoCubePlugin(
 
   return {
     id: "core:demo-framework-cube",
+    version: '0.1.0',
     attach(room: Room, ctx) {
-      room.onMessage(DemoMessages.FrameworkCubePickup, (client: Client) => {
+      const unsubscribe = room.onMessage(DemoMessages.FrameworkCubePickup, (client: Client) => {
         const now = Date.now();
         const prev = lastPickup.get(client.sessionId) ?? 0;
         if (now - prev < COOLDOWN_MS) return;
@@ -57,6 +58,10 @@ export function createFrameworkDemoCubePlugin(
 
         if (added > 0) lastPickup.set(client.sessionId, now);
       });
+      return () => {
+        lastPickup.clear();
+        if (typeof unsubscribe === 'function') unsubscribe();
+      };
     },
   };
 }

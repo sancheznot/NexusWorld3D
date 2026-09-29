@@ -6,6 +6,27 @@
 
 ---
 
+## Scene runtime and plugin lifetime / Runtime y vida útil (fase 4)
+
+`@nexusworld3d/engine-client` exports `createSceneRuntime(document, mapId)` and `mountSceneRuntime(runtime, adapter)`. The document must already be validated. The snapshot contains resolved entities, spawn and static boxes with world position, normalized quaternion and full size (not half extents). An adapter implements `addStaticBox(box)` and returns a cleanup function for that body. The returned runtime cleanup owns only these bodies, not the whole physics world. Failed installations roll back completed allocations; adapters must clean their own partial allocation before throwing.
+
+`@nexusworld3d/engine-server` exports `installRuntimePlugins(context, plugins)`. Plugins declare `id`, optional `version`, optional `requires` (IDs in the same batch), and synchronous `setup(context)` returning optional cleanup. Dependencies install first. Missing dependencies, cycles and duplicate IDs reject the entire batch before setup. Disposal runs in reverse order, is idempotent and attempts every cleanup even if one throws (`PluginCleanupError.errors`). Failed setup rolls back earlier plugins; the failing plugin remains responsible for its incomplete setup.
+
+```ts
+const stop = installRuntimePlugins(services, [
+  { id: 'game:quests', version: '1.0.0', requires: ['core:inventory'],
+    setup: ctx => ctx.quests.start() }, // start returns cleanup
+  { id: 'core:inventory', version: '1.0.0',
+    setup: ctx => ctx.inventory.start() },
+]);
+// World/room teardown:
+stop();
+```
+
+Existing `attachNexusRoomPlugins` / `attachContextRoomPlugins` also return cleanup and accept the metadata. Existing `attach` methods returning void still work. Keep the returned function and invoke it during room disposal. This is not remote plugin loading, version-range resolution, hot reload or a sandbox for untrusted code. Registry APIs below remain process-wide; installation batches do not automatically isolate them by world.
+
+---
+
 ## Today / Hoy
 
 | Goal / Objetivo | Pattern / Patrón |

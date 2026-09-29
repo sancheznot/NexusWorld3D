@@ -1,4 +1,5 @@
 import type { Room } from "colyseus";
+import { installRuntimePlugins, type PluginMetadata } from './pluginLifecycle';
 
 /**
  * ES: Contexto mínimo que la sala inyecta en plugins — amplía en tu juego (inventario tipado, etc.).
@@ -14,17 +15,17 @@ export interface FrameworkRoomPluginContext {
  * ES: Variante de plugin que recibe `ctx` en `attach` (patrón recomendado para código nuevo).
  * EN: Plugin variant that receives `ctx` at attach time (preferred for new code).
  */
-export interface NexusContextRoomPlugin {
-  readonly id: string;
-  attach(room: Room, ctx: FrameworkRoomPluginContext): void;
+export interface NexusContextRoomPlugin extends PluginMetadata {
+  attach(room: Room, ctx: FrameworkRoomPluginContext): void | (() => void);
 }
 
 export function attachContextRoomPlugins(
   room: Room,
   ctx: FrameworkRoomPluginContext,
   plugins: NexusContextRoomPlugin[]
-): void {
-  for (const p of plugins) {
-    p.attach(room, ctx);
-  }
+): () => void {
+  return installRuntimePlugins(ctx, plugins.map(plugin => ({
+    id: plugin.id, version: plugin.version, requires: plugin.requires,
+    setup: (context: FrameworkRoomPluginContext) => plugin.attach(room, context),
+  })));
 }

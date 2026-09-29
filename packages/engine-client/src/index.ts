@@ -3,6 +3,9 @@ import {
   PROTOCOL_VERSION,
 } from "@nexusworld3d/protocol";
 
+export { createSceneRuntime, mountSceneRuntime, SceneRuntimeCleanupError,
+  type SceneRuntime, type SceneStaticBox, type ScenePhysicsAdapter } from './sceneRuntime';
+
 export {
   sendGenericWorldTool,
   userDataMatchesWorldToolHint,

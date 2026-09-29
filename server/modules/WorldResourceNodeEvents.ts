@@ -54,6 +54,7 @@ export class WorldResourceNodeEvents {
   private room: Room;
   private deps: WorldResourceNodeDeps;
   private lastHarvest = new Map<string, number>();
+  private unsubscribe?: () => void;
 
   constructor(room: Room, deps: WorldResourceNodeDeps) {
     this.room = room;
@@ -65,8 +66,15 @@ export class WorldResourceNodeEvents {
     return `${sessionId}:${nodeId}`;
   }
 
+  dispose(): void {
+    const unsubscribe = this.unsubscribe;
+    this.unsubscribe = undefined;
+    this.lastHarvest.clear();
+    if (typeof unsubscribe === 'function') unsubscribe();
+  }
+
   private setupHandlers(): void {
-    this.room.onMessage(
+    this.unsubscribe = this.room.onMessage(
       WorldMessages.HarvestNode,
       (client: Client, data: { nodeId?: string }) => {
         const nodeId = typeof data?.nodeId === "string" ? data.nodeId : "";

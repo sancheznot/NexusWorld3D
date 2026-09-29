@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { realpathSync } from 'node:fs';
 import { PROTOCOL_VERSION, WorldMessages } from '@nexusworld3d/protocol';
-import { withWorldProtocolJoinOptions, sendGenericWorldTool } from '@nexusworld3d/engine-client';
+import { withWorldProtocolJoinOptions, sendGenericWorldTool, createSceneRuntime, mountSceneRuntime } from '@nexusworld3d/engine-client';
 import { parseSceneDocumentV0_1, resolveSceneWorldEntities } from '@nexusworld3d/content-schema';
-import { createInMemoryPlayerStore, attachNexusRoomPlugins } from '@nexusworld3d/engine-server';
+import { createInMemoryPlayerStore, attachNexusRoomPlugins, installRuntimePlugins } from '@nexusworld3d/engine-server';
 import { registerResourceNode, getRegisteredResourceNodeById } from '@nexusworld3d/engine-server/resource-node-registry';
 import { registerItemEffect } from '@nexusworld3d/engine-server/item-effect-registry';
 import { registerWorldTool } from '@nexusworld3d/engine-server/world-tool-registry';
@@ -24,12 +24,30 @@ sendGenericWorldTool((event, data) => {
 const scene = parseSceneDocumentV0_1({ schemaVersion: 1, worldId: 'example', entities: [] });
 assert.deepEqual(resolveSceneWorldEntities(scene.entities), []);
 assert.throws(() => parseSceneDocumentV0_1({ schemaVersion: -1 }));
+const runtimeScene = parseSceneDocumentV0_1({ ...scene, entities: [{ id: 'floor', parentId: null,
+  transform: { position: [0, -1, 0], rotation: [0, 0, 0, 1], scale: [1, 1, 1] },
+  components: [{ type: 'nexus:box', props: { size: [20, 1, 20], solid: true } }],
+}] });
+const runtime = createSceneRuntime(runtimeScene, 'exterior');
+assert.deepEqual(runtime.staticBoxes[0].size, [20, 1, 20]);
+let liveBodies = 0;
+const stop = mountSceneRuntime(runtime, { addStaticBox() { liveBodies++; return () => { liveBodies--; }; } });
+assert.equal(liveBodies, 1);
+stop(); stop();
+assert.equal(liveBodies, 0);
 const store = createInMemoryPlayerStore();
 await store.saveSnapshot('example:player', { position: [0, 2, 6] });
 assert.deepEqual(await store.loadSnapshot('example:player'), { position: [0, 2, 6] });
 let attached = false;
 attachNexusRoomPlugins({}, [{ id: 'example:plugin', attach() { attached = true; } }]);
 assert.ok(attached);
+const lifecycle = [];
+const disposePlugins = installRuntimePlugins(lifecycle, [
+  { id: 'example:feature', version: '1.0.0', requires: ['example:base'], setup(log) { log.push('feature'); return () => log.push('-feature'); } },
+  { id: 'example:base', setup(log) { log.push('base'); return () => log.push('-base'); } },
+]);
+disposePlugins(); disposePlugins();
+assert.deepEqual(lifecycle, ['base', 'feature', '-feature', '-base']);
 registerResourceNode({ id: 'example:node', mapId: 'exterior', position: { x: 0, y: 0, z: 0 }, radius: 2, grants: [] });
 assert.equal(getRegisteredResourceNodeById('example:node')?.radius, 2);
 assert.equal(typeof registerItemEffect, 'function');
