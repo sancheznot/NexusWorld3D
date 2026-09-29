@@ -1,8 +1,8 @@
 import type { Client, Room } from "colyseus";
 import { WorldMessages } from "@nexusworld3d/protocol";
 import {
-  getWorldToolHandler,
-  getWorldToolMeta,
+  defaultWorldToolRegistry,
+  type WorldToolRegistry,
   type WorldToolServerContext,
 } from "./worldToolRegistry";
 
@@ -17,9 +17,10 @@ export type WorldToolInventoryGate = (
  */
 export function attachGenericWorldToolRouter(
   room: Room,
-  gate: WorldToolInventoryGate
-): void {
-  room.onMessage(
+  gate: WorldToolInventoryGate,
+  registry: Pick<WorldToolRegistry, 'getWorldToolMeta' | 'getWorldToolHandler'> = defaultWorldToolRegistry
+): () => void {
+  const unsubscribe = room.onMessage(
     WorldMessages.GenericTool,
     (client: Client, data: Record<string, unknown>) => {
       const toolId =
@@ -33,7 +34,7 @@ export function attachGenericWorldToolRouter(
         return;
       }
 
-      const meta = getWorldToolMeta(toolId);
+      const meta = registry.getWorldToolMeta(toolId);
       if (!meta) {
         client.send(WorldMessages.GenericToolResult, {
           ok: false,
@@ -52,7 +53,7 @@ export function attachGenericWorldToolRouter(
         return;
       }
 
-      const fn = getWorldToolHandler(toolId);
+      const fn = registry.getWorldToolHandler(toolId);
       if (!fn) {
         client.send(WorldMessages.GenericToolResult, {
           ok: false,
@@ -82,4 +83,6 @@ export function attachGenericWorldToolRouter(
       }
     }
   );
+  let disposed = false;
+  return () => { if (!disposed) { disposed = true; if (typeof unsubscribe === 'function') unsubscribe(); } };
 }

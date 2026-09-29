@@ -52,7 +52,7 @@ export class InventoryEvents {
   private playerInventories = new Map<string, Inventory>();
   private economyEvents?: EconomyEvents;
 
-  constructor(room: Room, economyEvents?: EconomyEvents) {
+  constructor(room: Room, economyEvents?: EconomyEvents, private readonly resolveItemEffects = getItemConsumeEffects) {
     this.room = room;
     this.economyEvents = economyEvents;
     this.setupEventHandlers();
@@ -755,7 +755,7 @@ export class InventoryEvents {
       // TODO: integrar con sistema de hambre cuando exista (store/redis)
     }
 
-    for (const effect of getItemConsumeEffects(item.itemId)) {
+    for (const effect of this.resolveItemEffects(item.itemId)) {
       try {
         effect({
           room: this.room,

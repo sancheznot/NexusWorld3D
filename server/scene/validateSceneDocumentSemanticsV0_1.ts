@@ -16,7 +16,8 @@ export type SceneSemanticsResult =
   | { ok: false; error: string };
 
 export function validateSceneDocumentSemanticsV0_1(
-  doc: SceneDocumentV0_1
+  doc: SceneDocumentV0_1,
+  resolveResourceNode: typeof getWorldResourceNodeById = getWorldResourceNodeById
 ): SceneSemanticsResult {
   if (getContentManifest() === null) {
     return {
@@ -44,7 +45,7 @@ export function validateSceneDocumentSemanticsV0_1(
             error: `entity "${ent.id}": nexus:resourceNode requires string props.nodeId`,
           };
         }
-        const node = getWorldResourceNodeById(nodeId.trim());
+        const node = resolveResourceNode(nodeId.trim());
         if (!node) {
           return {
             ok: false,

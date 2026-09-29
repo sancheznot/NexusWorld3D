@@ -6,6 +6,7 @@
 import {
   getResourceNodeRegistrations,
   type ResourceNodeRegistration,
+  type ResourceNodeRegistry,
 } from "@nexusworld3d/engine-server/resource-node-registry";
 
 export type WorldResourceNodeGrant = { itemId: string; quantity: number };
@@ -72,11 +73,12 @@ export const WORLD_RESOURCE_NODES: WorldResourceNodeDef[] = [
 ];
 
 export function getWorldResourceNodeById(
-  id: string
+  id: string,
+  registry?: Pick<ResourceNodeRegistry, 'getRegisteredResourceNodeById'>
 ): WorldResourceNodeDef | undefined {
   const builtin = WORLD_RESOURCE_NODES.find((n) => n.id === id);
-  if (builtin) return builtin;
-  const reg = getResourceNodeRegistrations().find((n) => n.id === id);
+  if (builtin) return { ...builtin, position: { ...builtin.position }, grants: builtin.grants.map(grant => ({ ...grant })) };
+  const reg = registry ? registry.getRegisteredResourceNodeById(id) : getResourceNodeRegistrations().find((n) => n.id === id);
   return reg ? registrationToDef(reg) : undefined;
 }
 

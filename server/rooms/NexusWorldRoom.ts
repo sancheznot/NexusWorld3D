@@ -29,6 +29,7 @@ import { RockMineEvents } from "@server/modules/RockMineEvents";
 import {
   attachContextRoomPlugins,
   attachGenericWorldToolRouter,
+  createWorldRegistries,
   type PlayerStore,
   type SessionStore,
   type WorldStateStore,
@@ -42,6 +43,7 @@ import {
 import { HousingEvents } from "@server/modules/HousingEvents";
 import { RpgProgression } from "@server/modules/RpgProgression";
 import { RPG_XP_ITEM_PICKUP } from "@/constants/rpgProgression";
+import { getWorldResourceNodeById } from '@/constants/worldResourceNodes';
 import {
   attachCoreFrameworkResources,
   attachLateFrameworkResources,
@@ -199,6 +201,7 @@ export class NexusWorldRoom extends Room {
 
   /** ES: Limpieza registrada por resources/ (registerDisposable). EN: Cleanup from resources/. */
   private resourceDisposables: Array<() => void> = [];
+  readonly worldRegistries = createWorldRegistries({ inheritDefaults: true });
 
   get economyEvents(): EconomyEvents {
     const e = this.frameworkServices.economy;
@@ -222,6 +225,7 @@ export class NexusWorldRoom extends Room {
 
   onCreate(options: { [key: string]: string }) {
     void options;
+    this.registerResourceDisposable(() => this.worldRegistries.clear());
     const persistence = this.createPersistenceStores();
     this.playerStore = persistence.playerStore;
     this.sessionStore = persistence.sessionStore;
@@ -257,9 +261,9 @@ export class NexusWorldRoom extends Room {
     // EN: Core resources (economy → inventory) before items/shop.
     attachCoreFrameworkResources(this);
 
-    attachGenericWorldToolRouter(this, (playerId, itemIds) =>
-      this.inventoryEvents.playerHasAnyOfCatalogItemIds(playerId, itemIds)
-    );
+    this.resourceDisposables.push(attachGenericWorldToolRouter(this, (playerId, itemIds) =>
+      this.inventoryEvents.playerHasAnyOfCatalogItemIds(playerId, itemIds), this.worldRegistries.tools
+    ));
 
     this.rpgProgression = new RpgProgression({
       room: this,
@@ -337,6 +341,7 @@ export class NexusWorldRoom extends Room {
         awardExperience: (pid, amount) =>
           this.rpgProgression.addXp(pid, amount),
         getSceneDocument: () => this.sceneDocumentV0_1,
+        getResourceNode: id => getWorldResourceNodeById(id, this.worldRegistries.resources),
         sceneOnly: () => this.roomWorldId !== null && this.roomWorldId !== nexusWorld3DConfig.worlds.default,
       }),
     ]));
@@ -953,7 +958,7 @@ export class NexusWorldRoom extends Room {
     if (readWorldAccess(doc.worldId)) {
       try { assertScenePlayable(doc); } catch (error) { return { ok: false, error: error instanceof Error ? error.message : 'unsupported_scene' }; }
     }
-    const sem = validateSceneDocumentSemanticsV0_1(doc);
+    const sem = validateSceneDocumentSemanticsV0_1(doc, id => getWorldResourceNodeById(id, this.worldRegistries.resources));
     if (!sem.ok) {
       pushGameMonitorLog("warn", "room", "scene authoring rejected (semantics)", {
         roomId: this.roomId,
@@ -1010,7 +1015,7 @@ export class NexusWorldRoom extends Room {
       return { ok: false, error: msg || "scene_merge_invalid" };
     }
     const doc = parsed.data;
-    const sem = validateSceneDocumentSemanticsV0_1(doc);
+    const sem = validateSceneDocumentSemanticsV0_1(doc, id => getWorldResourceNodeById(id, this.worldRegistries.resources));
     if (readWorldAccess(doc.worldId)) {
       try { assertScenePlayable(doc); } catch (error) { return { ok: false, error: error instanceof Error ? error.message : 'unsupported_scene' }; }
     }

@@ -23,7 +23,26 @@ const stop = installRuntimePlugins(services, [
 stop();
 ```
 
-Existing `attachNexusRoomPlugins` / `attachContextRoomPlugins` also return cleanup and accept the metadata. Existing `attach` methods returning void still work. Keep the returned function and invoke it during room disposal. This is not remote plugin loading, version-range resolution, hot reload or a sandbox for untrusted code. Registry APIs below remain process-wide; installation batches do not automatically isolate them by world.
+Existing `attachNexusRoomPlugins` / `attachContextRoomPlugins` also return cleanup and accept the metadata. Existing `attach` methods returning void still work. Keep the returned function and invoke it during room disposal. This is not remote plugin loading, version-range resolution, hot reload or a sandbox for untrusted code.
+
+### Scoped registries / Registros por sala
+
+`createWorldRegistries()` creates empty, independent `resources`, `effects` and `tools` registries. Their methods mirror the legacy registration/get/clear names. Each registration returns idempotent cleanup which removes only that registration; stale cleanup never removes a replacement. `clear()` clears all three owned registries. Individual factories (`createResourceNodeRegistry`, `createItemEffectRegistry`, `createWorldToolRegistry`) and `fork()` are also available.
+
+```ts
+const scope = createWorldRegistries();
+const stop = installRuntimePlugins(scope, [{ id: 'game:resource', setup(ctx) {
+  return ctx.resources.registerResourceNode({ id: 'ore', mapId: 'exterior',
+    position: { x: 2, y: 0, z: 1 }, radius: 3, grants: [] });
+} }]);
+// Inject scope.tools into attachGenericWorldToolRouter(room, gate, scope.tools).
+// Dispose plugins before clearing their scope:
+stop(); scope.clear();
+```
+
+Legacy top-level functions still address process-wide bootstrap templates. `createWorldRegistries({ inheritDefaults: true })` explicitly copies them once. New registrations/clear operations on templates do not modify existing scopes. `NexusWorldRoom` owns such a snapshot and injects it into inventory effects, resource lookup, scene live validation and generic tools. Scene catalog/publication outside a room still uses bootstrap definitions; runtime registrations are not an editor synchronization or persistence API. Built-in game resource definitions remain shared templates and retain lookup precedence; lookup returns detached data.
+
+Resource positions/grants and tool metadata are copied on insertion/read/fork. Function closures cannot be cloned: stateful handlers must be constructed separately per world, preferably inside plugin setup. Sharing a callback that captures mutable state still shares that captured state. The template API is compatibility support, not an implicit runtime fallback when a scope is supplied.
 
 ---
 

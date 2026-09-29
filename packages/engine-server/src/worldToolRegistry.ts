@@ -27,40 +27,40 @@ export type WorldToolRegistration = WorldToolMeta & {
   serverOnUse: (ctx: WorldToolServerContext) => void;
 };
 
-const metas = new Map<string, WorldToolMeta>();
-const handlers = new Map<string, (ctx: WorldToolServerContext) => void>();
-
-export function registerWorldTool(reg: WorldToolRegistration): void {
-  if (!reg.id?.trim()) {
-    console.warn("[registerWorldTool] skipped — empty id");
-    return;
-  }
-  const id = reg.id.trim();
-  if (metas.has(id)) {
-    console.warn(`[registerWorldTool] duplicate id "${id}" — keeping first`);
-    return;
-  }
-  const { serverOnUse, ...meta } = reg;
-  metas.set(id, { ...meta, id });
-  handlers.set(id, serverOnUse);
+export interface WorldToolRegistry {
+  registerWorldTool(reg: WorldToolRegistration): () => void;
+  getWorldToolMeta(toolId: string): WorldToolMeta | undefined;
+  getWorldToolHandler(toolId: string): WorldToolRegistration['serverOnUse'] | undefined;
+  getWorldToolClientDescriptors(): WorldToolMeta[];
+  clearWorldToolRegistry(): void;
+  fork(): WorldToolRegistry;
 }
-
-export function getWorldToolMeta(toolId: string): WorldToolMeta | undefined {
-  return metas.get(toolId);
+const copyMeta = (meta: WorldToolMeta): WorldToolMeta => ({ ...meta, itemIds: [...meta.itemIds],
+  ...(meta.clientTargetUserData ? { clientTargetUserData: { ...meta.clientTargetUserData } } : {}),
+});
+export function createWorldToolRegistry(initial: readonly WorldToolRegistration[] = []): WorldToolRegistry {
+  const entries = new Map<string, { meta: WorldToolMeta; handler: WorldToolRegistration['serverOnUse'] }>();
+  const registry: WorldToolRegistry = {
+    registerWorldTool(reg) {
+      const id = reg.id?.trim();
+      if (!id || entries.has(id)) { console.warn('[registerWorldTool] skipped empty or duplicate id'); return () => {}; }
+      const { serverOnUse, ...meta } = reg;
+      const stored = { meta: copyMeta({ ...meta, id }), handler: serverOnUse };
+      entries.set(id, stored);
+      return () => { if (entries.get(id) === stored) entries.delete(id); };
+    },
+    getWorldToolMeta(id) {
+      const entry = entries.get(id);
+      if (!entry) return undefined;
+      return copyMeta(entry.meta);
+    },
+    getWorldToolHandler: id => entries.get(id)?.handler,
+    getWorldToolClientDescriptors: () => [...entries.keys()].map(id => registry.getWorldToolMeta(id)!),
+    clearWorldToolRegistry: () => entries.clear(),
+    fork: () => createWorldToolRegistry([...entries.values()].map(entry => ({ ...entry.meta, serverOnUse: entry.handler }))),
+  };
+  for (const entry of initial) registry.registerWorldTool(entry);
+  return registry;
 }
-
-export function getWorldToolHandler(
-  toolId: string
-): ((ctx: WorldToolServerContext) => void) | undefined {
-  return handlers.get(toolId);
-}
-
-/** ES: Metadatos sin handlers (p. ej. depuración / futuro SSR). EN: Metadata without handlers. */
-export function getWorldToolClientDescriptors(): WorldToolMeta[] {
-  return [...metas.values()];
-}
-
-export function clearWorldToolRegistry(): void {
-  metas.clear();
-  handlers.clear();
-}
+export const defaultWorldToolRegistry = createWorldToolRegistry();
+export const { registerWorldTool, getWorldToolMeta, getWorldToolHandler, getWorldToolClientDescriptors, clearWorldToolRegistry } = defaultWorldToolRegistry;

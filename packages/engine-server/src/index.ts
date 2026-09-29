@@ -1,4 +1,8 @@
 import type { Room } from "colyseus";
+export { createWorldRegistries, type WorldRegistries } from './worldRegistries';
+export { createResourceNodeRegistry, type ResourceNodeRegistry } from './resourceNodeRegistry';
+export { createItemEffectRegistry, type ItemEffectRegistry } from './itemEffectRegistry';
+export { createWorldToolRegistry, type WorldToolRegistry } from './worldToolRegistry';
 import { installRuntimePlugins, type PluginMetadata } from './pluginLifecycle';
 export { installRuntimePlugins, PluginCleanupError, type PluginMetadata, type RuntimePlugin } from './pluginLifecycle';
 

@@ -19,26 +19,36 @@ export type ItemConsumeEffectContext = {
  */
 export type ItemConsumeEffect = (ctx: ItemConsumeEffectContext) => void;
 
-const byItemId = new Map<string, ItemConsumeEffect[]>();
-
-export function registerItemEffect(
-  itemId: string,
-  onConsume: ItemConsumeEffect
-): void {
-  const key = itemId.trim();
-  if (!key) {
-    console.warn("[registerItemEffect] skipped — empty itemId");
-    return;
-  }
-  const list = byItemId.get(key) ?? [];
-  list.push(onConsume);
-  byItemId.set(key, list);
+export interface ItemEffectRegistry {
+  registerItemEffect(itemId: string, onConsume: ItemConsumeEffect): () => void;
+  getItemConsumeEffects(itemId: string): ItemConsumeEffect[];
+  clearItemEffectRegistry(): void;
+  fork(): ItemEffectRegistry;
 }
-
-export function getItemConsumeEffects(itemId: string): ItemConsumeEffect[] {
-  return [...(byItemId.get(itemId) ?? [])];
+export function createItemEffectRegistry(initial: ReadonlyArray<readonly [string, ItemConsumeEffect]> = []): ItemEffectRegistry {
+  const byItemId = new Map<string, Array<{ effect: ItemConsumeEffect }>>();
+  const registry: ItemEffectRegistry = {
+    registerItemEffect(itemId, onConsume) {
+      const key = itemId.trim();
+      if (!key) { console.warn('[registerItemEffect] skipped empty itemId'); return () => {}; }
+      const entry = { effect: onConsume };
+      const list = byItemId.get(key) ?? [];
+      list.push(entry); byItemId.set(key, list);
+      return () => {
+        const current = byItemId.get(key);
+        if (!current) return;
+        const index = current.indexOf(entry);
+        if (index < 0) return;
+        current.splice(index, 1);
+        if (!current.length) byItemId.delete(key);
+      };
+    },
+    getItemConsumeEffects: itemId => (byItemId.get(itemId) ?? []).map(entry => entry.effect),
+    clearItemEffectRegistry: () => byItemId.clear(),
+    fork: () => createItemEffectRegistry([...byItemId].flatMap(([key, entries]) => entries.map(entry => [key, entry.effect] as const))),
+  };
+  for (const [id, effect] of initial) registry.registerItemEffect(id, effect);
+  return registry;
 }
-
-export function clearItemEffectRegistry(): void {
-  byItemId.clear();
-}
+export const defaultItemEffectRegistry = createItemEffectRegistry();
+export const { registerItemEffect, getItemConsumeEffects, clearItemEffectRegistry } = defaultItemEffectRegistry;

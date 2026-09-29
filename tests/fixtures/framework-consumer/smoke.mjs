@@ -4,7 +4,7 @@ import { realpathSync } from 'node:fs';
 import { PROTOCOL_VERSION, WorldMessages } from '@nexusworld3d/protocol';
 import { withWorldProtocolJoinOptions, sendGenericWorldTool, createSceneRuntime, mountSceneRuntime } from '@nexusworld3d/engine-client';
 import { parseSceneDocumentV0_1, resolveSceneWorldEntities } from '@nexusworld3d/content-schema';
-import { createInMemoryPlayerStore, attachNexusRoomPlugins, installRuntimePlugins } from '@nexusworld3d/engine-server';
+import { createInMemoryPlayerStore, attachNexusRoomPlugins, installRuntimePlugins, createWorldRegistries } from '@nexusworld3d/engine-server';
 import { registerResourceNode, getRegisteredResourceNodeById } from '@nexusworld3d/engine-server/resource-node-registry';
 import { registerItemEffect } from '@nexusworld3d/engine-server/item-effect-registry';
 import { registerWorldTool } from '@nexusworld3d/engine-server/world-tool-registry';
@@ -52,4 +52,11 @@ registerResourceNode({ id: 'example:node', mapId: 'exterior', position: { x: 0, 
 assert.equal(getRegisteredResourceNodeById('example:node')?.radius, 2);
 assert.equal(typeof registerItemEffect, 'function');
 assert.equal(typeof registerWorldTool, 'function');
+const worldA = createWorldRegistries(), worldB = createWorldRegistries();
+const stopExtension = installRuntimePlugins(worldA, [{ id: 'example:scoped-resource', setup(scope) {
+  return scope.resources.registerResourceNode({ id: 'scoped', mapId: 'exterior', position: { x: 0, y: 0, z: 0 }, radius: 2, grants: [] });
+} }]);
+assert.ok(worldA.resources.getRegisteredResourceNodeById('scoped'));
+assert.equal(worldB.resources.getRegisteredResourceNodeById('scoped'), undefined);
+stopExtension(); assert.equal(worldA.resources.getResourceNodeRegistrations().length, 0);
 console.log('External consumer: ESM + CommonJS, protocol, schema, persistence and extension exports OK');

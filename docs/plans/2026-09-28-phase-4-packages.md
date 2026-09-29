@@ -12,13 +12,13 @@ Orden aprobado: paquetes consumibles fuera del repositorio, después runtime y p
 
 Comandos: `npm run build:packages` genera una carpeta única en `dist/framework/build-*` y actualiza `dist/framework/latest.json`; `npm run check:consumer` reconstruye, instala y verifica. Las compilaciones anteriores no se borran. El consumidor temporal se elimina solo tras éxito; en fallo se conserva su ruta para diagnosticar.
 
-## Bloques pendientes
+## Estado actual
 
-1. Extraer runtime de escenas por interfaces, sin importar la app ni mapas concretos.
-2. Definir ciclo de vida de plugins (id/version/dependencias, registro y dispose), incorporando los registros existentes.
-3. Separar composición de demo/juego y probar una demo real usando solo los artefactos distribuidos.
+1. Completados: empaquetado, consumidor externo, ciclo de vida de plugins y registros de extensiones por sala.
+2. Demo 3D independiente exportable y probada con dos clientes, sin aliases a la raíz. Validación visual aplazada.
+3. Runtime extraído: jerarquías, colliders y spawn por interfaces. Pendientes: interpretación/render genérico de modelos y gameplay restante; el juego principal aún conserva adaptadores y módulos específicos.
 
-El smoke externo del bloque 1 NO demuestra aún un juego independiente completo. Fase 4 permanece abierta hasta cumplir ese criterio. Fases 5 y 6 no se adelantan ni se dan por cerradas.
+El smoke del bloque 1 por sí solo no demostraba una demo: el bloque 3 añade esa prueba real. Fase 4 permanece abierta por la extracción restante. Fases 5 y 6 no se adelantan ni se dan por cerradas.
 
 ## Bloque 2: runtime de escena y ciclo de vida
 
@@ -47,3 +47,15 @@ Alcance: ocho clientes locales como límite de ejemplo, no benchmark; cajas como
 Se satisface la prueba de consumo de una demo fuera del workspace, pero no se declara terminada toda la extracción del juego: render/modelos genéricos, gameplay restante y aislamiento de los registros globales siguen como deuda de fase 4. Fases 5 y 6 continúan abiertas.
 
 Evidencia del bloque 3: **127 pruebas de la raíz + 3 pruebas de la demo exportada**, build web independiente y `check:phase1` pasan. Lint mantiene cero errores y 82 advertencias previas. El bundle minificado de esta demo ronda 704 KiB antes de compresión; es un tamaño observado, no un presupuesto ni un benchmark de fase 6.
+
+## Bloque 4: registros de extensiones por sala
+
+Decisión incremental: factories con estado propio, funciones globales conservadas como plantillas legacy y snapshot explícito al construir cada sala. Se evita una tabla global indexada por worldId: la vida útil pertenece a la sala y su teardown, sin entradas de mundos olvidadas en otro singleton.
+
+`createWorldRegistries()` comienza vacío. `inheritDefaults: true` copia las plantillas una vez, sin fallback vivo. Registros de nodos, efectos y herramientas permiten unregister con propiedad de cada entrada. Un cleanup viejo no elimina un registro nuevo; efectos duplicados tienen handles independientes. Posición/grants y metadatos se copian para que modificar argumentos o resultados no altere otra sala. Callbacks mantienen identidad; sus closures no se pueden copiar y deben crearse por mundo si contienen estado.
+
+`NexusWorldRoom` inyecta su ámbito en inventario, router de herramientas, recolección y validación de escenas aplicada a la sala. Se limpia después de sus plugins. Los nodos builtin conservan precedencia por compatibilidad, como plantillas fijas; las consultas devuelven copias. Publicación/catálogo admin fuera de una sala siguen usando el catálogo de arranque: no se añadió un sistema de edición/sincronización de catálogos por mundo.
+
+Este bloque resuelve el estado mutable de los registros de extensiones del runtime. La extracción de render/modelos genéricos y gameplay restante sigue pendiente; fase 4 no se marca cerrada ni se adelantan las fases 5/6.
+
+Evidencia del bloque 4: **135 pruebas**, integración WebSocket real, consumidor externo, tres pruebas de demo exportada, `check:phase1` y build de producción pasan. Lint: cero errores y 82 advertencias previas. No se modificaron datos productivos ni se publicaron paquetes en npm.

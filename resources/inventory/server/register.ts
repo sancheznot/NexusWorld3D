@@ -13,6 +13,6 @@ export const registerInventoryResource: RegisterServerResource = (ctx) => {
       "[NexusWorld3D] inventory resource requires economy to be registered first"
     );
   }
-  const inventory = new InventoryEvents(ctx.room, economy);
+  const inventory = new InventoryEvents(ctx.room, economy, ctx.room.worldRegistries.effects.getItemConsumeEffects);
   ctx.services.inventory = inventory;
 };

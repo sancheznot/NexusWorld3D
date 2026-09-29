@@ -18,37 +18,38 @@ export type ResourceNodeRegistration = {
   visual?: string;
 };
 
-const byId = new Map<string, ResourceNodeRegistration>();
-
-/**
- * ES: Idempotente por `id`: segundo registro con mismo id se ignora con aviso.
- * EN: Idempotent by `id`; duplicate registration logs a warning and is skipped.
- */
-export function registerResourceNode(node: ResourceNodeRegistration): void {
-  if (!node.id?.trim()) {
-    console.warn("[registerResourceNode] skipped — empty id");
-    return;
-  }
-  if (byId.has(node.id)) {
-    console.warn(
-      `[registerResourceNode] duplicate id "${node.id}" — keeping first`
-    );
-    return;
-  }
-  byId.set(node.id, { ...node, id: node.id.trim() });
+export interface ResourceNodeRegistry {
+  registerResourceNode(node: ResourceNodeRegistration): () => void;
+  getResourceNodeRegistrations(): ResourceNodeRegistration[];
+  getRegisteredResourceNodeById(id: string): ResourceNodeRegistration | undefined;
+  clearResourceNodeRegistry(): void;
+  fork(): ResourceNodeRegistry;
 }
-
-export function getResourceNodeRegistrations(): ResourceNodeRegistration[] {
-  return [...byId.values()];
+const copyNode = (node: ResourceNodeRegistration): ResourceNodeRegistration => ({
+  ...node, position: { ...node.position }, grants: node.grants.map(grant => ({ ...grant })),
+});
+/** Each instance owns its data; returned metadata is detached from stored definitions. */
+export function createResourceNodeRegistry(initial: readonly ResourceNodeRegistration[] = []): ResourceNodeRegistry {
+  const byId = new Map<string, ResourceNodeRegistration>();
+  const registry: ResourceNodeRegistry = {
+    registerResourceNode(node) {
+      const id = node.id?.trim();
+      if (!id || byId.has(id)) {
+        console.warn('[registerResourceNode] skipped empty or duplicate id');
+        return () => {};
+      }
+      const stored = copyNode({ ...node, id });
+      byId.set(id, stored);
+      return () => { if (byId.get(id) === stored) byId.delete(id); };
+    },
+    getResourceNodeRegistrations: () => [...byId.values()].map(copyNode),
+    getRegisteredResourceNodeById(id) { const node = byId.get(id); return node ? copyNode(node) : undefined; },
+    clearResourceNodeRegistry: () => byId.clear(),
+    fork: () => createResourceNodeRegistry([...byId.values()]),
+  };
+  for (const node of initial) registry.registerResourceNode(node);
+  return registry;
 }
-
-/** ES: Tests o hot-reload. EN: Tests or dev reset. */
-export function clearResourceNodeRegistry(): void {
-  byId.clear();
-}
-
-export function getRegisteredResourceNodeById(
-  id: string
-): ResourceNodeRegistration | undefined {
-  return byId.get(id);
-}
+/** Legacy process-wide template; running worlds should inject a fork. */
+export const defaultResourceNodeRegistry = createResourceNodeRegistry();
+export const { registerResourceNode, getResourceNodeRegistrations, getRegisteredResourceNodeById, clearResourceNodeRegistry } = defaultResourceNodeRegistry;

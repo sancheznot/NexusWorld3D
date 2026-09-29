@@ -48,6 +48,7 @@ export type WorldResourceNodeDeps = {
   /** ES: Escena v0.1 en sala (override de posición/radio para `nexus:resourceNode`). EN: In-room v0.1 scene (position/radius overrides). */
   getSceneDocument?: () => import("@nexusworld3d/content-schema").SceneDocumentV0_1 | null;
   sceneOnly?: () => boolean;
+  getResourceNode?: (id: string) => WorldResourceNodeDef | undefined;
 };
 
 export class WorldResourceNodeEvents {
@@ -91,7 +92,7 @@ export class WorldResourceNodeEvents {
           return;
         }
 
-        const baseNode = getWorldResourceNodeById(nodeId);
+        const baseNode = (this.deps.getResourceNode ?? getWorldResourceNodeById)(nodeId);
         if (!baseNode || baseNode.mapId !== mapId) {
           client.send(WorldMessages.HarvestNodeResult, {
             ok: false,
