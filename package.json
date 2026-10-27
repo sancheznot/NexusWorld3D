@@ -81,11 +81,11 @@
     "leva": "^0.10.0",
     "lucide-react": "^1.7.0",
     "mysql2": "^3.20.0",
-    "next": "^15.5.9",
+    "next": "^15.5.28",
     "next-auth": "^5.0.0-beta.30",
     "nodemailer": "^7.0.13",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "react": "19.1.10",
+    "react-dom": "19.1.10",
     "tailwind-merge": "^3.5.0",
     "three": "^0.180.0",
     "three-to-cannon": "^5.0.2",
@@ -102,10 +102,13 @@
     "@types/react-test-renderer": "19.1.0",
     "concurrently": "^9.2.1",
     "eslint": "^9",
-    "eslint-config-next": "15.5.9",
+    "eslint-config-next": "15.5.28",
     "react-test-renderer": "19.1.0",
     "tailwindcss": "^4",
     "tsx": "^4.20.6",
     "typescript": "^5"
+  },
+  "overrides": {
+    "sharp": "^0.35.5"
   }
 }

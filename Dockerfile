@@ -1,11 +1,7 @@
 # Multi-stage build for production
-FROM ghcr.io/railwayapp/nixpacks:ubuntu-1745885067 AS base
-
-# Install Node.js 20
-RUN apt-get update && apt-get install -y curl && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
-    rm -rf /var/lib/apt/lists/*
+# ES: Imagen oficial Node 22 (último parche 22.x en cada build; NodeSource llega tarde a los parches de seguridad).
+# EN: Official Node 22 image (latest 22.x patch on every build; NodeSource lags behind security releases).
+FROM node:22-bookworm AS base
 
 # Install dependencies only when needed
 FROM base AS deps
